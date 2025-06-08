@@ -1,6 +1,7 @@
 // screens/sidebar.dart
 import 'package:flutter/material.dart';
 import 'package:getwidget/getwidget.dart';
+import '../theme.dart';
 
 class Sidebar extends StatelessWidget {
   const Sidebar({super.key});
@@ -12,9 +13,9 @@ class Sidebar extends StatelessWidget {
         children: [
           // Drawer Header with Profile Info
           GFDrawerHeader(
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [Colors.blue.shade800, Colors.blue.shade400],
+                colors: [AppColors.primary, AppColors.accent],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -39,17 +40,18 @@ class Sidebar extends StatelessWidget {
                 Text(
                   'John Doe',
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
                     color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
                   ),
                 ),
-                SizedBox(height: 4),
                 Text(
                   'john@example.com',
-                  style: TextStyle(color: Colors.white70),
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
                 ),
-                SizedBox(height: 8),
               ],
             ),
           ),
