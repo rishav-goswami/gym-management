@@ -21,7 +21,7 @@ app.use(cors({ origin: ["http://localhost:3000"] }));
 app.use(morgan("dev"));
 
 // API routes
-app.use("/api", AuthRoutes);
+app.use("/auth", AuthRoutes);
 
 
 export default server;

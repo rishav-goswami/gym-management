@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'signup_screen.dart';
 import '../theme.dart';
+import 'login_form.dart';
 
 class LoginScreen extends StatelessWidget {
   @override
@@ -27,42 +28,7 @@ class LoginScreen extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.lock_outline, size: 48, color: Theme.of(context).primaryColor),
-                  const SizedBox(height: 16),
-                  Text("Welcome Back!", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 28)),
-                  const SizedBox(height: 24),
-                  TextField(
-                    decoration: InputDecoration(
-                      labelText: "Email",
-                      prefixIcon: Icon(Icons.email_outlined, color: Theme.of(context).primaryColor),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    decoration: InputDecoration(
-                      labelText: "Password",
-                      prefixIcon: Icon(Icons.lock_outline, color: Theme.of(context).primaryColor),
-                    ),
-                    obscureText: true,
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        elevation: 2,
-                      ),
-                      onPressed: () =>
-                          Navigator.pushReplacementNamed(context, '/dashboard'),
-                      child: const Text("Login", style: TextStyle(fontSize: 18)),
-                    ),
-                  ),
+                  const LoginForm(),
                   const SizedBox(height: 12),
                   TextButton(
                     onPressed: () => Navigator.push(

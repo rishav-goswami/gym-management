@@ -1,23 +1,23 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Main palette
-  static const Color primary = Color(0xFF0F7173); // Teal
-  static const Color accent = Color(0xFFB3CBB9); // Muted Mint
-  static const Color background = Color(0xFFDDD8B8); // Light Sand (light bg)
+  // Gym-inspired palette
+  static const Color primary = Color(0xFF232946); // Deep navy blue (strength, focus)
+  static const Color accent = Color(0xFFFF8906); // Vibrant orange (energy, action)
+  static const Color background = Color(0xFFF4F4F6); // Light gray (clean, modern)
   static const Color card = Color(0xFFFFFFFF); // White card for light
-  static const Color textPrimary = Color(0xFF02020B); // Deep Black for text
-  static const Color textSecondary = Color(0xFF0C120C); // Dark Green-Black for secondary text
-  static const Color button = Color(0xFF0F7173); // Teal
-  static const Color error = Color(0xFFD00000); // Red (only for errors)
-  static const Color gradientStart = Color(0xFFB3CBB9); // Muted Mint
-  static const Color gradientEnd = Color(0xFF0F7173); // Teal
+  static const Color textPrimary = Color(0xFF121629); // Almost black (readability)
+  static const Color textSecondary = Color(0xFF6B7280); // Muted gray (secondary info)
+  static const Color button = Color(0xFFFF8906); // Orange (call to action)
+  static const Color error = Color(0xFFDF2935); // Strong red (error/alert)
+  static const Color gradientStart = Color(0xFF232946); // Deep navy
+  static const Color gradientEnd = Color(0xFFFF8906); // Orange
 
-  // Dark theme overrides (new, less greenish, more neutral/dark)
-  static const Color darkBackground = Color(0xFF181824); // Charcoal dark
-  static const Color darkCard = Color(0xFF23232F); // Slightly lighter dark
-  static const Color darkTextPrimary = Color(0xFFECECEC); // Soft white
-  static const Color darkTextSecondary = Color(0xFFB3CBB9); // Muted Mint (for accent)
+  // Dark theme overrides (gym, bold/modern)
+  static const Color darkBackground = Color(0xFF121629); // Deep navy/black
+  static const Color darkCard = Color(0xFF232946); // Slightly lighter navy
+  static const Color darkTextPrimary = Color(0xFFF4F4F6); // Light gray
+  static const Color darkTextSecondary = Color(0xFFFF8906); // Orange accent
 }
 
 final ThemeData lightTheme = ThemeData(

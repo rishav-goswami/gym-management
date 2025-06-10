@@ -5,11 +5,17 @@ import { z } from "zod";
 import ApiResponse from "../utils/api_response";
 import User from "../models/user";
 
-const registerSchema = z.object({
-  name: z.string().min(2, "Name is required"),
-  email: z.string().email("Invalid email"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-});
+const registerSchema = z
+  .object({
+    name: z.string().min(2, "Name is required"),
+    email: z.string().email("Invalid email"),
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    confirmPassword: z.string().min(6, "Password must be at least 6 characters"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email"),
@@ -63,7 +69,7 @@ export const authController = {
 
       const user = await User.findOne({ email });
       if (!user) {
-        return ApiResponse.error(res, "Invalid credentials", 401);
+        return ApiResponse.error(res, "No user found !", 401);
       }
 
       const isMatch = await bcrypt.compare(password, user.password);

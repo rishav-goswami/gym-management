@@ -2,7 +2,7 @@ import app from "./server";
 import { config } from "dotenv";
 config();
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 // Start the Express Server
 app.listen(PORT, (err?: unknown) => {
   if (err) throw err;
