@@ -4,7 +4,7 @@ import { createServer } from "http";
 import cors from "cors";
 import morgan from "morgan";
 import AuthRoutes from "./routes/auth-routes";
-
+import UserRoutes from "./routes/user-routes";
 
 // connecting to database
 (async () => {
@@ -22,6 +22,7 @@ app.use(morgan("dev"));
 
 // API routes
 app.use("/auth", AuthRoutes);
+app.use("/user", UserRoutes);
 
 
 export default server;

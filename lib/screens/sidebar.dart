@@ -1,95 +1,110 @@
 // screens/sidebar.dart
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/profile/profile_bloc.dart';
+import '../bloc/profile/profile_state.dart';
+import 'package:fit_and_fine/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:getwidget/getwidget.dart';
-import '../theme.dart';
 
 class Sidebar extends StatelessWidget {
   const Sidebar({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return GFDrawer(
-      child: Column(
-        children: [
-          // Drawer Header with Profile Info
-          GFDrawerHeader(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppColors.primary, AppColors.accent],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            centerAlign: true,
-            currentAccountPicture: GestureDetector(
-              onTap: () {
-                // Navigate to profile edit screen
-                Navigator.pushNamed(context, '/edit-profile');
-              },
-              child: GFAvatar(
-                radius: 45,
-                backgroundImage: NetworkImage(
-                  "https://cdn.pixabay.com/photo/2017/12/03/18/04/christmas-balls-2995437_960_720.jpg",
-                ),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: const [
-                SizedBox(height: 8),
-                Text(
-                  'John Doe',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
+    return BlocBuilder<ProfileBloc, ProfileState>(
+      builder: (context, state) {
+        String name = 'Guest User';
+        String email = 'guest@email.com';
+        String avatarUrl = '';
+        if (state is ProfileLoaded) {
+          name = state.user.name;
+          email = state.user.email;
+          avatarUrl = state.user.avatarUrl ?? '';
+        }
+        return GFDrawer(
+          child: Column(
+            children: [
+              // Drawer Header with Profile Info
+              GFDrawerHeader(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [AppColors.primary, AppColors.accent],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
                 ),
-                Text(
-                  'john@example.com',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
+                centerAlign: true,
+                currentAccountPicture: GestureDetector(
+                  onTap: () {
+                    // Navigate to profile edit screen
+                    Navigator.pushNamed(context, '/edit-profile');
+                  },
+                  child: GFAvatar(
+                    radius: 45,
+                    backgroundImage: avatarUrl.isNotEmpty
+                        ? AssetImage(avatarUrl) as ImageProvider
+                        : const AssetImage('assets/avatars/avatar1.png'),
                   ),
                 ),
-              ],
-            ),
-          ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    SizedBox(height: 8),
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                      ),
+                    ),
+                    Text(
+                      email,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
-          // Drawer Menu Items
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.only(top: 8),
-              children: [
-                _drawerItem(
-                  icon: Icons.dashboard,
-                  text: 'Dashboard',
-                  onTap: () =>
-                      Navigator.pushReplacementNamed(context, '/dashboard'),
+              // Drawer Menu Items
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.only(top: 8),
+                  children: [
+                    _drawerItem(
+                      icon: Icons.dashboard,
+                      text: 'Dashboard',
+                      onTap: () =>
+                          Navigator.pushReplacementNamed(context, '/dashboard'),
+                    ),
+                    _drawerItem(
+                      icon: Icons.person,
+                      text: 'Profile',
+                      onTap: () => Navigator.pushNamed(context, '/profile'),
+                    ),
+                    _drawerItem(
+                      icon: Icons.settings,
+                      text: 'Settings',
+                      onTap: () => Navigator.pushNamed(context, '/settings'),
+                    ),
+                    Divider(thickness: 1.2),
+                    _drawerItem(
+                      icon: Icons.logout,
+                      text: 'Logout',
+                      color: Colors.red,
+                      onTap: () =>
+                          Navigator.pushReplacementNamed(context, '/login'),
+                    ),
+                  ],
                 ),
-                _drawerItem(
-                  icon: Icons.person,
-                  text: 'Profile',
-                  onTap: () => Navigator.pushNamed(context, '/profile'),
-                ),
-                _drawerItem(
-                  icon: Icons.settings,
-                  text: 'Settings',
-                  onTap: () => Navigator.pushNamed(context, '/settings'),
-                ),
-                Divider(thickness: 1.2),
-                _drawerItem(
-                  icon: Icons.logout,
-                  text: 'Logout',
-                  color: Colors.red,
-                  onTap: () =>
-                      Navigator.pushReplacementNamed(context, '/login'),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 

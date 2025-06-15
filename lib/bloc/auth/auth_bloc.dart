@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:http/http.dart' as http;
 import 'auth_event.dart';
 import 'auth_state.dart';
+import '../../models/user_profile.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final String baseUrl;
@@ -32,7 +33,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       if (response.statusCode == 200 && data['data'] != null) {
         emit(AuthAuthenticated(
           token: data['data']['token'],
-          user: data['data']['user'],
+          user: UserProfile.fromMap(data['data']['user']),
         ));
       } else {
         emit(AuthError(data['message'] ?? 'Login failed'));
@@ -62,7 +63,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       if (response.statusCode == 201 && data['data'] != null) {
         emit(AuthAuthenticated(
           token: data['data']['token'] ?? '',
-          user: data['data'],
+          user: UserProfile.fromMap(data['data']),
         ));
       } else {
         emit(AuthError(data['message'] ?? 'Registration failed'));

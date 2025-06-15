@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../models/user_profile.dart';
 
 abstract class AuthState extends Equatable {
   const AuthState();
@@ -13,7 +14,7 @@ class AuthLoading extends AuthState {}
 
 class AuthAuthenticated extends AuthState {
   final String token;
-  final Map<String, dynamic> user;
+  final UserProfile user;
 
   const AuthAuthenticated({required this.token, required this.user});
 
