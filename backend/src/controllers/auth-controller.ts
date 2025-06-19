@@ -4,13 +4,31 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import ApiResponse from "../utils/api_response";
 import User from "../models/user";
+import { revokeToken } from "../utils/revokeTokenStore";
+import "../types/express"; // Ensure the augmentation is loaded
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: Object | any;
+    }
+  }
+}
+
+interface JwtUser {
+  _id: string;
+  email: string;
+  [key: string]: any;
+}
 
 const registerSchema = z
   .object({
     name: z.string().min(2, "Name is required"),
     email: z.string().email("Invalid email"),
     password: z.string().min(6, "Password must be at least 6 characters"),
-    confirmPassword: z.string().min(6, "Password must be at least 6 characters"),
+    confirmPassword: z
+      .string()
+      .min(6, "Password must be at least 6 characters"),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
@@ -27,7 +45,11 @@ export const authController = {
     try {
       const parsed = registerSchema.safeParse(req.body);
       if (!parsed.success) {
-        return ApiResponse.validationError(res, parsed.error, "Validation failed");
+        return ApiResponse.validationError(
+          res,
+          parsed.error,
+          "Validation failed"
+        );
       }
 
       const { name, email, password } = parsed.data;
@@ -62,7 +84,11 @@ export const authController = {
     try {
       const parsed = loginSchema.safeParse(req.body);
       if (!parsed.success) {
-        return ApiResponse.validationError(res, parsed.error, "Validation failed");
+        return ApiResponse.validationError(
+          res,
+          parsed.error,
+          "Validation failed"
+        );
       }
 
       const { email, password } = parsed.data;
@@ -103,5 +129,21 @@ export const authController = {
   logout: async (_req: Request, res: Response): Promise<Response> => {
     // Token-based auth doesn't need server-side logout unless using refresh tokens
     return ApiResponse.success(res, {}, "User logged out successfully");
+  },
+
+  revokeJwt: async (req: Request, res: Response): Promise<Response> => {
+    const authHeader = req.headers["authorization"];
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return ApiResponse.error(res, "No token provided", 401);
+    }
+    const token = authHeader.split(" ")[1];
+    // Assuming a JWT middleware attaches user info to req.user
+    const user = req.user as JwtUser | undefined;
+    const userId = user ? user._id : undefined;
+    if (!userId) {
+      return ApiResponse.error(res, "User not authenticated", 401);
+    }
+    await revokeToken(token, userId);
+    return ApiResponse.success(res, {}, "Token revoked successfully");
   },
 };
