@@ -13,7 +13,6 @@ export interface IUser extends Document, IUserMethods {
   email: string;
   password: string;
   avatarUrl?: string;
-  role: "user" | "trainer" | "admin";
   trainerId?: Types.ObjectId;
   healthGoals: string;
   subscription: Types.ObjectId;
@@ -23,6 +22,7 @@ export interface IUser extends Document, IUserMethods {
   height?: number;
   weight?: number;
   bio?: string;
+  verified: Boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,7 +33,6 @@ const UserSchema = new Schema<IUser, Model<IUser>, IUserMethods>({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   avatarUrl: { type: String },
-  role: { type: String, enum: ["user", "trainer", "admin"], required: true },
   trainerId: { type: Schema.Types.ObjectId, ref: "Trainer" },
   healthGoals: { type: String },
   subscription: { type: Schema.Types.ObjectId, ref: "Subscription" },
@@ -43,6 +42,7 @@ const UserSchema = new Schema<IUser, Model<IUser>, IUserMethods>({
   height: { type: Number },
   weight: { type: Number },
   bio: { type: String },
+  verified: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });

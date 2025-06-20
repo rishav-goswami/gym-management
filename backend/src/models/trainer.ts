@@ -14,6 +14,7 @@ export interface ITrainer extends Document, ITrainerMethods {
   password: string;
   assignedUsers: Types.ObjectId[];
   profileImage?: string;
+  verified: Boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,6 +26,7 @@ const TrainerSchema = new Schema<ITrainer, Model<ITrainer>, ITrainerMethods>({
   password: { type: String, required: true },
   assignedUsers: [{ type: Schema.Types.ObjectId, ref: "User" }],
   profileImage: { type: String },
+  verified: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });

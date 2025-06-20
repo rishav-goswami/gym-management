@@ -28,6 +28,7 @@ const registerSchema = z
   .object({
     name: z.string().min(2, "Name is required"),
     email: z.string().email("Invalid email"),
+    role: z.enum(["TRAINER", "USER"]),
     password: z.string().min(6, "Password must be at least 6 characters"),
     confirmPassword: z
       .string()
@@ -56,31 +57,48 @@ export const authController = {
         );
       }
 
-      const { name, email, password } = parsed.data;
+      const { name, email, password, role } = parsed.data;
 
-      const existingUser = await User.findOne({ email });
-      if (existingUser) {
-        return ApiResponse.error(res, "Email already registered", 409);
+      // Choose the correct model
+      const Model = (role === "TRAINER" ? Trainer : User) as
+        | typeof User
+        | typeof Trainer;
+
+      // Check for duplicate
+      const existing = await (Model as any).findOne({ email });
+      if (existing) {
+        return ApiResponse.error(res, "Email is already registered", 400);
       }
 
-      const hashedPassword = await bcrypt.hash(password, 10);
-
-      const newUser = new User({
+      const newUser = new Model({
         name,
         email,
-        password: hashedPassword,
+        password, // Will be hashed by `pre("save")` hook
       });
 
       await newUser.save();
 
+      const token = signJwt({
+        id: newUser._id.toString(),
+        email: newUser.email,
+        role,
+      });
+
       return ApiResponse.success(
         res,
-        { id: newUser._id, email: newUser.email, name: newUser.name },
-        "User registered successfully",
-        201
+        {
+          token,
+          user: {
+            id: newUser._id,
+            name: newUser.name,
+            email: newUser.email,
+            role,
+          },
+        },
+        `${role} registered successfully`
       );
-    } catch (error) {
-      return ApiResponse.error(res, "Registration failed", 500, error as Error);
+    } catch (err) {
+      return ApiResponse.error(res, "Registration failed", 500, err as Error);
     }
   },
 
