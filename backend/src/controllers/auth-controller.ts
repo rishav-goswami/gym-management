@@ -7,6 +7,7 @@ import User, { IUser } from "../models/user";
 import { revokeToken } from "../utils/revokeTokenStore";
 import Trainer, { ITrainer } from "../models/trainer";
 import Admin, { IAdmin } from "../models/admin";
+import { signJwt } from "../utils/jwt";
 // import "../types/express"; // Ensure the augmentation is loaded
 
 declare global {
@@ -120,15 +121,12 @@ export const authController = {
         return ApiResponse.error(res, "Invalid credentials", 401);
       }
 
-      const token = jwt.sign(
-        {
-          id: user._id,
-          email: user.email,
-          role,
-        },
-        process.env.JWT_SECRET || "your_jwt_secret",
-        { expiresIn: "1h" }
-      );
+      // Token payload type-safe
+      const token = signJwt({
+        id: user._id.toString(),
+        email: user.email,
+        role,
+      });
 
       return ApiResponse.success(
         res,
@@ -136,8 +134,8 @@ export const authController = {
           token,
           user: {
             id: user._id,
-            email: user.email,
             name: user.name,
+            email: user.email,
             role,
           },
         },
