@@ -8,13 +8,13 @@ import { revokeToken } from "../utils/revokeTokenStore";
 export const adminController = {
   // Get all users
   getAllUsers: async (req: Request, res: Response) => {
-    const users = await User.find();
+    const users = await User.find().select("-password");
     return ApiResponse.success(res, users);
   },
 
   // Get all trainers
   getAllTrainers: async (req: Request, res: Response) => {
-    const trainers = await Trainer.find();
+    const trainers = await Trainer.find().select("-password");
     return ApiResponse.success(res, trainers);
   },
 

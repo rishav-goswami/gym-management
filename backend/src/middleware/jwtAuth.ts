@@ -48,14 +48,13 @@ export async function jwtAuth(
   }
 }
 
-export function requireRole(
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction,
-  roles: string
-) {
-  if (!req.user || !roles.includes(req.user.role)) {
-    return res.status(403).json({ message: "Forbidden: insufficient role" });
-  }
-  next();
+export function requireRole(...roles: string[]) {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      res.status(403).json({ message: "Forbidden: insufficient role" });
+      console.warn("Token User Value (req.user) %o but the required role is", req.user,roles);
+      return;
+    }
+    next();
+  };
 }

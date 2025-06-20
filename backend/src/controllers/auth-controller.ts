@@ -44,7 +44,10 @@ const loginSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
   role: z.enum(["ADMIN", "USER", "TRAINER"]),
 });
-
+/**
+ * This is a basic controller to handle basic login and register for user and trainers
+ * TODO: implement logout , revokeTokens , refreshTokens, and other security measures
+ */
 export const authController = {
   register: async (req: Request, res: Response): Promise<Response> => {
     try {

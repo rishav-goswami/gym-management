@@ -1,13 +1,13 @@
 import express, { NextFunction, Request, Response } from "express";
 import { adminController } from "../controllers/admin-controller";
 import { asyncHandler } from "../utils/asyncHandler";
-import { jwtAuth } from "../middleware/jwtAuth";
+import { jwtAuth, requireRole } from "../middleware/jwtAuth";
 import { ROLES } from "../constants/roles";
 
 const router = express.Router();
 
 // All routes require admin role
-router.use(jwtAuth);
+router.use(jwtAuth,requireRole(ROLES.ADMIN));
 
 router.get("/users", asyncHandler(adminController.getAllUsers));
 router.get("/trainers", asyncHandler(adminController.getAllTrainers));
