@@ -3,9 +3,11 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import ApiResponse from "../utils/api_response";
-import User from "../models/user";
+import User, { IUser } from "../models/user";
 import { revokeToken } from "../utils/revokeTokenStore";
-import "../types/express"; // Ensure the augmentation is loaded
+import Trainer, { ITrainer } from "../models/trainer";
+import Admin, { IAdmin } from "../models/admin";
+// import "../types/express"; // Ensure the augmentation is loaded
 
 declare global {
   namespace Express {
@@ -38,6 +40,7 @@ const registerSchema = z
 const loginSchema = z.object({
   email: z.string().email("Invalid email"),
   password: z.string().min(6, "Password must be at least 6 characters"),
+  role: z.enum(["ADMIN", "USER", "TRAINER"]),
 });
 
 export const authController = {
@@ -91,20 +94,38 @@ export const authController = {
         );
       }
 
-      const { email, password } = parsed.data;
+      const { email, password, role } = parsed.data;
 
-      const user = await User.findOne({ email });
-      if (!user) {
-        return ApiResponse.error(res, "No user found !", 401);
+      let user:
+        | (typeof User extends { prototype: infer U } ? U : never)
+        | (typeof Admin extends { prototype: infer A } ? A : never)
+        | (typeof Trainer extends { prototype: infer T } ? T : never)
+        | null = null;
+
+      // Fetch user based on role
+      if (role === "USER") {
+        user = await User.findOne({ email });
+      } else if (role === "TRAINER") {
+        user = await Trainer.findOne({ email });
+      } else if (role === "ADMIN") {
+        user = await Admin.findOne({ email });
       }
 
-      const isMatch = await bcrypt.compare(password, user.password);
+      if (!user) {
+        return ApiResponse.error(res, "No user found!", 401);
+      }
+
+      const isMatch = await user.comparePassword(password);
       if (!isMatch) {
         return ApiResponse.error(res, "Invalid credentials", 401);
       }
 
       const token = jwt.sign(
-        { id: user._id, email: user.email },
+        {
+          id: user._id,
+          email: user.email,
+          role,
+        },
         process.env.JWT_SECRET || "your_jwt_secret",
         { expiresIn: "1h" }
       );
@@ -117,6 +138,7 @@ export const authController = {
             id: user._id,
             email: user.email,
             name: user.name,
+            role,
           },
         },
         "User logged in successfully"

@@ -1,6 +1,6 @@
 import mongoose, { Document, Schema, ObjectId} from "mongoose";
 
-interface ChatMessage {
+interface IChatMessage extends Document {
   _id: ObjectId,
   from: ObjectId,
   to: ObjectId,
@@ -17,5 +17,5 @@ const ChatMessageSchema = new Schema({
   read: { type: Boolean, default: false },
 });
 
-const ChatMessage = mongoose.model('ChatMessage', ChatMessageSchema);
+const ChatMessage = mongoose.model<IChatMessage>('ChatMessage', ChatMessageSchema);
 export default ChatMessage;

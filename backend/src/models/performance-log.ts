@@ -1,10 +1,10 @@
-import mongoose, { Document, Schema, ObjectId} from "mongoose";
+import mongoose, { Document, Schema, ObjectId } from "mongoose";
 
-interface PerformanceLog {
-  date: Date,
-  weight: number,
-  caloriesBurned: number,
-  notes?: string
+interface IPerformanceLog extends Document {
+  date: Date;
+  weight: number;
+  caloriesBurned: number;
+  notes?: string;
 }
 
 export const PerformanceLogSchema = new Schema({
@@ -13,3 +13,8 @@ export const PerformanceLogSchema = new Schema({
   caloriesBurned: { type: Number, required: true },
   notes: { type: String },
 });
+const PerformanceLog = mongoose.model<IPerformanceLog>(
+  "PerformanceLog",
+  PerformanceLogSchema
+);
+export default PerformanceLog;

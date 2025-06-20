@@ -3,6 +3,10 @@ import User from "../models/user";
 import ApiResponse from "../utils/api_response";
 import { z } from "zod";
 import jwt from "jsonwebtoken";
+import WorkoutRoutine from '../models/workout-routine';
+import DietPlan from '../models/diet-plan';
+import PaymentHistory from '../models/payment-history';
+import PerformanceLogSchema from '../models/performance-log';
 
 const updateProfileSchema = z.object({
   name: z.string().min(2).optional(),
@@ -30,7 +34,7 @@ export const userController = {
   getProfile: async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return ApiResponse.error(res, "Unauthorized", 401);
-    const user = await User.findById(userId).select("-password");
+    const user = await User.findById(userId).select("-password").populate('subscription performance trainerId');
     if (!user) return ApiResponse.error(res, "User not found", 404);
     return ApiResponse.success(res, user, "Profile fetched");
   },
@@ -46,5 +50,35 @@ export const userController = {
     const user = await User.findByIdAndUpdate(userId, update, { new: true, runValidators: true }).select("-password");
     if (!user) return ApiResponse.error(res, "User not found", 404);
     return ApiResponse.success(res, user, "Profile updated");
+  },
+
+  getWorkout: async (req: Request, res: Response) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return ApiResponse.error(res, "Unauthorized", 401);
+    const routine = await WorkoutRoutine.findOne({ userId });
+    return ApiResponse.success(res, {routine});
+  },
+
+  getDiet: async (req: Request, res: Response) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return ApiResponse.error(res, "Unauthorized", 401);
+    const diet = await DietPlan.findOne({ userId });
+    return ApiResponse.success(res, {diet});
+  },
+
+  getPayments: async (req: Request, res: Response) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return ApiResponse.error(res, "Unauthorized", 401);
+    const payments = await PaymentHistory.find({ userId });
+    return ApiResponse.success(res, payments);
+  },
+
+  logPerformance: async (req: Request, res: Response) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return ApiResponse.error(res, "Unauthorized", 401);
+    const { date, weight, caloriesBurned, notes } = req.body;
+    const log = await PerformanceLogSchema.create({ date, weight, caloriesBurned, notes });
+    await User.findByIdAndUpdate(userId, { $push: { performance: log._id } });
+    return ApiResponse.success(res, log);
   },
 };

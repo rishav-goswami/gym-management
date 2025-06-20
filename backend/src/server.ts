@@ -5,6 +5,9 @@ import cors from "cors";
 import morgan from "morgan";
 import AuthRoutes from "./routes/auth-routes";
 import UserRoutes from "./routes/user-routes";
+import AdminRoutes from "./routes/admin-routes";
+import TrainerRoutes from "./routes/trainer-routes";
+import { apiKeyAuth } from "./middleware/apiKeyAuth";
 
 // connecting to database
 (async () => {
@@ -19,10 +22,11 @@ const server = createServer(app);
 app.use(express.json());
 app.use(cors({ origin: ["http://localhost:3000"] }));
 app.use(morgan("dev"));
-
+app.use(apiKeyAuth);
 // API routes
 app.use("/auth", AuthRoutes);
 app.use("/user", UserRoutes);
-
+app.use("/admin", AdminRoutes);
+app.use("/trainer", TrainerRoutes);
 
 export default server;

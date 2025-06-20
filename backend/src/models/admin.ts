@@ -2,35 +2,33 @@ import mongoose, { Document, Schema, Model, Types } from "mongoose";
 import bcrypt from "bcryptjs";
 
 // Custom instance method interface
-interface ITrainerMethods {
+interface IAdminMethods {
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
-// Full document interface with methods
-export interface ITrainer extends Document, ITrainerMethods {
+// Full document interface including custom methods
+export interface IAdmin extends Document, IAdminMethods {
   _id: Types.ObjectId;
   name: string;
   email: string;
   password: string;
-  assignedUsers: Types.ObjectId[];
-  profileImage?: string;
+  profileImage: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-// Schema with proper generics
-const TrainerSchema = new Schema<ITrainer, Model<ITrainer>, ITrainerMethods>({
+// Define schema with generics: <IAdmin, Model<IAdmin>, IAdminMethods>
+const AdminSchema = new Schema<IAdmin, Model<IAdmin>, IAdminMethods>({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  assignedUsers: [{ type: Schema.Types.ObjectId, ref: "User" }],
   profileImage: { type: String },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });
 
 // Hash password before saving
-TrainerSchema.pre("save", async function (next) {
+AdminSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
   try {
     const salt = await bcrypt.genSalt(10);
@@ -41,13 +39,13 @@ TrainerSchema.pre("save", async function (next) {
   }
 });
 
-// Instance method to compare passwords
-TrainerSchema.methods.comparePassword = async function (
+// Add method to compare password
+AdminSchema.methods.comparePassword = async function (
   candidatePassword: string
 ): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-// Export model
-const Trainer = mongoose.model<ITrainer>("Trainer", TrainerSchema);
-export default Trainer;
+// Create model
+const Admin = mongoose.model<IAdmin>("Admin", AdminSchema);
+export default Admin;

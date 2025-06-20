@@ -1,28 +1,34 @@
-// backend/src/models/user.ts
-import mongoose, { Document, Schema, ObjectId } from "mongoose";
+import mongoose, { Document, Schema, Model, Types } from "mongoose";
 import bcrypt from "bcryptjs";
 
-export interface IUser extends Document {
-  _id: ObjectId;
+// Methods attached to user instance
+interface IUserMethods {
+  comparePassword(candidatePassword: string): Promise<boolean>;
+}
+
+// Document with both props and methods
+export interface IUser extends Document, IUserMethods {
+  _id: Types.ObjectId;
   name: string;
   email: string;
   password: string;
-  avatarUrl?: string; // URL or asset name for avatar
+  avatarUrl?: string;
   role: "user" | "trainer" | "admin";
-  trainerId?: ObjectId;
+  trainerId?: Types.ObjectId;
   healthGoals: string;
-  subscription: ObjectId; // Reference to Subscription
-  performance: ObjectId[]; // Reference to PerformanceLog
+  subscription: Types.ObjectId;
+  performance: Types.ObjectId[];
   age?: number;
   gender?: "male" | "female" | "other";
-  height?: number; // in cm
-  weight?: number; // in kg
+  height?: number;
+  weight?: number;
   bio?: string;
   createdAt: Date;
   updatedAt: Date;
 }
-interface User {}
-const UserSchema = new Schema<IUser>({
+
+// Define schema with <Schema<IUser, Model<IUser>, IUserMethods>>
+const UserSchema = new Schema<IUser, Model<IUser>, IUserMethods>({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
@@ -41,6 +47,7 @@ const UserSchema = new Schema<IUser>({
   updatedAt: { type: Date, default: Date.now },
 });
 
+// Password hash middleware
 UserSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
   try {
@@ -52,6 +59,7 @@ UserSchema.pre("save", async function (next) {
   }
 });
 
+// Custom method
 UserSchema.methods.comparePassword = async function (
   candidatePassword: string
 ) {

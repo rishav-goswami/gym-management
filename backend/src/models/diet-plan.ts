@@ -1,32 +1,29 @@
 import mongoose, { Document, Schema, ObjectId } from "mongoose";
 
-interface IWorkoutRoutine extends Document {
+interface IDietPlan extends Document {
   _id: ObjectId;
   userId: ObjectId;
-  days: [
+  dayWiseDiet: [
     {
       day: string;
-      exercises: string[];
+      meals: string[];
     }
   ];
   createdBy: ObjectId;
   createdAt: Date;
 }
 
-const WorkoutRoutineSchema = new Schema({
+const DietPlanSchema = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-  days: [
+  dayWiseDiet: [
     {
       day: { type: String, required: true },
-      exercises: [{ type: String, required: true }],
+      meals: [{ type: String, required: true }],
     },
   ],
   createdBy: { type: Schema.Types.ObjectId, ref: "Trainer", required: true },
   createdAt: { type: Date, default: Date.now },
 });
 
-const WorkoutRoutine = mongoose.model<IWorkoutRoutine>(
-  "WorkoutRoutine",
-  WorkoutRoutineSchema
-);
-export default WorkoutRoutine;
+const DietPlan = mongoose.model<IDietPlan>("DietPlan", DietPlanSchema);
+export default DietPlan;
