@@ -1,5 +1,6 @@
 // screens/login_screen.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../register/signup_screen.dart';
 import '../../../core/theme/theme.dart';
 import 'login_form.dart';
@@ -34,12 +35,7 @@ class LoginScreen extends StatelessWidget {
                   const LoginForm(),
                   const SizedBox(height: 12),
                   TextButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => SignupScreen(role: role),
-                      ),
-                    ),
+                    onPressed: () => context.go("/signup/$role"),
                     child: Text(
                       "Don't have an account? Sign up",
                       style: Theme.of(context).textTheme.bodySmall,

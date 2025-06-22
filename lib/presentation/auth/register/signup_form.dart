@@ -1,3 +1,4 @@
+import 'package:fit_and_fine/core/services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../logic/auth/auth_bloc.dart';
@@ -26,13 +27,17 @@ class _SignupFormState extends State<SignupForm> {
     super.dispose();
   }
 
-  void _onSignupPressed() {
+  void _onSignupPressed() async {
+    if (!context.mounted) return;
+    final role = await StorageService.getUserRole();
+    // ignore: use_build_context_synchronously
     context.read<AuthBloc>().add(
       AuthRegisterRequested(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
         confirmPassword: _confirmPasswordController.text.trim(),
+        role: role!,
       ),
     );
   }
@@ -115,11 +120,13 @@ class _SignupFormState extends State<SignupForm> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-               
                 onPressed: state is AuthLoading ? null : _onSignupPressed,
                 child: state is AuthLoading
                     ? const CircularProgressIndicator.adaptive()
-                    : Text("Create Account",style: Theme.of(context).textTheme.bodyLarge,),
+                    : Text(
+                        "Create Account",
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
               ),
             ),
           ],

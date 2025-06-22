@@ -1,18 +1,24 @@
-import 'dart:convert';
-import 'package:bloc/bloc.dart';
-import 'package:equatable/equatable.dart';
-import 'package:fit_and_fine/core/constants/constant.dart';
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'auth_event.dart';
-import 'auth_state.dart';
-import '../../models/user_profile.dart';
+// ============================
+// ✅ Clean Architecture Setup
+// ============================
+
+// 1. Move HTTP and storage logic to separate layers
+// 2. Bloc calls AuthRepository only
+// 3. Repository handles API and local storage
+
+// ============
+// auth_bloc.dart
+// ============
+
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:fit_and_fine/data/repositories/auth_repository.dart';
+import 'package:fit_and_fine/logic/auth/auth_event.dart';
+import 'package:fit_and_fine/logic/auth/auth_state.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
-  final String baseUrl = AppConstants.baseUrl;
-  final String xApiKey = AppConstants.xApiKey;
+  final AuthRepository repository;
 
-  AuthBloc() : super(AuthInitial()) {
+  AuthBloc(this.repository) : super(AuthInitial()) {
     on<AuthLoginRequested>(_onLoginRequested);
     on<AuthRegisterRequested>(_onRegisterRequested);
     on<AuthLogoutRequested>(_onLogoutRequested);
@@ -24,24 +30,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
     try {
-      debugPrint("xapikey:$xApiKey and baseurl: $baseUrl");
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/auth/login'),
-        headers: {'Content-Type': 'application/json', "x-api-key": xApiKey},
-        body: jsonEncode({'email': event.email, 'password': event.password}),
+      final (token, user) = await repository.login(
+        email: event.email,
+        password: event.password,
+        role: event.role,
       );
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 && data['data'] != null) {
-        emit(
-          AuthAuthenticated(
-            token: data['data']['token'],
-            user: UserProfile.fromMap(data['data']['user']),
-          ),
-        );
-      } else {
-        emit(AuthError(data['message'] ?? 'Login failed'));
-      }
+      emit(AuthAuthenticated(token: token, user: user));
     } catch (e) {
       emit(AuthError('Login failed: $e'));
     }
@@ -53,33 +47,24 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/auth/register'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'name': event.name,
-          'email': event.email,
-          'password': event.password,
-          'confirmPassword': event.confirmPassword,
-        }),
+      final (token, user) = await repository.register(
+        name: event.name,
+        email: event.email,
+        password: event.password,
+        confirmPassword: event.confirmPassword,
+        role: event.role
       );
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 201 && data['data'] != null) {
-        emit(
-          AuthAuthenticated(
-            token: data['data']['token'] ?? '',
-            user: UserProfile.fromMap(data['data']),
-          ),
-        );
-      } else {
-        emit(AuthError(data['message'] ?? 'Registration failed'));
-      }
+      emit(AuthAuthenticated(token: token, user: user));
     } catch (e) {
       emit(AuthError('Registration failed: $e'));
     }
   }
 
-  void _onLogoutRequested(AuthLogoutRequested event, Emitter<AuthState> emit) {
+  Future<void> _onLogoutRequested(
+    AuthLogoutRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    await repository.logout();
     emit(AuthUnauthenticated());
   }
 }

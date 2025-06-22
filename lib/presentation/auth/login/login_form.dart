@@ -1,3 +1,4 @@
+import 'package:fit_and_fine/core/services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../logic/auth/auth_bloc.dart';
@@ -22,11 +23,15 @@ class _LoginFormState extends State<LoginForm> {
     super.dispose();
   }
 
-  void _onLoginPressed() {
+  void _onLoginPressed() async {
+    if (!context.mounted) return;
+    final role = await StorageService.getUserRole();
+    // ignore: use_build_context_synchronously
     context.read<AuthBloc>().add(
       AuthLoginRequested(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
+        role: role!,
       ),
     );
   }
@@ -38,24 +43,36 @@ class _LoginFormState extends State<LoginForm> {
         if (state is AuthAuthenticated) {
           Navigator.pushReplacementNamed(context, '/dashboard');
         } else if (state is AuthError) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(state.message)));
         }
       },
       builder: (context, state) {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.lock_outline, size: 48, color: Theme.of(context).primaryColor),
+            Icon(
+              Icons.lock_outline,
+              size: 48,
+              color: Theme.of(context).primaryColor,
+            ),
             const SizedBox(height: 16),
-            Text("Welcome Back!", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 28)),
+            Text(
+              "Welcome Back!",
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontSize: 28),
+            ),
             const SizedBox(height: 24),
             TextField(
               controller: _emailController,
               decoration: InputDecoration(
                 labelText: "Email",
-                prefixIcon: Icon(Icons.email_outlined, color: Theme.of(context).primaryColor),
+                prefixIcon: Icon(
+                  Icons.email_outlined,
+                  color: Theme.of(context).primaryColor,
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -63,7 +80,10 @@ class _LoginFormState extends State<LoginForm> {
               controller: _passwordController,
               decoration: InputDecoration(
                 labelText: "Password",
-                prefixIcon: Icon(Icons.lock_outline, color: Theme.of(context).primaryColor),
+                prefixIcon: Icon(
+                  Icons.lock_outline,
+                  color: Theme.of(context).primaryColor,
+                ),
               ),
               obscureText: true,
             ),
