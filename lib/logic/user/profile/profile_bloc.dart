@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:bloc/bloc.dart';
-import 'package:fit_and_fine/config/constant.dart';
+import 'package:fit_and_fine/core/constants/constant.dart';
 
 import 'package:http/http.dart' as http;
 

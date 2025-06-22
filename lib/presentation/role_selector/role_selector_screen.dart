@@ -1,3 +1,5 @@
+import 'package:fit_and_fine/core/constants/auth_role_enum.dart';
+import 'package:fit_and_fine/core/services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +8,7 @@ class RoleSelectorScreen extends StatelessWidget {
   const RoleSelectorScreen({super.key});
 
   void _navigateToRole(BuildContext context, String role) {
+    StorageService.saveUserRole(AuthRole.fromString(role)!);
     context.go('/login/$role');
   }
 
@@ -15,17 +18,17 @@ class RoleSelectorScreen extends StatelessWidget {
       {
         'title': 'User',
         'subtitle': 'Track workouts and progress',
-        'icon': 'assets/user_icon.svg',
+        'icon': 'assets/images/welcome/user_role.svg',
       },
       {
         'title': 'Trainer',
         'subtitle': 'Manage clients and plans',
-        'icon': 'assets/trainer_icon.svg',
+        'icon': 'assets/images/welcome/trainer_role.svg',
       },
       {
         'title': 'Admin',
         'subtitle': 'Manage gym operations',
-        'icon': 'assets/admin_icon.svg',
+        'icon': 'assets/images/welcome/admin_role.svg',
       },
     ];
 

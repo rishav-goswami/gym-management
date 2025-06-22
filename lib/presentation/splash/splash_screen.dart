@@ -1,6 +1,8 @@
+import 'package:fit_and_fine/core/services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/constants/auth_role_enum.dart';
 // import 'package:lottie/lottie.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -19,9 +21,32 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _controller = AnimationController(vsync: this);
 
-    Future.delayed(const Duration(seconds: 3), () {
+    _navigateAfterDelay(); // Call the async logic separately
+  }
+
+  Future<void> _navigateAfterDelay() async {
+    await Future.delayed(const Duration(seconds: 3));
+
+    final isLoggedIn = await StorageService.isLoggedIn();
+    final role = await StorageService.getUserRole(); // Assuming you use enum
+
+    if (!mounted) return;
+
+    if (isLoggedIn && role != null) {
+      switch (role) {
+        case AuthRole.user:
+          context.go('/user-dashboard');
+          break;
+        case AuthRole.trainer:
+          context.go('/trainer-dashboard');
+          break;
+        case AuthRole.admin:
+          context.go('/admin-dashboard');
+          break;
+      }
+    } else {
       context.go('/select-role');
-    });
+    }
   }
 
   @override
@@ -39,7 +64,10 @@ class _SplashScreenState extends State<SplashScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SvgPicture.asset('assets/logo_gym.svg', height: 140),
+              SvgPicture.asset(
+                'assets/images/welcome/logo_gym.svg',
+                height: 140,
+              ),
               const SizedBox(height: 30),
               const Text(
                 'PowerUp Fitness',
