@@ -1,7 +1,7 @@
 // screens/dashboard_screen.dart
 import 'package:flutter/material.dart';
 import 'sidebar.dart';
-import '../theme.dart';
+import '../core/theme/theme.dart';
 
 class DashboardScreen extends StatelessWidget {
   final List<String> exercises = [

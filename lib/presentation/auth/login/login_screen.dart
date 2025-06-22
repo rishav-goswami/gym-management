@@ -1,10 +1,13 @@
 // screens/login_screen.dart
 import 'package:flutter/material.dart';
 import '../register/signup_screen.dart';
-import '../../../theme.dart';
+import '../../../core/theme/theme.dart';
 import 'login_form.dart';
 
 class LoginScreen extends StatelessWidget {
+  final String role;
+
+  const LoginScreen({super.key, required this.role});
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -33,9 +36,14 @@ class LoginScreen extends StatelessWidget {
                   TextButton(
                     onPressed: () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => SignupScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => SignupScreen(role: role),
+                      ),
                     ),
-                    child: const Text("Don't have an account? Sign up"),
+                    child: Text(
+                      "Don't have an account? Sign up",
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                   ),
                 ],
               ),

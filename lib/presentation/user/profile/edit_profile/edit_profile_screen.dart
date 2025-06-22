@@ -6,7 +6,7 @@ import '../../../../logic/auth/auth_state.dart';
 import '../../../../logic/user/profile/profile_bloc.dart';
 import '../../../../logic/user/profile/profile_event.dart';
 import '../../../../logic/user/profile/profile_state.dart';
-import '../../../../theme.dart';
+import '../../../../core/theme/theme.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});

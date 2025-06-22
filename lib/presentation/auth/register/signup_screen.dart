@@ -1,9 +1,11 @@
 // screens/signup_screen.dart
 import 'package:flutter/material.dart';
-import '../../../theme.dart';
+import '../../../core/theme/theme.dart';
 import 'signup_form.dart';
 
 class SignupScreen extends StatelessWidget {
+  final String role;
+  const SignupScreen({super.key, required this.role});
   @override
   Widget build(BuildContext context) {
     return Scaffold(

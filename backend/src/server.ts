@@ -20,7 +20,7 @@ const server = createServer(app);
 
 // Middleware
 app.use(express.json());
-app.use(cors({ origin: ["http://localhost:3000","http://localhost:56175"] }));
+app.use(cors({ origin: ["http://localhost:3000","http://localhost:64037"] }));
 app.use(morgan("dev"));
 app.use(apiKeyAuth);
 // API routes
