@@ -1,15 +1,18 @@
 import 'dart:convert';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:fit_and_fine/config/constant.dart';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'auth_event.dart';
 import 'auth_state.dart';
 import '../../models/user_profile.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
-  final String baseUrl;
+  final String baseUrl = AppConstants.baseUrl;
+  final String xApiKey = AppConstants.xApiKey;
 
-  AuthBloc({required this.baseUrl}) : super(AuthInitial()) {
+  AuthBloc() : super(AuthInitial()) {
     on<AuthLoginRequested>(_onLoginRequested);
     on<AuthRegisterRequested>(_onRegisterRequested);
     on<AuthLogoutRequested>(_onLogoutRequested);
@@ -21,20 +24,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
     try {
+      debugPrint("xapikey:$xApiKey and baseurl: $baseUrl");
+
       final response = await http.post(
         Uri.parse('$baseUrl/auth/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': event.email,
-          'password': event.password,
-        }),
+        headers: {'Content-Type': 'application/json', "x-api-key": xApiKey},
+        body: jsonEncode({'email': event.email, 'password': event.password}),
       );
       final data = jsonDecode(response.body);
       if (response.statusCode == 200 && data['data'] != null) {
-        emit(AuthAuthenticated(
-          token: data['data']['token'],
-          user: UserProfile.fromMap(data['data']['user']),
-        ));
+        emit(
+          AuthAuthenticated(
+            token: data['data']['token'],
+            user: UserProfile.fromMap(data['data']['user']),
+          ),
+        );
       } else {
         emit(AuthError(data['message'] ?? 'Login failed'));
       }
@@ -61,10 +65,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
       final data = jsonDecode(response.body);
       if (response.statusCode == 201 && data['data'] != null) {
-        emit(AuthAuthenticated(
-          token: data['data']['token'] ?? '',
-          user: UserProfile.fromMap(data['data']),
-        ));
+        emit(
+          AuthAuthenticated(
+            token: data['data']['token'] ?? '',
+            user: UserProfile.fromMap(data['data']),
+          ),
+        );
       } else {
         emit(AuthError(data['message'] ?? 'Registration failed'));
       }
@@ -73,10 +79,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  void _onLogoutRequested(
-    AuthLogoutRequested event,
-    Emitter<AuthState> emit,
-  ) {
+  void _onLogoutRequested(AuthLogoutRequested event, Emitter<AuthState> emit) {
     emit(AuthUnauthenticated());
   }
 }

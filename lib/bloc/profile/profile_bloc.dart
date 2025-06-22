@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:bloc/bloc.dart';
+import 'package:fit_and_fine/config/constant.dart';
 
 import 'package:http/http.dart' as http;
 
@@ -8,9 +9,10 @@ import 'profile_event.dart';
 import 'profile_state.dart';
 
 class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
-  final String baseUrl;
+  final String baseUrl = AppConstants.baseUrl;
+  final String xApiKey = AppConstants.xApiKey;
   String? _token;
-  ProfileBloc({required this.baseUrl}) : super(ProfileInitial()) {
+  ProfileBloc() : super(ProfileInitial()) {
     on<FetchProfile>(_onFetchProfile);
     on<UpdateProfile>(_onUpdateProfile);
     on<SetProfileToken>(_onSetProfileToken);
@@ -20,7 +22,10 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     add(SetProfileToken(token));
   }
 
-  Future<void> _onSetProfileToken(SetProfileToken event, Emitter<ProfileState> emit) async {
+  Future<void> _onSetProfileToken(
+    SetProfileToken event,
+    Emitter<ProfileState> emit,
+  ) async {
     _token = event.token;
   }
 

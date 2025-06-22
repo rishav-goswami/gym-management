@@ -6,14 +6,17 @@ import 'package:fit_and_fine/screens/profile_screen.dart';
 import 'package:fit_and_fine/screens/settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'screens/login_screen.dart';
+import 'screens/login/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'theme.dart';
 import 'bloc/auth/auth_state.dart';
 import 'bloc/profile/profile_event.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-final String baseUrl = 'http://10.0.2.2:3002'; // Update to your backend URL
-void main() => runApp(GymApp());
+Future main() async {
+  await dotenv.load();
+  return runApp(GymApp());
+}
 
 class GymApp extends StatelessWidget {
   const GymApp({super.key});
@@ -22,8 +25,8 @@ class GymApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider(create: (_) => AuthBloc(baseUrl: baseUrl)),
-        BlocProvider(create: (_) => ProfileBloc(baseUrl: baseUrl)),
+        BlocProvider(create: (_) => AuthBloc()),
+        BlocProvider(create: (_) => ProfileBloc()),
       ],
       child: Builder(
         builder: (context) {
