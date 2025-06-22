@@ -4,7 +4,7 @@ import 'package:fit_and_fine/config/constant.dart';
 
 import 'package:http/http.dart' as http;
 
-import '../../models/user_profile.dart';
+import '../../../models/user_profile.dart';
 import 'profile_event.dart';
 import 'profile_state.dart';
 

@@ -1,16 +1,16 @@
 // main.dart
-import 'package:fit_and_fine/bloc/auth/auth_bloc.dart';
-import 'package:fit_and_fine/bloc/profile/profile_bloc.dart';
-import 'package:fit_and_fine/screens/edit_profile_screen.dart';
-import 'package:fit_and_fine/screens/profile_screen.dart';
+import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
+import 'package:fit_and_fine/logic/user/profile/profile_bloc.dart';
+import 'package:fit_and_fine/presentation/user/profile/edit_profile/edit_profile_screen.dart';
+import 'package:fit_and_fine/presentation/user/profile/profile_screen.dart';
 import 'package:fit_and_fine/screens/settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'screens/login/login_screen.dart';
+import 'presentation/auth/login/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'theme.dart';
-import 'bloc/auth/auth_state.dart';
-import 'bloc/profile/profile_event.dart';
+import 'logic/auth/auth_state.dart';
+import 'logic/user/profile/profile_event.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future main() async {

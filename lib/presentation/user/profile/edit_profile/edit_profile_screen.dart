@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:getwidget/getwidget.dart';
-import '../bloc/auth/auth_bloc.dart';
-import '../bloc/auth/auth_state.dart';
-import '../bloc/profile/profile_bloc.dart';
-import '../bloc/profile/profile_event.dart';
-import '../bloc/profile/profile_state.dart';
-import '../theme.dart';
+import '../../../../logic/auth/auth_bloc.dart';
+import '../../../../logic/auth/auth_state.dart';
+import '../../../../logic/user/profile/profile_bloc.dart';
+import '../../../../logic/user/profile/profile_event.dart';
+import '../../../../logic/user/profile/profile_state.dart';
+import '../../../../theme.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});

@@ -1,15 +1,14 @@
-// screens/login_screen.dart
+// screens/signup_screen.dart
 import 'package:flutter/material.dart';
-import '../signup_screen.dart';
-import '../../theme.dart';
-import 'login_form.dart';
+import '../../../theme.dart';
+import 'signup_form.dart';
 
-class LoginScreen extends StatelessWidget {
+class SignupScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Login'),
+        title: const Text('Sign Up'),
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: Theme.of(context).appBarTheme.elevation,
@@ -25,20 +24,7 @@ class LoginScreen extends StatelessWidget {
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const LoginForm(),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => SignupScreen()),
-                    ),
-                    child: const Text("Don't have an account? Sign up"),
-                  ),
-                ],
-              ),
+              child: const SignupForm(),
             ),
           ),
         ),

@@ -1,38 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../bloc/auth/auth_bloc.dart';
-import '../bloc/auth/auth_event.dart';
-import '../bloc/auth/auth_state.dart';
+import '../../../logic/auth/auth_bloc.dart';
+import '../../../logic/auth/auth_event.dart';
+import '../../../logic/auth/auth_state.dart';
 
-class SignupForm extends StatefulWidget {
-  const SignupForm({super.key});
+class LoginForm extends StatefulWidget {
+  const LoginForm({super.key});
 
   @override
-  State<SignupForm> createState() => _SignupFormState();
+  State<LoginForm> createState() => _LoginFormState();
 }
 
-class _SignupFormState extends State<SignupForm> {
-  final _nameController = TextEditingController();
+class _LoginFormState extends State<LoginForm> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
 
   @override
   void dispose() {
-    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  void _onSignupPressed() {
+  void _onLoginPressed() {
     context.read<AuthBloc>().add(
-      AuthRegisterRequested(
-        name: _nameController.text.trim(),
+      AuthLoginRequested(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
-        confirmPassword: _confirmPasswordController.text.trim(),
       ),
     );
   }
@@ -53,23 +47,15 @@ class _SignupFormState extends State<SignupForm> {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.person_add_alt_1, size: 48, color: Theme.of(context).colorScheme.secondary),
+            Icon(Icons.lock_outline, size: 48, color: Theme.of(context).primaryColor),
             const SizedBox(height: 16),
-            Text("Create Account", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 28)),
+            Text("Welcome Back!", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 28)),
             const SizedBox(height: 24),
-            TextField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: "Name",
-                prefixIcon: Icon(Icons.person_2_outlined, color: Theme.of(context).colorScheme.secondary),
-              ),
-            ),
-            const SizedBox(height: 16),
             TextField(
               controller: _emailController,
               decoration: InputDecoration(
                 labelText: "Email",
-                prefixIcon: Icon(Icons.email_outlined, color: Theme.of(context).colorScheme.secondary),
+                prefixIcon: Icon(Icons.email_outlined, color: Theme.of(context).primaryColor),
               ),
             ),
             const SizedBox(height: 16),
@@ -77,16 +63,7 @@ class _SignupFormState extends State<SignupForm> {
               controller: _passwordController,
               decoration: InputDecoration(
                 labelText: "Password",
-                prefixIcon: Icon(Icons.lock_outline, color: Theme.of(context).colorScheme.secondary),
-              ),
-              obscureText: true,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _confirmPasswordController,
-              decoration: InputDecoration(
-                labelText: "Confirm Password",
-                prefixIcon: Icon(Icons.lock_outline, color: Theme.of(context).colorScheme.secondary),
+                prefixIcon: Icon(Icons.lock_outline, color: Theme.of(context).primaryColor),
               ),
               obscureText: true,
             ),
@@ -95,18 +72,18 @@ class _SignupFormState extends State<SignupForm> {
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.secondary,
-                  foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18),
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   elevation: 2,
                 ),
-                onPressed: state is AuthLoading ? null : _onSignupPressed,
+                onPressed: state is AuthLoading ? null : _onLoginPressed,
                 child: state is AuthLoading
                     ? const CircularProgressIndicator.adaptive()
-                    : const Text("Create Account", style: TextStyle(fontSize: 18)),
+                    : const Text("Login", style: TextStyle(fontSize: 18)),
               ),
             ),
           ],
