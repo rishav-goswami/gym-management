@@ -68,10 +68,7 @@ class RoleSelectorScreen extends StatelessWidget {
                           const SizedBox(height: 4),
                           Text(
                             role['subtitle']!,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium,
                           ),
                         ],
                       ),

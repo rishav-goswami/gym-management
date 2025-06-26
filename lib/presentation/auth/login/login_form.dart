@@ -13,8 +13,10 @@ class LoginForm extends StatefulWidget {
 }
 
 class _LoginFormState extends State<LoginForm> {
+  final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -23,15 +25,26 @@ class _LoginFormState extends State<LoginForm> {
     super.dispose();
   }
 
-  void _onLoginPressed() async {
-    if (!context.mounted) return;
+  Future<void> _onLoginPressed() async {
+    if (!_formKey.currentState!.validate()) return;
+
     final role = await StorageService.getUserRole();
-    // ignore: use_build_context_synchronously
+    if (!context.mounted) return;
+
+    if (role == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("User role not selected. Please restart app."),
+        ),
+      );
+      return;
+    }
+
     context.read<AuthBloc>().add(
       AuthLoginRequested(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
-        role: role!,
+        role: role,
       ),
     );
   }
@@ -49,64 +62,78 @@ class _LoginFormState extends State<LoginForm> {
         }
       },
       builder: (context, state) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.lock_outline,
-              size: 48,
-              color: Theme.of(context).primaryColor,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              "Welcome Back!",
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontSize: 28),
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              controller: _emailController,
-              decoration: InputDecoration(
-                labelText: "Email",
-                prefixIcon: Icon(
-                  Icons.email_outlined,
-                  color: Theme.of(context).primaryColor,
+        return Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                decoration: InputDecoration(
+                  labelText: "Email",
+                  prefixIcon: Icon(Icons.email_outlined),
                 ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Email is required';
+                  }
+                  final emailRegex = RegExp(r"^[\w-\.]+@([\w-]+\.)+[\w]{2,4}$");
+                  if (!emailRegex.hasMatch(value.trim())) {
+                    return 'Enter a valid email';
+                  }
+                  return null;
+                },
               ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _passwordController,
-              decoration: InputDecoration(
-                labelText: "Password",
-                prefixIcon: Icon(
-                  Icons.lock_outline,
-                  color: Theme.of(context).primaryColor,
-                ),
-              ),
-              obscureText: true,
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _passwordController,
+                keyboardType: TextInputType.visiblePassword,
+                textInputAction: TextInputAction.done,
+                obscureText: _obscurePassword,
+                onFieldSubmitted: (_) => _onLoginPressed(),
+                decoration: InputDecoration(
+                  labelText: "Password",
+                  prefixIcon: Icon(
+                    Icons.lock_outline,
+                    // color: Theme.of(context).primaryColor,
                   ),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  elevation: 2,
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                  ),
                 ),
-                onPressed: state is AuthLoading ? null : _onLoginPressed,
-                child: state is AuthLoading
-                    ? const CircularProgressIndicator.adaptive()
-                    : const Text("Login", style: TextStyle(fontSize: 18)),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Password is required';
+                  }
+                  if (value.length < 6) {
+                    return 'Password must be at least 6 characters';
+                  }
+                  return null;
+                },
               ),
-            ),
-          ],
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: state is AuthLoading ? null : _onLoginPressed,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: state is AuthLoading
+                      ? const CircularProgressIndicator.adaptive()
+                      : const Text("Log In", style: TextStyle(fontSize: 16)),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );

@@ -27,13 +27,21 @@ final ThemeData lightTheme = ThemeData(
       fontWeight: FontWeight.bold,
       color: AppColors.textPrimaryLight,
     ),
-    bodyLarge: TextStyle(
-      fontSize: 16,
-      color: AppColors.textPrimaryLight,
-    ),
-    bodyMedium: TextStyle(
-      fontSize: 14,
-      color: AppColors.textSecondaryLight,
+    bodyLarge: TextStyle(fontSize: 16, color: AppColors.textPrimaryLight),
+    bodyMedium: TextStyle(fontSize: 14, color: AppColors.textSecondaryLight),
+  ),
+
+  /// Fix: Make button theme override safe
+  elevatedButtonTheme: ElevatedButtonThemeData(
+    style: ElevatedButton.styleFrom(
+      backgroundColor: AppColors.accent, // default background
+      foregroundColor: Colors.white, // default text/icon color
+      textStyle: const TextStyle(
+        fontWeight: FontWeight.bold,
+        fontFamily: 'Montserrat',
+        color: AppColors.textPrimaryLight,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
     ),
   ),
 
@@ -43,7 +51,7 @@ final ThemeData lightTheme = ThemeData(
     secondary: AppColors.accent,
     background: AppColors.backgroundLight,
     surface: AppColors.cardLight,
-    onPrimary: Colors.white,       // text/icons on primary (e.g. buttons)
-    onSecondary: Colors.white,     // text/icons on accent
+    onPrimary: Colors.white, // text/icons on primary (e.g. buttons)
+    onSecondary: Colors.white, // text/icons on accent
   ),
 );
