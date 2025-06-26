@@ -13,6 +13,7 @@ class SignupForm extends StatefulWidget {
 }
 
 class _SignupFormState extends State<SignupForm> {
+  final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -27,10 +28,11 @@ class _SignupFormState extends State<SignupForm> {
     super.dispose();
   }
 
-  void _onSignupPressed() async {
-    if (!context.mounted) return;
+  Future<void> _onSignupPressed() async {
+    if (!_formKey.currentState!.validate()) return;
     final role = await StorageService.getUserRole();
-    // ignore: use_build_context_synchronously
+    if (!context.mounted) return;
+
     context.read<AuthBloc>().add(
       AuthRegisterRequested(
         name: _nameController.text.trim(),
@@ -55,81 +57,86 @@ class _SignupFormState extends State<SignupForm> {
         }
       },
       builder: (context, state) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.person_add_alt_1,
-              size: 48,
-              color: Theme.of(context).colorScheme.secondary,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              "Create Account",
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontSize: 28),
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: "Name",
-                prefixIcon: Icon(
-                  Icons.person_2_outlined,
-                  color: Theme.of(context).colorScheme.secondary,
+        return Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+
+            children: [
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: "Name",
+                  prefixIcon: Icon(Icons.person_outline),
+                ),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? "Enter your name"
+                    : null,
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _emailController,
+                decoration: const InputDecoration(
+                  labelText: "Email",
+                  prefixIcon: Icon(Icons.email_outlined),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                validator: (value) {
+                  final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
+                  if (value == null || !emailRegex.hasMatch(value.trim())) {
+                    return "Enter a valid email";
+                  }
+                  return null;
+                },
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _passwordController,
+                decoration: const InputDecoration(
+                  labelText: "Password",
+                  prefixIcon: Icon(Icons.lock_outline),
+                ),
+                obscureText: true,
+                validator: (value) => value == null || value.length < 6
+                    ? "Password must be at least 6 characters"
+                    : null,
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _confirmPasswordController,
+                decoration: const InputDecoration(
+                  labelText: "Confirm Password",
+                  prefixIcon: Icon(Icons.lock_outline),
+                ),
+                obscureText: true,
+                validator: (value) => value != _passwordController.text
+                    ? "Passwords do not match"
+                    : null,
+                textInputAction: TextInputAction.done,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: state is AuthLoading ? null : _onSignupPressed,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                  child: state is AuthLoading
+                      ? const CircularProgressIndicator.adaptive()
+                      : const Text("Sign Up", style: TextStyle(fontSize: 16)),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _emailController,
-              decoration: InputDecoration(
-                labelText: "Email",
-                prefixIcon: Icon(
-                  Icons.email_outlined,
-                  color: Theme.of(context).colorScheme.secondary,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _passwordController,
-              decoration: InputDecoration(
-                labelText: "Password",
-                prefixIcon: Icon(
-                  Icons.lock_outline,
-                  color: Theme.of(context).colorScheme.secondary,
-                ),
-              ),
-              obscureText: true,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _confirmPasswordController,
-              decoration: InputDecoration(
-                labelText: "Confirm Password",
-                prefixIcon: Icon(
-                  Icons.lock_outline,
-                  color: Theme.of(context).colorScheme.secondary,
-                ),
-              ),
-              obscureText: true,
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: state is AuthLoading ? null : _onSignupPressed,
-                child: state is AuthLoading
-                    ? const CircularProgressIndicator.adaptive()
-                    : Text(
-                        "Create Account",
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-              ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
