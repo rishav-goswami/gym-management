@@ -2,6 +2,7 @@
 import 'package:fit_and_fine/data/datasources/auth_remote_data_source.dart';
 import 'package:fit_and_fine/data/repositories/auth_repository.dart';
 import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
+import 'package:fit_and_fine/logic/auth/auth_event.dart';
 import 'package:fit_and_fine/logic/user/profile/profile_bloc.dart';
 import 'package:fit_and_fine/presentation/member/profile/edit_profile/edit_profile_screen.dart';
 import 'package:fit_and_fine/presentation/member/profile/profile_screen.dart';
@@ -32,7 +33,7 @@ class GymApp extends StatelessWidget {
         BlocProvider(
           create: (_) => AuthBloc(
             AuthRepository(remote: AuthRemoteDataSource(client: http.Client())),
-          ),
+          )..add(AuthCheckRequested()), // This part validates if local token
         ),
         BlocProvider(create: (_) => ProfileBloc()),
       ],

@@ -1,12 +1,7 @@
-// ============================
-// ✅ auth_bloc.dart (Refactored)
-// ============================
-
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fit_and_fine/data/repositories/auth_repository.dart';
 import 'package:fit_and_fine/logic/auth/auth_event.dart';
 import 'package:fit_and_fine/logic/auth/auth_state.dart';
-import 'package:fit_and_fine/data/models/auth_model.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository repository;
@@ -15,6 +10,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthLoginRequested>(_onLoginRequested);
     on<AuthRegisterRequested>(_onRegisterRequested);
     on<AuthLogoutRequested>(_onLogoutRequested);
+    on<AuthCheckRequested>(_onAuthCheckRequested);
   }
 
   Future<void> _onLoginRequested(
@@ -28,9 +24,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         password: event.password,
         role: event.role,
       );
-      // 2. Emit the state with the complete model.
+
       emit(AuthAuthenticated(authModel: authModel));
-      // --- END OF CHANGE ---
     } catch (e) {
       emit(AuthError('Login failed: $e'));
     }
@@ -42,8 +37,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
     try {
-      // --- CHANGE IS HERE ---
-      // 1. The repository now returns a single AuthModel.
       final authModel = await repository.register(
         name: event.name,
         email: event.email,
@@ -51,9 +44,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         confirmPassword: event.confirmPassword,
         role: event.role,
       );
-      // 2. Emit the state with the complete model.
+
       emit(AuthAuthenticated(authModel: authModel));
-      // --- END OF CHANGE ---
     } catch (e) {
       emit(AuthError('Registration failed: $e'));
     }
@@ -63,8 +55,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthLogoutRequested event,
     Emitter<AuthState> emit,
   ) async {
-    // This part was already correct and needs no changes.
     await repository.logout();
     emit(AuthUnauthenticated());
+  }
+
+  Future<void> _onAuthCheckRequested(
+    AuthCheckRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    final authModel = await repository.tryAutoLogin();
+    print("AuthModel: $authModel");
+    if (authModel != null) {
+      emit(AuthAuthenticated(authModel: authModel));
+    } else {
+      emit(AuthUnauthenticated());
+    }
   }
 }

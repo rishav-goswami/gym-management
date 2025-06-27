@@ -16,20 +16,20 @@ class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
   late final AnimationController _controller;
 
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this);
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   _controller = AnimationController(vsync: this);
 
-    _navigateAfterDelay(); // Call the async logic separately
-  }
+  //   _navigateAfterDelay(); // Call the async logic separately
+  // }
 
-  Future<void> _navigateAfterDelay() async {
-    await Future.delayed(const Duration(seconds: 3));
-    if (context.mounted) {
-      context.go('/select-role');
-    }
-  }
+  // Future<void> _navigateAfterDelay() async {
+  //   await Future.delayed(const Duration(seconds: 3));
+  //   if (context.mounted) {
+  //     context.go('/select-role');
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {

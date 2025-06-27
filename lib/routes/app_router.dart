@@ -1,11 +1,11 @@
 import 'package:fit_and_fine/data/models/user_model.dart';
 import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:fit_and_fine/logic/auth/auth_state.dart';
 import 'package:fit_and_fine/presentation/auth/login/login_screen.dart';
 import 'package:fit_and_fine/presentation/auth/register/signup_screen.dart';
 import 'package:fit_and_fine/presentation/member/dashboard/user_dashboard_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../presentation/splash/splash_screen.dart';
 import '../presentation/role_selector/role_selector_screen.dart';
@@ -52,47 +52,50 @@ class AppRouter {
       // --- FINAL, ROBUST REDIRECT LOGIC ---
       redirect: (BuildContext context, GoRouterState state) {
         final authState = context.read<AuthBloc>().state;
-        final location =
-            state.matchedLocation; // The actual URL, e.g., '/login/member'
+        final location = state.matchedLocation;
 
-        // Check if the user is authenticated
         final isLoggedIn = authState is AuthAuthenticated;
-
-        // Define which routes are part of the authentication flow (and thus public)
-        final isAuthRoute =
-            location == '/select-role' ||
+        final isAuthFlow =
             location.startsWith('/login') ||
-            location.startsWith('/signup');
+            location.startsWith('/signup') ||
+            location == '/select-role';
 
-        // Define all public routes
-        final isPublicRoute = location == '/' || isAuthRoute;
+        final isSplashScreen = location == '/';
 
-        // If the app is still initializing, don't redirect yet.
+        // While the app is initializing, stay on the splash screen.
         if (authState is AuthInitial) {
-          // Returning null allows the initial navigation to proceed.
-          return null;
+          return isSplashScreen ? null : '/';
         }
 
         // --- Main Logic ---
 
-        // 1. If the user is logged in AND is trying to access a public auth route...
-        if (isLoggedIn && isPublicRoute) {
-          // ...redirect them to their correct dashboard.
-          final user = authState.user;
-          if (user is Member) return '/member-dashboard';
-          if (user is Trainer) return '/trainer-dashboard';
-          if (user is Admin) return '/admin-dashboard';
-          return '/'; // Fallback
+        // 1. If the user is logged in...
+        if (isLoggedIn) {
+          // and they are on the splash or any auth screen, redirect to their dashboard.
+          if (isSplashScreen || isAuthFlow) {
+            final user = authState.user;
+            if (user is Member) return '/member-dashboard';
+            if (user is Trainer) return '/trainer-dashboard';
+            if (user is Admin) return '/admin-dashboard';
+            return '/'; // Fallback
+          }
+        }
+        // 2. If the user is NOT logged in...
+        else {
+          // --- THIS IS THE FIX ---
+          // and the auth check is complete but they are still on the splash screen,
+          // navigate them to the start of the authentication process.
+          if (isSplashScreen) {
+            return '/select-role';
+          }
+
+          // If they try to access a protected route, redirect them.
+          if (!isAuthFlow) {
+            return '/select-role';
+          }
         }
 
-        // 2. If the user is NOT logged in AND is trying to access a protected route...
-        if (!isLoggedIn && !isPublicRoute) {
-          // ...redirect them to the start of the authentication flow.
-          return '/select-role';
-        }
-
-        // 3. In all other cases (logged in and going to a protected route, OR
-        //    logged out and going to a public route), no redirect is needed.
+        // 3. In all other cases, no redirect is needed.
         return null;
       },
     );

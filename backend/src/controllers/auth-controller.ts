@@ -187,4 +187,49 @@ export const authController = {
     await revokeToken(token, userId);
     return ApiResponse.success(res, {}, "Token revoked successfully");
   },
+  getUserProfile: async (req: Request, res: Response) => {
+    // The user object is attached by the jwtAuth middleware.
+    // It's guaranteed to be there if the middleware passes.
+    const { id, email, role } = req.user;
+
+    // We don't want to send back the password hash or other sensitive info,
+    // so you might want to fetch the full user profile from the database,
+    // minus the password, and send that back.
+    // For now, sending the token payload is a good start.
+
+    let user:
+      | (typeof User extends { prototype: infer U } ? U : never)
+      | (typeof Admin extends { prototype: infer A } ? A : never)
+      | (typeof Trainer extends { prototype: infer T } ? T : never)
+      | null = null;
+
+    // Fetch user based on role
+    if (role === "MEMBER") {
+      user = await User.findById(id);
+    } else if (role === "TRAINER") {
+      user = await Trainer.findById(id);
+    } else if (role === "ADMIN") {
+      user = await Admin.findById(id);
+    }
+
+    if (!user) {
+      return ApiResponse.error(res, "User not found", 404);
+    }
+
+    // Convert mongoose document to plain JS object and remove sensitive fields
+    const { password, __v, ...plainUser } = user.toObject
+      ? user.toObject()
+      : user;
+
+    ApiResponse.success(
+      res,
+      { ...plainUser, role },
+      "User profile found Successfully !"
+    );
+
+    // res.status(200).json({
+    //   success: true,
+    //   data: user, // This sends the decoded token payload
+    // });
+  },
 };

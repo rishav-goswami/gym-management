@@ -64,4 +64,22 @@ class AuthRemoteDataSource {
       throw Exception(data['message'] ?? 'Registration failed');
     }
   }
+
+  Future<Map<String, dynamic>> getMe(String token) async {
+    final response = await client.get(
+      Uri.parse('${AppConstants.baseUrl}/auth/me'),
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': AppConstants.xApiKey,
+        'Authorization': 'Bearer $token', // Send the token
+      },
+    );
+
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 && data['success'] == true) {
+      return data['data'];
+    } else {
+      throw Exception(data['message'] ?? 'Failed to fetch user profile');
+    }
+  }
 }

@@ -63,4 +63,28 @@ class AuthRepository {
   Future<void> logout() async {
     await StorageService.logout();
   }
+
+  /// Checks for a saved session and attempts to auto-login.
+  /// Returns AuthModel on success, null on failure.
+  Future<AuthModel?> tryAutoLogin() async {
+    try {
+      // 1. Check for a token in storage
+      final token = await StorageService.getToken();
+      if (token == null) {
+        return null; // No session exists
+      }
+
+      // 2. Token exists, now validate it with the backend
+      final userJson = await remote.getMe(token);
+      print("userJson: $userJson");
+      // 3. If validation is successful, construct the AuthModel
+      // We pass the existing token and the fresh user data from the API
+      return AuthModel.fromJson({'token': token, 'user': userJson});
+    } catch (e) {
+      // If any error occurs (e.g., 401 from API), the session is invalid.
+      // Clean up the invalid stored data.
+      await StorageService.logout();
+      return null;
+    }
+  }
 }
