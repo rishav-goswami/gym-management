@@ -7,9 +7,11 @@ import 'package:go_router/go_router.dart';
 class RoleSelectorScreen extends StatelessWidget {
   const RoleSelectorScreen({super.key});
 
-  void _navigateToRole(BuildContext context, String role) {
-    StorageService.saveUserRole(UserRole.fromString(role)!);
-    context.go('/login/$role');
+  Future<void> _navigateToRole(BuildContext context, String role) async {
+    await StorageService.saveUserRole(UserRole.fromString(role)!);
+    if (context.mounted) {
+      context.go('/login/$role');
+    }
   }
 
   @override

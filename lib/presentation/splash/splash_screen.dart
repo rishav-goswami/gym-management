@@ -26,25 +26,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _navigateAfterDelay() async {
     await Future.delayed(const Duration(seconds: 3));
-
-    final isLoggedIn = await StorageService.isLoggedIn();
-    final role = await StorageService.getUserRole(); // Assuming you use enum
-
-    if (!mounted) return;
-
-    if (isLoggedIn && role != null) {
-      switch (role) {
-        case UserRole.member:
-          context.go('/member-dashboard');
-          break;
-        case UserRole.trainer:
-          context.go('/trainer-dashboard');
-          break;
-        case UserRole.admin:
-          context.go('/admin-dashboard');
-          break;
-      }
-    } else {
+    if (context.mounted) {
       context.go('/select-role');
     }
   }

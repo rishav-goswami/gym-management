@@ -54,15 +54,7 @@ class GymApp extends StatelessWidget {
               theme: lightTheme,
               darkTheme: darkTheme,
               themeMode: ThemeMode.system,
-              routerConfig: AppRouter.router,
-              // initialRoute: '/login',
-              // routes: {
-              //   '/login': (context) => LoginScreen(),
-              //   '/dashboard': (context) => DashboardScreen(),
-              //   '/edit-profile': (context) => EditProfileScreen(),
-              //   '/profile': (context) => ProfileScreen(),
-              //   '/settings': (context) => SettingsScreen(),
-              // },
+              routerConfig: AppRouter.getRouter(context),
             ),
           );
         },

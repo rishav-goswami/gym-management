@@ -51,20 +51,7 @@ class _SignupFormState extends State<SignupForm> {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is AuthAuthenticated) {
-          print("SignUp authenticated $state");
-          final role = state.user.role;
-
-          switch (role) {
-            case UserRole.member:
-              context.go('/member-dashboard');
-              break;
-            case UserRole.trainer:
-              context.go('/trainer-dashboard');
-              break;
-            case UserRole.admin:
-              context.go('/admin-dashboard');
-              break;
-          }
+        // do something ..
         } else if (state is AuthError) {
           ScaffoldMessenger.of(
             context,
