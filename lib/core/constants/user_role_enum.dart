@@ -1,4 +1,4 @@
-enum AuthRole {
+enum UserRole {
   admin,
   trainer,
   member;
@@ -7,14 +7,14 @@ enum AuthRole {
   String get name => toString().split('.').last.toUpperCase();
 
   /// Parse from string (case-insensitive)
-  static AuthRole? fromString(String? value) {
+  static UserRole? fromString(String? value) {
     switch (value?.toLowerCase()) {
       case 'admin':
-        return AuthRole.admin;
+        return UserRole.admin;
       case 'trainer':
-        return AuthRole.trainer;
+        return UserRole.trainer;
       case 'member':
-        return AuthRole.member;
+        return UserRole.member;
       default:
         return null;
     }

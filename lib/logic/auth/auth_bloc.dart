@@ -1,19 +1,12 @@
 // ============================
-// ✅ Clean Architecture Setup
+// ✅ auth_bloc.dart (Refactored)
 // ============================
-
-// 1. Move HTTP and storage logic to separate layers
-// 2. Bloc calls AuthRepository only
-// 3. Repository handles API and local storage
-
-// ============
-// auth_bloc.dart
-// ============
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fit_and_fine/data/repositories/auth_repository.dart';
 import 'package:fit_and_fine/logic/auth/auth_event.dart';
 import 'package:fit_and_fine/logic/auth/auth_state.dart';
+import 'package:fit_and_fine/data/models/auth_model.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository repository;
@@ -30,12 +23,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
     try {
-      final (token, user) = await repository.login(
+      final authModel = await repository.login(
         email: event.email,
         password: event.password,
         role: event.role,
       );
-      emit(AuthAuthenticated(token: token, user: user));
+      // 2. Emit the state with the complete model.
+      emit(AuthAuthenticated(authModel: authModel));
+      // --- END OF CHANGE ---
     } catch (e) {
       emit(AuthError('Login failed: $e'));
     }
@@ -47,14 +42,18 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
     try {
-      final (token, user) = await repository.register(
+      // --- CHANGE IS HERE ---
+      // 1. The repository now returns a single AuthModel.
+      final authModel = await repository.register(
         name: event.name,
         email: event.email,
         password: event.password,
         confirmPassword: event.confirmPassword,
-        role: event.role
+        role: event.role,
       );
-      emit(AuthAuthenticated(token: token, user: user));
+      // 2. Emit the state with the complete model.
+      emit(AuthAuthenticated(authModel: authModel));
+      // --- END OF CHANGE ---
     } catch (e) {
       emit(AuthError('Registration failed: $e'));
     }
@@ -64,6 +63,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthLogoutRequested event,
     Emitter<AuthState> emit,
   ) async {
+    // This part was already correct and needs no changes.
     await repository.logout();
     emit(AuthUnauthenticated());
   }

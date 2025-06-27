@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../logic/auth/auth_bloc.dart';
 import '../../../logic/auth/auth_event.dart';
 import '../../../logic/auth/auth_state.dart';
+import 'package:fit_and_fine/core/constants/user_role_enum.dart';
 
 class LoginForm extends StatefulWidget {
   const LoginForm({super.key});
@@ -55,9 +56,20 @@ class _LoginFormState extends State<LoginForm> {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is AuthAuthenticated) {
-          print("THis the login state for now $state");
-          
-          context.go("$state");
+          print("Log-In authenticated $state");
+          final role = state.user.role;
+
+          switch (role) {
+            case UserRole.member:
+              context.go('/member-dashboard');
+              break;
+            case UserRole.trainer:
+              context.go('/trainer-dashboard');
+              break;
+            case UserRole.admin:
+              context.go('/admin-dashboard');
+              break;
+          }
         } else if (state is AuthError) {
           ScaffoldMessenger.of(
             context,

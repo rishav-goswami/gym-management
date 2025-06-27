@@ -42,7 +42,7 @@ const registerSchema = z
 const loginSchema = z.object({
   email: z.string().email("Invalid email"),
   password: z.string().min(6, "Password must be at least 6 characters"),
-  role: z.enum(["ADMIN", "USER", "TRAINER"]),
+  role: z.enum(["ADMIN", "MEMBER", "TRAINER"]),
 });
 /**
  * This is a basic controller to handle basic login and register for user and trainers
@@ -125,7 +125,7 @@ export const authController = {
         | null = null;
 
       // Fetch user based on role
-      if (role === "USER") {
+      if (role === "MEMBER") {
         user = await User.findOne({ email });
       } else if (role === "TRAINER") {
         user = await Trainer.findOne({ email });

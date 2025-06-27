@@ -2,7 +2,7 @@ import 'package:fit_and_fine/core/services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/constants/auth_role_enum.dart';
+import '../../core/constants/user_role_enum.dart';
 // import 'package:lottie/lottie.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -34,13 +34,13 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (isLoggedIn && role != null) {
       switch (role) {
-        case AuthRole.member:
+        case UserRole.member:
           context.go('/member-dashboard');
           break;
-        case AuthRole.trainer:
+        case UserRole.trainer:
           context.go('/trainer-dashboard');
           break;
-        case AuthRole.admin:
+        case UserRole.admin:
           context.go('/admin-dashboard');
           break;
       }

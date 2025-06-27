@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:fit_and_fine/core/constants/auth_role_enum.dart';
+import 'package:fit_and_fine/core/constants/user_role_enum.dart';
 
 abstract class AuthEvent extends Equatable {
   const AuthEvent();
@@ -11,7 +11,7 @@ abstract class AuthEvent extends Equatable {
 class AuthLoginRequested extends AuthEvent {
   final String email;
   final String password;
-  final AuthRole role;
+  final UserRole role;
 
   const AuthLoginRequested({
     required this.email,
@@ -28,7 +28,7 @@ class AuthRegisterRequested extends AuthEvent {
   final String email;
   final String password;
   final String confirmPassword;
-  final AuthRole role;
+  final UserRole role;
 
   const AuthRegisterRequested({
     required this.name,

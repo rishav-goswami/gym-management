@@ -1,3 +1,4 @@
+import 'package:fit_and_fine/core/constants/user_role_enum.dart';
 import 'package:fit_and_fine/core/services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -50,7 +51,20 @@ class _SignupFormState extends State<SignupForm> {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is AuthAuthenticated) {
-          print("Loggin authenticated $state");
+          print("SignUp authenticated $state");
+          final role = state.user.role;
+
+          switch (role) {
+            case UserRole.member:
+              context.go('/member-dashboard');
+              break;
+            case UserRole.trainer:
+              context.go('/trainer-dashboard');
+              break;
+            case UserRole.admin:
+              context.go('/admin-dashboard');
+              break;
+          }
         } else if (state is AuthError) {
           ScaffoldMessenger.of(
             context,

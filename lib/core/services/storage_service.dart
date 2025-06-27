@@ -1,7 +1,7 @@
 // lib/core/services/storage_service.dart
 
 import 'package:shared_preferences/shared_preferences.dart';
-import '../constants/auth_role_enum.dart';
+import '../constants/user_role_enum.dart';
 
 /// Shared Preferences keys
 class StorageKeys {
@@ -13,16 +13,16 @@ class StorageKeys {
 /// Service for storing user/session-related data
 class StorageService {
   /// Save role
-  static Future<void> saveUserRole(AuthRole role) async {
+  static Future<void> saveUserRole(UserRole role) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(StorageKeys.role, role.name);
   }
 
   /// Get saved role
-  static Future<AuthRole?> getUserRole() async {
+  static Future<UserRole?> getUserRole() async {
     final prefs = await SharedPreferences.getInstance();
     final roleStr = prefs.getString(StorageKeys.role);
-    return AuthRole.fromString(roleStr);
+    return UserRole.fromString(roleStr);
   }
 
   /// Save login status

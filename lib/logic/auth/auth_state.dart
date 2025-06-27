@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
-import '../../data/models/user_profile.dart';
+import 'package:fit_and_fine/data/models/auth_model.dart';
+import 'package:fit_and_fine/data/models/user_model.dart';
 
 abstract class AuthState extends Equatable {
   const AuthState();
@@ -13,13 +14,16 @@ class AuthInitial extends AuthState {}
 class AuthLoading extends AuthState {}
 
 class AuthAuthenticated extends AuthState {
-  final String token;
-  final UserProfile user;
+  // It now holds the complete AuthModel
+  final AuthModel authModel;
 
-  const AuthAuthenticated({required this.token, required this.user});
+  // A convenience getter for easy access to the user object
+  final User user;
+
+  AuthAuthenticated({required this.authModel}) : user = authModel.user;
 
   @override
-  List<Object?> get props => [token, user];
+  List<Object> get props => [authModel];
 }
 
 class AuthUnauthenticated extends AuthState {}

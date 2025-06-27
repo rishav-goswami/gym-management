@@ -8,6 +8,7 @@ import MemberRoutes from "./routes/member-routes";
 import AdminRoutes from "./routes/admin-routes";
 import TrainerRoutes from "./routes/trainer-routes";
 import { apiKeyAuth } from "./middleware/apiKeyAuth";
+import { morganLogger, responseBodyInterceptor } from "./middleware/logger-morgan";
 
 // connecting to database
 (async () => {
@@ -21,7 +22,10 @@ const server = createServer(app);
 // Middleware
 app.use(express.json());
 app.use(cors({ origin: ["http://localhost:3000", "http://localhost:52430"] }));
-app.use(morgan("dev"));
+
+app.use(responseBodyInterceptor); // This must be used before using morganLogger
+app.use(morganLogger);
+// app.use(morgan("dev"));
 app.use(apiKeyAuth);
 // API routes
 app.use("/auth", AuthRoutes);

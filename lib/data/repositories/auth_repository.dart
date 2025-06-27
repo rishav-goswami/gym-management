@@ -1,43 +1,46 @@
-// ============================
-// ✅ auth_repository.dart
-// ============================
-
 import 'package:fit_and_fine/data/datasources/auth_remote_data_source.dart';
 import 'package:fit_and_fine/core/services/storage_service.dart';
-import 'package:fit_and_fine/data/models/user_profile.dart';
-import 'package:fit_and_fine/core/constants/auth_role_enum.dart';
+import 'package:fit_and_fine/core/constants/user_role_enum.dart';
+import 'package:fit_and_fine/data/models/auth_model.dart';
 
 class AuthRepository {
   final AuthRemoteDataSource remote;
 
   AuthRepository({required this.remote});
 
-  Future<(String token, UserProfile user)> login({
+  // The login method now returns a single, clean AuthModel object.
+  Future<AuthModel> login({
     required String email,
     required String password,
-    required AuthRole role,
+    required UserRole role,
   }) async {
     final data = await remote.login(
       email: email,
       password: password,
       role: role.name,
     );
-    final token = data['token'] as String;
-    final user = UserProfile.fromMap(data['user']);
 
-    await StorageService.saveToken(token);
-    await StorageService.saveUserRole(role);
+    // The AuthModel factory now handles all the parsing logic.
+    // It reads the 'token' and dynamically creates the correct User object.
+    final authModel = AuthModel.fromJson(data);
+
+    // Save token and role from the new model
+    await StorageService.saveToken(authModel.accessToken);
+    await StorageService.saveUserRole(
+      authModel.user.role,
+    ); // Role comes from the user object
     await StorageService.setLoginFlag(true);
 
-    return (token, user);
+    return authModel;
   }
 
-  Future<(String token, UserProfile user)> register({
+  // The register method is also updated to return AuthModel.
+  Future<AuthModel> register({
     required String name,
     required String email,
     required String password,
     required String confirmPassword,
-    required AuthRole role,
+    required UserRole role,
   }) async {
     final data = await remote.register(
       name: name,
@@ -47,13 +50,14 @@ class AuthRepository {
       role: role.name,
     );
 
-    final token = data['token'] as String;
-    final user = UserProfile.fromMap(data['user']);
+    // Same logic as login: let the AuthModel do the heavy lifting.
+    final authModel = AuthModel.fromJson(data);
 
-    await StorageService.saveToken(token);
+    await StorageService.saveToken(authModel.accessToken);
+    await StorageService.saveUserRole(authModel.user.role);
     await StorageService.setLoginFlag(true);
 
-    return (token, user);
+    return authModel;
   }
 
   Future<void> logout() async {

@@ -1,4 +1,4 @@
-import 'package:fit_and_fine/core/constants/auth_role_enum.dart';
+import 'package:fit_and_fine/core/constants/user_role_enum.dart';
 import 'package:fit_and_fine/core/services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -8,7 +8,7 @@ class RoleSelectorScreen extends StatelessWidget {
   const RoleSelectorScreen({super.key});
 
   void _navigateToRole(BuildContext context, String role) {
-    StorageService.saveUserRole(AuthRole.fromString(role)!);
+    StorageService.saveUserRole(UserRole.fromString(role)!);
     context.go('/login/$role');
   }
 
