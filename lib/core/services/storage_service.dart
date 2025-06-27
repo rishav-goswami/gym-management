@@ -5,7 +5,7 @@ import '../constants/auth_role_enum.dart';
 
 /// Shared Preferences keys
 class StorageKeys {
-  static const String role = 'user_role'; // "ADMIN", "TRAINER", "USER"
+  static const String role = 'user_role'; // "ADMIN", "TRAINER", "MEMBER"
   static const String isLoggedIn = 'logged_in'; // true/false
   static const String token = 'auth_token'; // bearer token
 }

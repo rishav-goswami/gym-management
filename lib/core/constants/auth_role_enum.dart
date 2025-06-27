@@ -1,7 +1,7 @@
 enum AuthRole {
   admin,
   trainer,
-  user;
+  member;
 
   /// Returns uppercase value for API requests, storage, etc.
   String get name => toString().split('.').last.toUpperCase();
@@ -13,8 +13,8 @@ enum AuthRole {
         return AuthRole.admin;
       case 'trainer':
         return AuthRole.trainer;
-      case 'user':
-        return AuthRole.user;
+      case 'member':
+        return AuthRole.member;
       default:
         return null;
     }

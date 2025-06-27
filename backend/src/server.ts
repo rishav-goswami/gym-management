@@ -4,7 +4,7 @@ import { createServer } from "http";
 import cors from "cors";
 import morgan from "morgan";
 import AuthRoutes from "./routes/auth-routes";
-import UserRoutes from "./routes/user-routes";
+import MemberRoutes from "./routes/member-routes";
 import AdminRoutes from "./routes/admin-routes";
 import TrainerRoutes from "./routes/trainer-routes";
 import { apiKeyAuth } from "./middleware/apiKeyAuth";
@@ -20,12 +20,12 @@ const server = createServer(app);
 
 // Middleware
 app.use(express.json());
-app.use(cors({ origin: ["http://localhost:3000","http://localhost:52430"] }));
+app.use(cors({ origin: ["http://localhost:3000", "http://localhost:52430"] }));
 app.use(morgan("dev"));
 app.use(apiKeyAuth);
 // API routes
 app.use("/auth", AuthRoutes);
-app.use("/user", UserRoutes);
+app.use("/member", MemberRoutes);
 app.use("/admin", AdminRoutes);
 app.use("/trainer", TrainerRoutes);
 

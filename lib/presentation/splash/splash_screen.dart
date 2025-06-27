@@ -34,8 +34,8 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (isLoggedIn && role != null) {
       switch (role) {
-        case AuthRole.user:
-          context.go('/user-dashboard');
+        case AuthRole.member:
+          context.go('/member-dashboard');
           break;
         case AuthRole.trainer:
           context.go('/trainer-dashboard');

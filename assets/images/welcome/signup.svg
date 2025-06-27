@@ -42,7 +42,7 @@
       <path
          id="path2"
          d="M 0,0 H 5000 V 5000 H 0 Z"
-         style="fill:#FFFFFF23;fill-opacity:1;fill-rule:nonzero;stroke:none"
+         style="fill:#FFFFFF00;fill-opacity:1;fill-rule:nonzero;stroke:none"
          transform="matrix(0.13333333,0,0,-0.13333333,0,666.66667)" />
       <path
          id="path3"

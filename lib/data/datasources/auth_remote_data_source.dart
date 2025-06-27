@@ -3,6 +3,7 @@
 // ============================
 
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:fit_and_fine/core/constants/constant.dart';
 
@@ -38,7 +39,7 @@ class AuthRemoteDataSource {
     required String email,
     required String password,
     required String confirmPassword,
-    required String role
+    required String role,
   }) async {
     final response = await client.post(
       Uri.parse('${AppConstants.baseUrl}/auth/register'),
@@ -51,11 +52,12 @@ class AuthRemoteDataSource {
         'email': email,
         'password': password,
         'confirmPassword': confirmPassword,
-        "role":role
+        "role": role,
       }),
     );
 
     final data = jsonDecode(response.body);
+    debugPrint("Response On Register: $data");
     if (response.statusCode == 201 && data['data'] != null) {
       return data['data'];
     } else {

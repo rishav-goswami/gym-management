@@ -1,6 +1,7 @@
 import 'package:fit_and_fine/core/services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import '../../../logic/auth/auth_bloc.dart';
 import '../../../logic/auth/auth_event.dart';
 import '../../../logic/auth/auth_state.dart';
@@ -54,7 +55,9 @@ class _LoginFormState extends State<LoginForm> {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is AuthAuthenticated) {
-          Navigator.pushReplacementNamed(context, '/dashboard');
+          print("THis the login state for now $state");
+          
+          context.go("$state");
         } else if (state is AuthError) {
           ScaffoldMessenger.of(
             context,

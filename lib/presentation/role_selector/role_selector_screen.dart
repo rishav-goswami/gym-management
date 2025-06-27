@@ -16,7 +16,7 @@ class RoleSelectorScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final roles = [
       {
-        'title': 'User',
+        'title': 'Member',
         'subtitle': 'Track workouts and progress',
         'icon': 'assets/images/welcome/user_role.svg',
       },

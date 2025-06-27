@@ -40,17 +40,18 @@ class SignupScreen extends StatelessWidget {
                   const SizedBox(height: 24),
 
                   SignupForm(),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   TextButton(
                     onPressed: () => context.go("/login/$role"),
                     child: Text(
                       "Already have an account? Log In",
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.w500,
+                        color: Colors.blue,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 4),
                   Text(
                     "By continuing, you agree to our Terms of Service\nand Privacy Policy.",
                     textAlign: TextAlign.center,

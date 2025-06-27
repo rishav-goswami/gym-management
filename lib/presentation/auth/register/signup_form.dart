@@ -1,6 +1,7 @@
 import 'package:fit_and_fine/core/services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import '../../../logic/auth/auth_bloc.dart';
 import '../../../logic/auth/auth_event.dart';
 import '../../../logic/auth/auth_state.dart';
@@ -49,7 +50,7 @@ class _SignupFormState extends State<SignupForm> {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is AuthAuthenticated) {
-          Navigator.pushReplacementNamed(context, '/dashboard');
+          print("Loggin authenticated $state");
         } else if (state is AuthError) {
           ScaffoldMessenger.of(
             context,
@@ -124,11 +125,11 @@ class _SignupFormState extends State<SignupForm> {
                   onPressed: state is AuthLoading ? null : _onSignupPressed,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
-                    ),
+                    // backgroundColor: Theme.of(context).colorScheme.primary,
+                    // foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                    // shape: RoundedRectangleBorder(
+                    //   borderRadius: BorderRadius.circular(24),
+                    // ),
                   ),
                   child: state is AuthLoading
                       ? const CircularProgressIndicator.adaptive()

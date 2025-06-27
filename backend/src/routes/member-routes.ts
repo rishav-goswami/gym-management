@@ -6,7 +6,7 @@ import { jwtAuth, requireRole } from "../middleware/jwtAuth";
 import { ROLES } from "../constants/roles";
 
 const router = express.Router();
-router.use(jwtAuth, requireRole(ROLES.USER));
+router.use(jwtAuth, requireRole(ROLES.MEMBER));
 
 // Get current user profile
 router.get("/me", asyncHandler(userController.getProfile));
