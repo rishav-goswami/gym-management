@@ -21,8 +21,8 @@ final darkTheme = ThemeData(
 
   /// Fix: Make sure all color roles are set for contrast
   colorScheme: const ColorScheme.dark(
-    primary: AppColors.primary,
-    secondary: AppColors.accent,
+    primary: AppColors.accent,
+    secondary: AppColors.primary,
     surface: AppColors.cardDark,
 
     onPrimary: AppColors.textPrimaryDark, // Text on buttons using primary background

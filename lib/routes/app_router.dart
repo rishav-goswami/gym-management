@@ -3,7 +3,9 @@ import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
 import 'package:fit_and_fine/logic/auth/auth_state.dart';
 import 'package:fit_and_fine/presentation/auth/login/login_screen.dart';
 import 'package:fit_and_fine/presentation/auth/register/signup_screen.dart';
-import 'package:fit_and_fine/presentation/member/dashboard/user_dashboard_screen.dart';
+import 'package:fit_and_fine/presentation/member/member-layout/member_screen_layout.dart';
+import 'package:fit_and_fine/presentation/member/profile/profile_screen.dart';
+import 'package:fit_and_fine/routes/member_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -42,11 +44,8 @@ class AppRouter {
             return SignupScreen(role: role);
           },
         ),
-        GoRoute(
-          path: '/member-dashboard',
-          name: 'member-dashboard',
-          builder: (context, state) => const MemberDashboardScreen(),
-        ),
+
+        MemberRoutes.aLLMemberRoutes,
         // Add other dashboard routes here...
       ],
       // --- FINAL, ROBUST REDIRECT LOGIC ---
@@ -74,7 +73,7 @@ class AppRouter {
           // and they are on the splash or any auth screen, redirect to their dashboard.
           if (isSplashScreen || isAuthFlow) {
             final user = authState.user;
-            if (user is Member) return '/member-dashboard';
+            if (user is Member) return '/member/home';
             if (user is Trainer) return '/trainer-dashboard';
             if (user is Admin) return '/admin-dashboard';
             return '/'; // Fallback

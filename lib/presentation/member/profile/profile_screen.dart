@@ -1,204 +1,299 @@
+import 'package:fit_and_fine/data/models/user_model.dart';
+import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
+import 'package:fit_and_fine/logic/auth/auth_event.dart';
+import 'package:fit_and_fine/logic/auth/auth_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:getwidget/getwidget.dart';
-import '../../../logic/user/profile/profile_bloc.dart';
-import '../../../logic/user/profile/profile_state.dart';
-import '../../../core/theme/theme.dart';
+// import 'package:intl/intl.dart'; // For formatting the date
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ProfileBloc, ProfileState>(
+    // This BlocBuilder rebuilds the UI whenever the auth state changes.
+    return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
-        if (state is ProfileLoading || state is ProfileInitial) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        } else if (state is ProfileLoaded) {
-          final user = state.user;
-          final String name = user.name;
-          final String bio = user.bio ?? '';
-          final String target = user.bio ?? '';
-          final double heightCm = (user.height ?? 0).toDouble();
-          final double weightKg = (user.weight ?? 0).toDouble();
-          final int age = user.age ?? 0;
-          final String avatarUrl = user.avatarUrl ?? '';
-
-          double heightM = heightCm / 100;
-          double bmi = (heightM > 0) ? weightKg / (heightM * heightM) : 0;
-
-          String bmiCategory;
-          if (bmi < 18.5) {
-            bmiCategory = 'Underweight';
-          } else if (bmi < 25) {
-            bmiCategory = 'Normal';
-          } else if (bmi < 30) {
-            bmiCategory = 'Overweight';
-          } else {
-            bmiCategory = 'Obese';
-          }
-
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('Profile'),
-              backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-              foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
-              elevation: Theme.of(context).appBarTheme.elevation,
-              titleTextStyle: Theme.of(context).appBarTheme.titleTextStyle,
-            ),
-            body: SingleChildScrollView(
-              child: Column(
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor,
-                      borderRadius: const BorderRadius.vertical(
-                        bottom: Radius.circular(30),
-                      ),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 32),
-                    child: Column(
-                      children: [
-                        CircleAvatar(
-                          radius: 55,
-                          backgroundColor: Theme.of(context).cardColor,
-                          backgroundImage: avatarUrl.isNotEmpty ? AssetImage(avatarUrl) : null,
-                          child: GestureDetector(
-                            onTap: () {
-                              Navigator.pushNamed(context, '/edit-profile');
-                            },
-                            child: avatarUrl.isEmpty
-                                ? Icon(Icons.person, size: 50, color: Theme.of(context).colorScheme.secondary)
-                                : null,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          name,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                color: Theme.of(context).colorScheme.secondary,
-                              ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          bio,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                        ),
-                        const SizedBox(height: 10),
-                        GFButton(
-                          onPressed: () {
-                            Navigator.pushNamed(context, '/edit-profile');
-                          },
-                          text: "Edit Profile",
-                          color: Theme.of(context).colorScheme.secondary,
-                          textColor: Theme.of(context).colorScheme.onSecondary,
-                          shape: GFButtonShape.pills,
-                          size: GFSize.SMALL,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                    child: Card(
-                      elevation: 3,
-                      color: Theme.of(context).cardColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 20,
-                          horizontal: 18,
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                _profileStat(
-                                  'Height',
-                                  '${heightCm.toStringAsFixed(0)} cm',
-                                  Icons.height,
-                                ),
-                                _profileStat(
-                                  'Weight',
-                                  '${weightKg.toStringAsFixed(1)} kg',
-                                  Icons.monitor_weight,
-                                ),
-                                _profileStat('Age', '$age', Icons.cake),
-                              ],
-                            ),
-                            const Divider(height: 32),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                _profileStat('Target', target, Icons.flag),
-                                _profileStat(
-                                  'BMI',
-                                  bmi.toStringAsFixed(1),
-                                  Icons.fitness_center,
-                                ),
-                                _profileStat(
-                                  'Category',
-                                  bmiCategory,
-                                  Icons.info_outline,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                    child: GFButton(
-                      onPressed: () {},
-                      text: "View Progress",
-                      color: Theme.of(context).colorScheme.onSecondary,
-                      fullWidthButton: true,
-                      size: GFSize.LARGE,
-                      shape: GFButtonShape.pills,
-                      icon: Icon(
-                        Icons.show_chart,
-                        color: Theme.of(context).colorScheme.secondary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        } else if (state is ProfileError) {
-          return Scaffold(
-            body: Center(child: Text(state.message)),
-          );
-        } else {
-          return const SizedBox.shrink();
+        // Show a loading indicator or empty state if not authenticated.
+        if (state is! AuthAuthenticated) {
+          return const Center(child: CircularProgressIndicator());
         }
+
+        // We are sure the user is authenticated, so we can access their data.
+        final user = state.user;
+
+        // The main UI for the profile screen.
+        return Scaffold(
+          // The AppBar will be handled by the parent DashboardScreen.
+          body: ListView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 20.0,
+            ),
+            children: [
+              // --- Profile Header ---
+              _ProfileHeader(user: user),
+              const SizedBox(height: 32),
+
+              // --- Personal Information Section ---
+              const _SectionHeader(title: 'Personal Information'),
+              _ProfileListItem(
+                label: 'Email',
+                value: user.email,
+                onTap: () {
+                  /* Navigate to edit email screen */
+                },
+              ),
+              // Assuming 'phone' and 'dateOfBirth' would be added to your Member model
+              _ProfileListItem(
+                label: 'Phone Number',
+                value: '(555) 123 - 4567', // Placeholder
+                onTap: () {
+                  /* Navigate to edit phone screen */
+                },
+              ),
+              if (user is Member) ...[
+                _ProfileListItem(
+                  label: 'Gender',
+                  value: user.gender?.name ?? 'Not set',
+                  onTap: () {
+                    /* Navigate to edit gender screen */
+                  },
+                ),
+                _ProfileListItem(
+                  label: 'Date of Birth',
+                  // Assuming 'dateOfBirth' would be added to your Member model
+                  value: '1990-05-15', // Placeholder
+                  onTap: () {
+                    /* Navigate to edit dob screen */
+                  },
+                ),
+              ],
+              const SizedBox(height: 24),
+
+              // --- Fitness Goals Section ---
+              if (user is Member) ...[
+                const _SectionHeader(title: 'Fitness Goals'),
+                _ProfileListItem(
+                  label: 'Primary Goal',
+                  value: user.healthGoals ?? 'Weight Loss', // Using placeholder
+                  onTap: () {
+                    /* Navigate to edit goals screen */
+                  },
+                ),
+                _ProfileListItem(
+                  label: 'Workout Frequency',
+                  value: '3-4 times a week', // Placeholder
+                  onTap: () {
+                    /* Navigate to edit frequency screen */
+                  },
+                ),
+              ],
+              const SizedBox(height: 24),
+
+              // --- Preferences Section ---
+              const _SectionHeader(title: 'Preferences'),
+              _ProfileListItem(
+                label: 'Preferred Workouts',
+                value: 'Cardio, Strength Training', // Placeholder
+                onTap: () {
+                  /* Navigate to edit preferences */
+                },
+              ),
+              _ProfileListItem(
+                label: 'Preferred Workout Time',
+                value: 'Morning', // Placeholder
+                onTap: () {
+                  /* Navigate to edit preferences */
+                },
+              ),
+              const SizedBox(height: 24),
+
+              // --- Payments & Subscriptions Section ---
+              const _SectionHeader(title: 'Payments & Subscriptions'),
+              _ProfileListItem(
+                label: 'Subscription Status',
+                value: 'Active', // Placeholder
+                onTap: () {
+                  /* Navigate to manage subscription */
+                },
+              ),
+              _ProfileListItem(
+                label: 'Payment Method',
+                value: 'Visa **** 1234', // Placeholder
+                onTap: () {
+                  /* Navigate to manage payment */
+                },
+              ),
+              const SizedBox(height: 24),
+
+              // --- App Settings Section ---
+              const _SectionHeader(title: 'App Settings'),
+              _ProfileListItem(label: 'Notifications', value: '', onTap: () {}),
+              _ProfileListItem(
+                label: 'Privacy Settings',
+                value: '',
+                onTap: () {},
+              ),
+              _ProfileListItem(
+                label: 'Help & Support',
+                value: '',
+                onTap: () {},
+              ),
+              const SizedBox(height: 32),
+
+              // --- Logout Button ---
+              _LogoutButton(),
+            ],
+          ),
+        );
       },
     );
   }
 }
 
-Widget _profileStat(String label, String value, IconData icon) {
-  return Column(
-    children: [
-      Icon(icon, color: Colors.deepPurple, size: 28),
-      const SizedBox(height: 6),
-      Text(
-        value,
-        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+// A reusable widget for section headers.
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  const _SectionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    // Using theme for text style
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0, top: 8.0),
+      child: Text(
+        title,
+        style: Theme.of(
+          context,
+        ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
       ),
-      const SizedBox(height: 2),
-      Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-    ],
-  );
+    );
+  }
+}
+
+// The header part with the user's avatar and name.
+class _ProfileHeader extends StatelessWidget {
+  final User user;
+  const _ProfileHeader({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    // Using theme for colors and text styles
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        CircleAvatar(
+          radius: 50,
+          backgroundColor: theme.colorScheme.secondaryContainer,
+          // You can use a NetworkImage here if you have an avatarUrl
+          // Assuming user.avatarUrl is a field in your model
+          // backgroundImage: (user as Member).avatarUrl != null ? NetworkImage((user as Member).avatarUrl!) : null,
+          child: Icon(
+            Icons.person,
+            size: 50,
+            color: theme.colorScheme.onSecondaryContainer,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          user.name,
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          // Assuming user model will have 'joinDate' or similar
+          'Member since ${user.createdAt?.year ?? "2024"}',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// A reusable widget for each item in the profile list.
+class _ProfileListItem extends StatelessWidget {
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  const _ProfileListItem({
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Using theme for colors and text styles
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12.0),
+        child: Row(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: theme.textTheme.bodyLarge),
+                if (value.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const Spacer(),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 16,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// The logout button at the bottom.
+class _LogoutButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    // Using theme for button styling
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: () {
+          // Dispatch the logout event to the AuthBloc.
+          context.read<AuthBloc>().add(AuthLogoutRequested());
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: theme
+              .colorScheme
+              .surfaceVariant, // Changed from errorContainer for a softer look
+          foregroundColor: theme.colorScheme.onSurface,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+        child: const Text(
+          'Logout',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
 }
