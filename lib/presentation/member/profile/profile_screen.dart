@@ -4,6 +4,7 @@ import 'package:fit_and_fine/logic/auth/auth_event.dart';
 import 'package:fit_and_fine/logic/auth/auth_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 // import 'package:intl/intl.dart'; // For formatting the date
 
 class ProfileScreen extends StatelessWidget {
@@ -42,6 +43,7 @@ class ProfileScreen extends StatelessWidget {
                 value: user.email,
                 onTap: () {
                   /* Navigate to edit email screen */
+                  context.push('/member/edit-profile');
                 },
               ),
               // Assuming 'phone' and 'dateOfBirth' would be added to your Member model
@@ -79,6 +81,7 @@ class ProfileScreen extends StatelessWidget {
                   value: user.healthGoals ?? 'Weight Loss', // Using placeholder
                   onTap: () {
                     /* Navigate to edit goals screen */
+                    context.push('/member/fitness-goals');
                   },
                 ),
                 _ProfileListItem(
@@ -111,11 +114,13 @@ class ProfileScreen extends StatelessWidget {
 
               // --- Payments & Subscriptions Section ---
               const _SectionHeader(title: 'Payments & Subscriptions'),
+
               _ProfileListItem(
                 label: 'Subscription Status',
                 value: 'Active', // Placeholder
                 onTap: () {
                   /* Navigate to manage subscription */
+                  context.push('/member/payments');
                 },
               ),
               _ProfileListItem(
@@ -129,7 +134,13 @@ class ProfileScreen extends StatelessWidget {
 
               // --- App Settings Section ---
               const _SectionHeader(title: 'App Settings'),
-              _ProfileListItem(label: 'Notifications', value: '', onTap: () {}),
+              _ProfileListItem(
+                label: 'Notifications',
+                value: '',
+                onTap: () {
+                  context.push("/member/settings");
+                },
+              ),
               _ProfileListItem(
                 label: 'Privacy Settings',
                 value: '',
