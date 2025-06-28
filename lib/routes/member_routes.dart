@@ -1,7 +1,8 @@
-
 import 'package:fit_and_fine/presentation/member/dashboard/home_tab.dart';
 import 'package:fit_and_fine/presentation/member/member-layout/member_screen_layout.dart';
 import 'package:fit_and_fine/presentation/member/profile/profile_screen.dart';
+import 'package:fit_and_fine/presentation/member/progress/progress_tab.dart';
+import 'package:fit_and_fine/presentation/member/workouts/workout_details_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -23,9 +24,8 @@ class MemberRoutes {
         // Default route for the member section
         GoRoute(
           path: '/member/home',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: HomeTab(),
-          ),
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: HomeTab()),
         ),
         GoRoute(
           path: '/member/workouts',
@@ -35,9 +35,8 @@ class MemberRoutes {
         ),
         GoRoute(
           path: '/member/progress',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: Center(child: Text('Progress')), // Placeholder
-          ),
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: ProgressTab()),
         ),
         GoRoute(
           path: '/member/community',
@@ -54,4 +53,13 @@ class MemberRoutes {
       ],
     );
   }
+
+  // Define routes that are part of the member flow but not in the shell.
+  static List<RouteBase> get detailRoutes => [
+    GoRoute(
+      path: '/member/workout-details',
+      builder: (context, state) => const WorkoutDetailsScreen(),
+    ),
+    // You can add other detail screens here, like '/member/edit-profile'
+  ];
 }

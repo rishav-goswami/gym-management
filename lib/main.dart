@@ -3,7 +3,7 @@ import 'package:fit_and_fine/data/datasources/auth_remote_data_source.dart';
 import 'package:fit_and_fine/data/repositories/auth_repository.dart';
 import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
 import 'package:fit_and_fine/logic/auth/auth_event.dart';
-import 'package:fit_and_fine/logic/user/profile/profile_bloc.dart';
+import 'package:fit_and_fine/logic/member/profile/profile_bloc.dart';
 import 'package:fit_and_fine/presentation/member/profile/edit_profile/edit_profile_screen.dart';
 import 'package:fit_and_fine/presentation/member/profile/profile_screen.dart';
 import 'package:fit_and_fine/routes/app_router.dart';
@@ -14,7 +14,7 @@ import 'presentation/auth/login/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'core/theme/theme.dart';
 import 'logic/auth/auth_state.dart';
-import 'logic/user/profile/profile_event.dart';
+import 'logic/member/profile/profile_event.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 

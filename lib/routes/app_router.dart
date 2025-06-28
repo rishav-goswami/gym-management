@@ -46,6 +46,7 @@ class AppRouter {
         ),
 
         MemberRoutes.aLLMemberRoutes,
+        ...MemberRoutes.detailRoutes,
         // Add other dashboard routes here...
       ],
       // --- FINAL, ROBUST REDIRECT LOGIC ---
