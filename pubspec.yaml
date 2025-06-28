@@ -71,7 +71,7 @@ flutter:
   assets:
     - .env
     - assets/
-    - assets/avatars/
+    - assets/images/avatars/
     - assets/images/welcome/
  
 

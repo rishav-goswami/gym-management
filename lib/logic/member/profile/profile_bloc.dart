@@ -1,87 +1,73 @@
-import 'dart:convert';
-import 'package:bloc/bloc.dart';
-import 'package:fit_and_fine/core/constants/constant.dart';
+import 'package:equatable/equatable.dart';
+import 'package:fit_and_fine/data/models/user_model.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
-import 'package:http/http.dart' as http;
+// You will need to create this repository.
+// import 'package:fit_and_fine/data/repositories/profile_repository.dart';
 
-import '../../../data/models/user_profile.dart';
-import 'profile_event.dart';
-import 'profile_state.dart';
+part 'profile_event.dart';
+part 'profile_state.dart';
 
 class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
-  final String baseUrl = AppConstants.baseUrl;
-  final String xApiKey = AppConstants.xApiKey;
-  String? _token;
-  ProfileBloc() : super(ProfileInitial()) {
-    on<FetchProfile>(_onFetchProfile);
-    on<UpdateProfile>(_onUpdateProfile);
-    on<SetProfileToken>(_onSetProfileToken);
+  // final ProfileRepository _profileRepository;
+
+  ProfileBloc(/* {required ProfileRepository profileRepository} */)
+    // : _profileRepository = profileRepository,
+    : super(ProfileInitial()) {
+    on<FetchUserProfile>(_onFetchUserProfile);
+    on<UpdateUserProfile>(_onUpdateUserProfile);
   }
 
-  void setToken(String? token) {
-    add(SetProfileToken(token));
-  }
-
-  Future<void> _onSetProfileToken(
-    SetProfileToken event,
-    Emitter<ProfileState> emit,
-  ) async {
-    _token = event.token;
-  }
-
-  Future<void> _onFetchProfile(
-    FetchProfile event,
+  Future<void> _onFetchUserProfile(
+    FetchUserProfile event,
     Emitter<ProfileState> emit,
   ) async {
     emit(ProfileLoading());
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/user/me'),
-        headers: {
-          'Content-Type': 'application/json',
-          if (_token != null) 'Authorization': 'Bearer $_token',
-        },
+      // In a real app, call the repository:
+      // final user = await _profileRepository.getUserProfile();
+      // emit(ProfileLoaded(user));
+
+      // Using mock data for now
+      await Future.delayed(const Duration(seconds: 1));
+      // This would come from your API
+      const mockUser = Member(
+        id: '123',
+        name: 'Ethan Carter',
+        email: 'ethan.carter@email.com',
+        verified: false,
       );
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 && data['data'] != null) {
-        emit(ProfileLoaded(UserProfile.fromMap(data['data'])));
-      } else {
-        emit(ProfileError(data['message'] ?? 'Failed to fetch profile'));
-      }
+      emit(const ProfileLoaded(mockUser));
     } catch (e) {
-      emit(ProfileError('Failed to fetch profile: $e'));
+      emit(ProfileError(e.toString()));
     }
   }
 
-  Future<void> _onUpdateProfile(
-    UpdateProfile event,
+  Future<void> _onUpdateUserProfile(
+    UpdateUserProfile event,
     Emitter<ProfileState> emit,
   ) async {
     emit(ProfileLoading());
     try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/user/me'),
-        headers: {
-          'Content-Type': 'application/json',
-          if (_token != null) 'Authorization': 'Bearer $_token',
-        },
-        body: jsonEncode(event.update),
+      // final updatedUser = await _profileRepository.updateUserProfile(event.updatedData);
+
+      // In a real app, you would also need to update the AuthBloc's state
+      // so the whole app has the new user info.
+
+      // emit(ProfileLoaded(updatedUser));
+      await Future.delayed(const Duration(seconds: 1));
+      print('Data to update: ${event.name}');
+      // This mock user would be the response from your API
+      const mockUser = Member(
+        id: '123',
+        name: 'Ethan Carter Updated',
+        email: 'ethan.carter@email.com',
+        verified: false,
       );
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 && data['data'] != null) {
-        emit(ProfileLoaded(UserProfile.fromMap(data['data'])));
-      } else {
-        emit(ProfileError(data['message'] ?? 'Failed to update profile'));
-      }
+      emit(const ProfileLoaded(mockUser));
     } catch (e) {
-      emit(ProfileError('Failed to update profile: $e'));
+      emit(ProfileError(e.toString()));
     }
   }
-}
-
-class SetProfileToken extends ProfileEvent {
-  final String? token;
-  const SetProfileToken(this.token);
-  @override
-  List<Object?> get props => [token];
 }

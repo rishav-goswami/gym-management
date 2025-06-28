@@ -4,7 +4,7 @@ import 'package:fit_and_fine/presentation/member/edit-profile/fitness-goal/edit_
 import 'package:fit_and_fine/presentation/member/edit-profile/payments/member_payment_screen.dart';
 import 'package:fit_and_fine/presentation/member/member-layout/member_screen_layout.dart';
 import 'package:fit_and_fine/presentation/member/edit-profile/personal-info/member_personal_info.dart';
-import 'package:fit_and_fine/presentation/member/profile/profile_screen.dart';
+import 'package:fit_and_fine/presentation/member/profile/member_profile_screen.dart';
 import 'package:fit_and_fine/presentation/member/progress/progress_tab.dart';
 import 'package:fit_and_fine/presentation/member/workouts/workout_details_screen.dart';
 import 'package:flutter/material.dart';
@@ -51,20 +51,8 @@ class MemberRoutes {
         GoRoute(
           path: '/member/profile',
           pageBuilder: (context, state) => const NoTransitionPage(
-            child: ProfileScreen(), // Your existing ProfileScreen
+            child: MemberProfileScreen(), // Your existing ProfileScreen
           ),
-        ),
-        GoRoute(
-          path: '/member/fitness-goals',
-          builder: (context, state) => const EditFitnessGoalsScreen(),
-        ),
-        GoRoute(
-          path: '/member/payments',
-          builder: (context, state) => const MemberPaymentsScreen(),
-        ),
-        GoRoute(
-          path: '/member/settings',
-          builder: (context, state) => const MemberSettingsScreen(),
         ),
       ],
     );
@@ -77,8 +65,20 @@ class MemberRoutes {
       builder: (context, state) => const WorkoutDetailsScreen(),
     ),
     GoRoute(
-      path: '/member/edit-profile', // The new route path
+      path: '/member/edit-personal-info',
       builder: (context, state) => const EditPersonalInfoScreen(),
+    ),
+    GoRoute(
+      path: '/member/fitness-goals',
+      builder: (context, state) => const EditFitnessGoalsScreen(),
+    ),
+    GoRoute(
+      path: '/member/payments',
+      builder: (context, state) => const MemberPaymentsScreen(),
+    ),
+    GoRoute(
+      path: '/member/settings',
+      builder: (context, state) => const MemberSettingsScreen(),
     ),
   ];
 }

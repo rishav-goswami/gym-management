@@ -2,9 +2,7 @@
  * file: user_model.dart
  * This file contains the Dart data models corresponding to your backend schemas.
  * It defines the base User class and specific implementations for Member, Trainer, and Admin.
- *
- * --- REFACTORED TO HANDLE NULLS AND LOGIN RESPONSE ---
- */
+ **/
 
 import 'package:flutter/foundation.dart';
 import 'package:fit_and_fine/core/constants/user_role_enum.dart'; // Assuming you have this enum
@@ -22,6 +20,7 @@ abstract class User {
   // Made these nullable as they might not be in every response (like login)
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final String? phone;
 
   const User({
     required this.id,
@@ -30,6 +29,7 @@ abstract class User {
     required this.role,
     this.createdAt,
     this.updatedAt,
+    this.phone,
   });
 }
 
@@ -40,8 +40,9 @@ class Member extends User {
   final String? trainerId;
   final String? healthGoals;
   final String? subscription;
-  final List<String> performance;
-  final int? age;
+  final List<String>? performance;
+  final int? age; // not required will remove it later
+  final DateTime? dob;
   final Gender? gender;
   final double? height;
   final double? weight;
@@ -58,8 +59,10 @@ class Member extends User {
     this.trainerId,
     this.healthGoals,
     this.subscription,
-    required this.performance,
+    this.performance,
     this.age,
+    this.dob,
+    super.phone,
     this.gender,
     this.height,
     this.weight,
@@ -80,6 +83,8 @@ class Member extends User {
       updatedAt: json['updatedAt'] != null
           ? DateTime.parse(json['updatedAt'])
           : null,
+      dob: json['dob'] != null ? DateTime.parse(json['dob']) : null,
+      phone: json['phone'],
       avatarUrl: json['avatarUrl'],
       trainerId: json['trainerId'],
       healthGoals: json['healthGoals'],

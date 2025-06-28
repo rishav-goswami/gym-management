@@ -4,7 +4,7 @@ import 'package:fit_and_fine/logic/auth/auth_state.dart';
 import 'package:fit_and_fine/presentation/auth/login/login_screen.dart';
 import 'package:fit_and_fine/presentation/auth/register/signup_screen.dart';
 import 'package:fit_and_fine/presentation/member/member-layout/member_screen_layout.dart';
-import 'package:fit_and_fine/presentation/member/profile/profile_screen.dart';
+import 'package:fit_and_fine/presentation/member/profile/member_profile_screen.dart';
 import 'package:fit_and_fine/routes/member_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';

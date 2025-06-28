@@ -1,7 +1,6 @@
 // screens/sidebar.dart
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../logic/member/profile/profile_bloc.dart';
-import '../logic/member/profile/profile_state.dart';
 import 'package:fit_and_fine/core/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:getwidget/getwidget.dart';
@@ -19,7 +18,7 @@ class Sidebar extends StatelessWidget {
         if (state is ProfileLoaded) {
           name = state.user.name;
           email = state.user.email;
-          avatarUrl = state.user.avatarUrl ?? '';
+          // avatarUrl = state.user.avatarUrl ?? '';
         }
         return GFDrawer(
           child: Column(

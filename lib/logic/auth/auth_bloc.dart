@@ -1,3 +1,4 @@
+import 'package:fit_and_fine/data/models/auth_model.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fit_and_fine/data/repositories/auth_repository.dart';
 import 'package:fit_and_fine/logic/auth/auth_event.dart';
@@ -11,6 +12,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthRegisterRequested>(_onRegisterRequested);
     on<AuthLogoutRequested>(_onLogoutRequested);
     on<AuthCheckRequested>(_onAuthCheckRequested);
+    on<AuthUserUpdated>(_onAuthUserUpdated);
   }
 
   Future<void> _onLoginRequested(
@@ -69,6 +71,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(AuthAuthenticated(authModel: authModel));
     } else {
       emit(AuthUnauthenticated());
+    }
+  }
+
+  void _onAuthUserUpdated(AuthUserUpdated event, Emitter<AuthState> emit) {
+    // Check if the user is currently authenticated
+    final currentState = state;
+    if (currentState is AuthAuthenticated) {
+      // Create a new AuthModel with the existing token but the NEW user data
+      final newAuthModel = AuthModel(
+        accessToken: currentState.authModel.accessToken,
+        user: event.updatedUser,
+      );
+      // Emit a new AuthAuthenticated state with the updated model
+      emit(AuthAuthenticated(authModel: newAuthModel));
     }
   }
 }

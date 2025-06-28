@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:fit_and_fine/core/constants/user_role_enum.dart';
+import 'package:fit_and_fine/data/models/user_model.dart';
 
 abstract class AuthEvent extends Equatable {
   const AuthEvent();
@@ -45,3 +46,12 @@ class AuthRegisterRequested extends AuthEvent {
 class AuthLogoutRequested extends AuthEvent {}
 
 class AuthCheckRequested extends AuthEvent {}
+
+class AuthUserUpdated extends AuthEvent {
+  final User updatedUser;
+
+  const AuthUserUpdated(this.updatedUser);
+
+  @override
+  List<Object> get props => [updatedUser];
+}
