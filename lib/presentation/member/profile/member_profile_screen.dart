@@ -61,13 +61,20 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0, top: 8.0),
-      child: Text(
-        title,
-        style: Theme.of(
-          context,
-        ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const Spacer(),
+          Icon(Icons.edit, size: 16, color: theme.colorScheme.onSurfaceVariant),
+        ],
       ),
     );
   }
@@ -126,25 +133,20 @@ class _PersonalInfoSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionHeader(title: 'Personal Information'),
-        _TappableSectionCard(
+        InkWell(
+          child: _SectionHeader(title: 'Personal Information'),
           onTap: () => context.push('/member/edit-personal-info'),
-          children: [
-            _ProfileListItem(label: 'Email', value: user.email),
-            _ProfileListItem(
-              label: 'Phone Number',
-              value: user.phone ?? "Not set",
-            ),
-            _ProfileListItem(
-              label: 'Gender',
-              value: user.gender?.name ?? 'Not set',
-            ),
-            _ProfileListItem(
-              label: 'Date of Birth',
-              // Assuming 'dateOfBirth' would be added to your Member model
-              value: user.dob?.toIso8601String() ?? 'Not set', // Placeholder
-            ),
-          ],
+        ),
+        _ProfileListItem(label: 'Email', value: user.email),
+        _ProfileListItem(label: 'Phone Number', value: user.phone ?? "Not set"),
+        _ProfileListItem(
+          label: 'Gender',
+          value: user.gender?.name ?? 'Not set',
+        ),
+        _ProfileListItem(
+          label: 'Date of Birth',
+          // Assuming 'dateOfBirth' would be added to your Member model
+          value: user.dob?.toIso8601String() ?? 'Not set', // Placeholder
         ),
       ],
     );
@@ -160,20 +162,17 @@ class _FitnessGoalsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionHeader(title: 'Fitness Goals'),
-        _TappableSectionCard(
-          onTap: () => context.push('/member/fitness-goals'),
-          children: [
-            _ProfileListItem(
-              label: 'Primary Goal',
-              value: (user as Member).healthGoals ?? 'Weight Loss',
-            ),
-            _ProfileListItem(
-              label: 'Workout Frequency',
-              value: '3-4 times a week',
-            ),
-          ],
+        InkWell(
+          onTap: () {
+            context.push('/member/fitness-goals');
+          },
+          child: const _SectionHeader(title: 'Fitness Goals'),
         ),
+        _ProfileListItem(
+          label: 'Primary Goal',
+          value: (user as Member).healthGoals ?? 'Weight Loss',
+        ),
+        _ProfileListItem(label: 'Workout Frequency', value: '3-4 times a week'),
       ],
     );
   }
@@ -185,19 +184,18 @@ class _PreferencesSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionHeader(title: 'Preferences'),
-        _TappableSectionCard(
+        InkWell(
           onTap: () {
-            /* Navigate to edit preferences screen */
+            context.push('/member/preferences');
           },
-          children: [
-            _ProfileListItem(
-              label: 'Preferred Workouts',
-              value: 'Cardio, Strength Training',
-            ),
-            _ProfileListItem(label: 'Preferred Workout Time', value: 'Morning'),
-          ],
+          child: const _SectionHeader(title: 'Preferences'),
         ),
+
+        _ProfileListItem(
+          label: 'Preferred Workouts',
+          value: 'Cardio, Strength Training',
+        ),
+        _ProfileListItem(label: 'Preferred Workout Time', value: 'Morning'),
       ],
     );
   }
@@ -209,14 +207,15 @@ class _PaymentsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionHeader(title: 'Payments & Subscriptions'),
-        _TappableSectionCard(
-          onTap: () => context.push('/member/payments'),
-          children: [
-            _ProfileListItem(label: 'Subscription Status', value: 'Active'),
-            _ProfileListItem(label: 'Payment Method', value: 'Visa **** 1234'),
-          ],
+        InkWell(
+          onTap: () {
+            context.push('/member/payments');
+          },
+          child: const _SectionHeader(title: 'Payments & Subscriptions'),
         ),
+
+        _ProfileListItem(label: 'Subscription Status', value: 'Active'),
+        _ProfileListItem(label: 'Payment Method', value: 'Visa **** 1234'),
       ],
     );
   }
@@ -228,15 +227,16 @@ class _AppSettingsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionHeader(title: 'App Settings'),
-        _TappableSectionCard(
-          onTap: () => context.push('/member/settings'),
-          children: [
-            _ProfileListItem(label: 'Notifications', value: ''),
-            _ProfileListItem(label: 'Privacy Settings', value: ''),
-            _ProfileListItem(label: 'Help & Support', value: ''),
-          ],
+        InkWell(
+          onTap: () {
+            context.push('/member/settings');
+          },
+          child: const _SectionHeader(title: 'App Settings'),
         ),
+
+        _ProfileListItem(label: 'Notifications', value: ''),
+        _ProfileListItem(label: 'Privacy Settings', value: ''),
+        _ProfileListItem(label: 'Help & Support', value: ''),
       ],
     );
   }
@@ -271,35 +271,13 @@ class _ProfileListItem extends StatelessWidget {
               ],
             ],
           ),
-          const Spacer(),
-          Icon(
-            Icons.arrow_forward_ios,
-            size: 16,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+          // const Spacer(),
+          // Icon(
+          //   Icons.arrow_forward_ios,
+          //   size: 16,
+          //   color: theme.colorScheme.onSurfaceVariant,
+          // ),
         ],
-      ),
-    );
-  }
-}
-
-// A reusable card that makes its children tappable as a group.
-class _TappableSectionCard extends StatelessWidget {
-  final VoidCallback onTap;
-  final List<Widget> children;
-
-  const _TappableSectionCard({required this.onTap, required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
-      clipBehavior: Clip
-          .antiAlias, // Ensures the InkWell ripple effect is clipped to the card's shape
-      child: InkWell(
-        onTap: onTap,
-        child: Column(children: children),
       ),
     );
   }
