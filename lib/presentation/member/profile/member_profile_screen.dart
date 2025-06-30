@@ -36,7 +36,7 @@ class MemberProfileScreen extends StatelessWidget {
               _FitnessGoalsSection(user: user),
               const SizedBox(height: 16),
 
-              _PreferencesSection(),
+              _PreferencesSection(user: user),
               const SizedBox(height: 16),
 
               _PaymentsSection(),
@@ -172,13 +172,18 @@ class _FitnessGoalsSection extends StatelessWidget {
           label: 'Primary Goal',
           value: (user as Member).healthGoals ?? 'Weight Loss',
         ),
-        _ProfileListItem(label: 'Workout Frequency', value: '3-4 times a week'),
+        _ProfileListItem(
+          label: 'Workout Frequency',
+          value: (user as Member).workoutFrequency ?? '3-4 times a week',
+        ),
       ],
     );
   }
 }
 
 class _PreferencesSection extends StatelessWidget {
+  final User user;
+  const _PreferencesSection({required this.user});
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -193,7 +198,9 @@ class _PreferencesSection extends StatelessWidget {
 
         _ProfileListItem(
           label: 'Preferred Workouts',
-          value: 'Cardio, Strength Training',
+          value:
+              (user as Member).preferredWorkouts?.join(', ') ??
+              'Cardio, Strength Training',
         ),
         _ProfileListItem(label: 'Preferred Workout Time', value: 'Morning'),
       ],

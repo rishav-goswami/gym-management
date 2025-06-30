@@ -48,6 +48,9 @@ class Member extends User {
   final double? weight;
   final String? bio;
   final bool verified;
+  final String? workoutFrequency;
+  final List<String>? preferredWorkouts;
+  final String? preferredWorkoutTime;
 
   const Member({
     required super.id,
@@ -68,6 +71,9 @@ class Member extends User {
     this.weight,
     this.bio,
     required this.verified,
+    this.workoutFrequency,
+    this.preferredWorkouts,
+    this.preferredWorkoutTime,
   }) : super(role: UserRole.member);
 
   factory Member.fromJson(Map<String, dynamic> json) {
@@ -99,6 +105,11 @@ class Member extends User {
       bio: json['bio'],
       // Provide a default value for non-nullable types if they are missing.
       verified: json['verified'] ?? false,
+      workoutFrequency: json['workoutFrequency'],
+      preferredWorkouts: json['preferredWorkouts'] != null
+          ? List<String>.from(json['preferredWorkouts'])
+          : null,
+      preferredWorkoutTime: json['preferredWorkoutTime'],
     );
   }
 }
