@@ -14,6 +14,11 @@ router.get("/me", asyncHandler(userController.getProfile));
 // Update current user profile
 router.put("/me", asyncHandler(userController.updateProfile));
 
+
+// Fitness goals endpoints
+router.get("/fitness-goals", asyncHandler(userController.getFitnessGoals));
+router.put("/fitness-goals", asyncHandler(userController.updateFitnessGoals));
+
 // Get workout routine
 router.get("/workout", asyncHandler(userController.getWorkout));
 // Get diet plan

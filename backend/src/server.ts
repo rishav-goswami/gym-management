@@ -1,3 +1,4 @@
+import "./models/index";
 import express from "express";
 import MongoConnection from "./database/mongo_connect";
 import { createServer } from "http";
@@ -8,7 +9,10 @@ import MemberRoutes from "./routes/member-routes";
 import AdminRoutes from "./routes/admin-routes";
 import TrainerRoutes from "./routes/trainer-routes";
 import { apiKeyAuth } from "./middleware/apiKeyAuth";
-import { morganLogger, responseBodyInterceptor } from "./middleware/logger-morgan";
+import {
+  morganLogger,
+  responseBodyInterceptor,
+} from "./middleware/logger-morgan";
 
 // connecting to database
 (async () => {
@@ -21,7 +25,7 @@ const server = createServer(app);
 
 // Middleware
 app.use(express.json());
-app.use(cors({ origin: ["http://localhost:3000", "http://localhost:52430"] }));
+app.use(cors({ origin: ["http://localhost:3000", "http://localhost:55819"] }));
 
 app.use(responseBodyInterceptor); // This must be used before using morganLogger
 app.use(morganLogger);

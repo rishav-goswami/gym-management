@@ -1,6 +1,7 @@
 import 'package:fit_and_fine/data/datasources/auth_remote_data_source.dart';
 import 'package:fit_and_fine/core/services/storage_service.dart';
 import 'package:fit_and_fine/core/constants/user_role_enum.dart';
+import 'package:fit_and_fine/data/datasources/testing_remote_auth_source.dart';
 import 'package:fit_and_fine/data/models/auth_model.dart';
 
 class AuthRepository {
@@ -75,7 +76,14 @@ class AuthRepository {
       }
 
       // 2. Token exists, now validate it with the backend
-      final userJson = await remote.getMe(token);
+      final userJson = await remote.getMe(token); // uncomment original live
+
+      // final TestingRemoteDataSource testingRemoteDataSource =
+      //     TestingRemoteDataSource(); // just for mocking
+      // final userJson = await testingRemoteDataSource.getMe(
+      //   token,
+      // ); // just for mocking wihtout backend
+
       print("userJson: $userJson");
       // 3. If validation is successful, construct the AuthModel
       // We pass the existing token and the fresh user data from the API

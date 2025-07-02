@@ -1,18 +1,24 @@
+
 import 'package:equatable/equatable.dart';
-import 'package:fit_and_fine/data/models/user_model.dart';
+// import 'package:fit_and_fine/data/models/user_model.dart';
+import 'package:fit_and_fine/data/models/fitness_goals_model.dart';
 import 'package:fit_and_fine/data/repositories/fitness_goals_repository.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
+import 'package:fit_and_fine/logic/auth/auth_state.dart';
 
 part 'fitness_goals_event.dart';
 part 'fitness_goals_state.dart';
 
 class FitnessGoalsBloc extends Bloc<FitnessGoalsEvent, FitnessGoalsState> {
   final FitnessGoalsRepository _repository;
+  final AuthBloc _authBloc;
 
-  FitnessGoalsBloc({required FitnessGoalsRepository repository})
-    : _repository = repository,
-      super(FitnessGoalsInitial()) {
+  FitnessGoalsBloc({required FitnessGoalsRepository repository, required AuthBloc authBloc})
+      : _repository = repository,
+        _authBloc = authBloc,
+        super(FitnessGoalsInitial()) {
     on<LoadFitnessGoals>(_onLoadFitnessGoals);
     on<UpdateFitnessGoals>(_onUpdateFitnessGoals);
   }
@@ -22,9 +28,14 @@ class FitnessGoalsBloc extends Bloc<FitnessGoalsEvent, FitnessGoalsState> {
     Emitter<FitnessGoalsState> emit,
   ) async {
     emit(FitnessGoalsLoading());
+    final authState = _authBloc.state;
+    if (authState is! AuthAuthenticated) {
+      emit(FitnessGoalsError('Not authenticated'));
+      return;
+    }
     try {
-      final user = await _repository.getFitnessGoals('current_user_id');
-      emit(FitnessGoalsLoaded(user));
+      final goals = await _repository.getFitnessGoals(authState.authModel.accessToken);
+      emit(FitnessGoalsLoaded(goals));
     } catch (e) {
       emit(FitnessGoalsError(e.toString()));
     }
@@ -34,27 +45,33 @@ class FitnessGoalsBloc extends Bloc<FitnessGoalsEvent, FitnessGoalsState> {
     UpdateFitnessGoals event,
     Emitter<FitnessGoalsState> emit,
   ) async {
-    // We can emit loading for the current state to show a spinner on the button
     if (state is FitnessGoalsLoaded) {
       final currentState = state as FitnessGoalsLoaded;
-      emit(FitnessGoalsLoading()); // Show loading indicator
+      emit(FitnessGoalsLoading());
+
+      final authState = _authBloc.state;
+      if (authState is! AuthAuthenticated) {
+        emit(FitnessGoalsError('Not authenticated'));
+        emit(currentState);
+        return;
+      }
 
       try {
         final updates = {
           'healthGoals': event.primaryGoal,
           'workoutFrequency': event.workoutFrequency,
           'preferredWorkouts': event.preferredWorkouts.toList(),
-        };
-        final updatedUser = await _repository.updateFitnessGoals(
-          'current_user_id',
+        }..removeWhere((k, v) => v == null);
+        final updatedGoals = await _repository.updateFitnessGoals(
+          authState.authModel.accessToken,
           updates,
         );
 
-        emit(FitnessGoalsUpdateSuccess()); // Emit success to show snackbar
-        emit(FitnessGoalsLoaded(updatedUser)); // Then emit loaded with new data
+        emit(FitnessGoalsUpdateSuccess());
+        emit(FitnessGoalsLoaded(updatedGoals));
       } catch (e) {
         emit(FitnessGoalsError(e.toString()));
-        emit(currentState); // On error, revert to the previous loaded state
+        emit(currentState);
       }
     }
   }

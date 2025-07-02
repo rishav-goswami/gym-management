@@ -15,6 +15,9 @@ export interface IUser extends Document, IUserMethods {
   avatarUrl?: string;
   trainerId?: Types.ObjectId;
   healthGoals: string;
+  workoutFrequency?: string;
+  preferredWorkouts?: Types.ObjectId[];
+  preferredWorkoutTime?: string;
   subscription: Types.ObjectId;
   performance: Types.ObjectId[];
   age?: number;
@@ -37,6 +40,9 @@ const UserSchema = new Schema<IUser, Model<IUser>, IUserMethods>({
   avatarUrl: { type: String },
   trainerId: { type: Schema.Types.ObjectId, ref: "Trainer" },
   healthGoals: { type: String },
+  workoutFrequency: { type: String },
+  preferredWorkouts: [{ type: Schema.Types.ObjectId, ref: "Workout" }],
+  preferredWorkoutTime: { type: String },
   subscription: { type: Schema.Types.ObjectId, ref: "Subscription" },
   performance: [{ type: Schema.Types.ObjectId, ref: "PerformanceLog" }],
   age: { type: Number },

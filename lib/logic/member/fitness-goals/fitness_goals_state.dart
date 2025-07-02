@@ -13,12 +13,12 @@ class FitnessGoalsInitial extends FitnessGoalsState {}
 class FitnessGoalsLoading extends FitnessGoalsState {}
 
 class FitnessGoalsLoaded extends FitnessGoalsState {
-  final Member user;
+  final FitnessGoals goals;
 
-  const FitnessGoalsLoaded(this.user);
+  const FitnessGoalsLoaded(this.goals);
 
   @override
-  List<Object?> get props => [user];
+  List<Object?> get props => [goals];
 }
 
 class FitnessGoalsUpdateSuccess extends FitnessGoalsState {}
