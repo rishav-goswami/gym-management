@@ -17,7 +17,7 @@ class LoadPersonalInfo extends PersonalInfoEvent {}
 class UpdatePersonalInfo extends PersonalInfoEvent {
   final String name;
   final String email;
-  final String? phone;
+  final double? phone;
   final String? bio;
   final String? avatarUrl;
   final DateTime? dob;

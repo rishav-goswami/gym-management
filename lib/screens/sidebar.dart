@@ -16,8 +16,8 @@ class Sidebar extends StatelessWidget {
         String email = 'guest@email.com';
         String avatarUrl = '';
         if (state is ProfileLoaded) {
-          name = state.user.name;
-          email = state.user.email;
+          name = state.profileData.personalInfo.name;
+          email = state.profileData.personalInfo.email;
           // avatarUrl = state.user.avatarUrl ?? '';
         }
         return GFDrawer(

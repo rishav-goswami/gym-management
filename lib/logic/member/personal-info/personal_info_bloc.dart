@@ -5,6 +5,7 @@ import 'package:fit_and_fine/data/models/user_model.dart';
 import 'package:fit_and_fine/data/repositories/personal_info_repository.dart';
 import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
 import 'package:fit_and_fine/logic/auth/auth_event.dart';
+import 'package:fit_and_fine/logic/auth/auth_state.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -30,8 +31,14 @@ class PersonalInfoBloc extends Bloc<PersonalInfoEvent, PersonalInfoState> {
     Emitter<PersonalInfoState> emit,
   ) async {
     emit(PersonalInfoLoading());
+    final authState = _authBloc.state;
+    if (authState is! AuthAuthenticated) {
+      // Optionally: _authBloc.add(AuthLogoutRequested());
+      emit(const PersonalInfoError('Not authenticated'));
+      return;
+    }
     try {
-      final user = await _repository.getPersonalInfo('current_user_id');
+      final user = await _repository.getPersonalInfo(authState.authModel.accessToken);
       emit(PersonalInfoLoaded(user));
     } catch (e) {
       emit(PersonalInfoError(e.toString()));
@@ -43,8 +50,13 @@ class PersonalInfoBloc extends Bloc<PersonalInfoEvent, PersonalInfoState> {
     Emitter<PersonalInfoState> emit,
   ) async {
     emit(PersonalInfoLoading());
+    final authState = _authBloc.state;
+    if (authState is! AuthAuthenticated) {
+      // Optionally: _authBloc.add(AuthLogoutRequested());
+      emit(const PersonalInfoError('Not authenticated'));
+      return;
+    }
     try {
-      // Create a map from the event to send to the repository
       final updates = {
         'name': event.name,
         'email': event.email,
@@ -55,10 +67,10 @@ class PersonalInfoBloc extends Bloc<PersonalInfoEvent, PersonalInfoState> {
         'gender': event.gender?.name,
         'height': event.height,
         'weight': event.weight,
-      };
+      }..removeWhere((k, v) => v == null); // This trims the field with null values
 
       final updatedUser = await _repository.updatePersonalInfo(
-        'current_user_id',
+        authState.authModel.accessToken,
         updates,
       );
 

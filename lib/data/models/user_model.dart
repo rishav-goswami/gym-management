@@ -20,7 +20,7 @@ abstract class User {
   // Made these nullable as they might not be in every response (like login)
   final DateTime? createdAt;
   final DateTime? updatedAt;
-  final String? phone;
+  final double? phone;
 
   const User({
     required this.id,
@@ -90,7 +90,7 @@ class Member extends User {
           ? DateTime.parse(json['updatedAt'])
           : null,
       dob: json['dob'] != null ? DateTime.parse(json['dob']) : null,
-      phone: json['phone'],
+      phone: (json['phone'] as num?)?.toDouble(),
       avatarUrl: json['avatarUrl'],
       trainerId: json['trainerId'],
       healthGoals: json['healthGoals'],

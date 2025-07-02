@@ -18,11 +18,13 @@ export interface IUser extends Document, IUserMethods {
   subscription: Types.ObjectId;
   performance: Types.ObjectId[];
   age?: number;
+  dob?: string; // ISO string for date of birth
+  phone?: number;
   gender?: "male" | "female" | "other";
   height?: number;
   weight?: number;
   bio?: string;
-  verified: Boolean;
+  verified: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,6 +40,8 @@ const UserSchema = new Schema<IUser, Model<IUser>, IUserMethods>({
   subscription: { type: Schema.Types.ObjectId, ref: "Subscription" },
   performance: [{ type: Schema.Types.ObjectId, ref: "PerformanceLog" }],
   age: { type: Number },
+  phone: { type: Number },
+  dob: { type: String }, // ISO string for date of birth
   gender: { type: String, enum: ["male", "female", "other"] },
   height: { type: Number },
   weight: { type: Number },

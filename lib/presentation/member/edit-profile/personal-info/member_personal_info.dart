@@ -75,7 +75,7 @@ class _EditPersonalInfoViewState extends State<_EditPersonalInfoView> {
         UpdatePersonalInfo(
           name: _nameController.text,
           email: _emailController.text,
-          phone: _phoneController.text,
+          phone: double.tryParse(_phoneController.text),
           bio: _bioController.text,
           avatarUrl: _profileImage,
           dob: _selectedDob,
@@ -152,10 +152,10 @@ class _EditPersonalInfoViewState extends State<_EditPersonalInfoView> {
     return BlocListener<PersonalInfoBloc, PersonalInfoState>(
       listener: (context, state) {
         if (state is PersonalInfoLoaded) {
-          final user = state.user;
+          final user = state.user;  
           _nameController.text = user.name;
           _emailController.text = user.email;
-          _phoneController.text = user.phone ?? '';
+          _phoneController.text = user.phone?.toString() ?? '';
           _bioController.text = user.bio ?? '';
           _heightController.text = user.height?.toString() ?? '';
           _weightController.text = user.weight?.toString() ?? '';
