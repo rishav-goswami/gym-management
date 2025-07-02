@@ -37,7 +37,7 @@ abstract class User {
 @immutable
 class Member extends User {
   final String? avatarUrl;
-  final String? trainerId;
+  final String? trainerId; // this should not be here instead userId should be in trainer list
   final String? healthGoals;
   final String? subscription;
   final List<String>? performance;

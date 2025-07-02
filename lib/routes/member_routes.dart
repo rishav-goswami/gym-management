@@ -51,7 +51,7 @@ class MemberRoutes {
         GoRoute(
           path: '/member/profile',
           pageBuilder: (context, state) => const NoTransitionPage(
-            child: MemberProfileScreen(), // Your existing ProfileScreen
+            child: ProfileTab(), // Your existing ProfileScreen
           ),
         ),
       ],

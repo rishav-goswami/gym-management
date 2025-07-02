@@ -1,55 +1,245 @@
-import 'package:fit_and_fine/data/models/user_model.dart';
+// lib/presentation/member/profile/profile_screen.dart
+
+import 'package:fit_and_fine/data/datasources/profile_data_source.dart';
+import 'package:fit_and_fine/data/models/member_profile_model.dart';
+import 'package:fit_and_fine/data/repositories/profile_repository.dart';
 import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
 import 'package:fit_and_fine/logic/auth/auth_event.dart';
-import 'package:fit_and_fine/logic/auth/auth_state.dart';
+import 'package:fit_and_fine/logic/member/profile/profile_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+
+// This is the entry point for your profile tab
+class ProfileTab extends StatelessWidget {
+  const ProfileTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => ProfileBloc(
+        profileRepository: ProfileRepository(dataSource: ProfileDataSource()),
+      )..add(FetchProfileData()),
+      child: const MemberProfileScreen(),
+    );
+  }
+}
 
 class MemberProfileScreen extends StatelessWidget {
   const MemberProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AuthBloc, AuthState>(
+    return BlocBuilder<ProfileBloc, ProfileState>(
       builder: (context, state) {
-        if (state is! AuthAuthenticated) {
+        if (state is ProfileLoading || state is ProfileInitial) {
           return const Center(child: CircularProgressIndicator());
         }
-
-        final user = state.user as Member;
-
-        // The main build method is now very clean and readable.
-        return Scaffold(
-          body: ListView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 20.0,
+        if (state is ProfileError) {
+          return Center(child: Text(state.message));
+        }
+        if (state is ProfileLoaded) {
+          // The entire UI is now driven by the composite 'profileData' object
+          final profileData = state.profileData;
+          return Scaffold(
+            body: RefreshIndicator(
+              onRefresh: () async {
+                context.read<ProfileBloc>().add(FetchProfileData());
+              },
+              child: ListView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 20.0,
+                ),
+                children: [
+                  _ProfileHeader(personalInfo: profileData.personalInfo),
+                  const SizedBox(height: 32),
+                  _PersonalInfoSection(personalInfo: profileData.personalInfo),
+                  const SizedBox(height: 16),
+                  _FitnessGoalsSection(fitnessInfo: profileData.fitnessInfo),
+                  const SizedBox(height: 16),
+                  _PreferencesSection(fitnessInfo: profileData.fitnessInfo),
+                  const SizedBox(height: 16),
+                  _PaymentsSection(paymentInfo: profileData.paymentInfo),
+                  const SizedBox(height: 16),
+                  _AppSettingsSection(),
+                  const SizedBox(height: 32),
+                  _LogoutButton(),
+                ],
+              ),
             ),
-            children: [
-              _ProfileHeader(user: user),
-              const SizedBox(height: 32),
-
-              _PersonalInfoSection(user: user),
-              const SizedBox(height: 16),
-
-              _FitnessGoalsSection(user: user),
-              const SizedBox(height: 16),
-
-              _PreferencesSection(user: user),
-              const SizedBox(height: 16),
-
-              _PaymentsSection(),
-              const SizedBox(height: 16),
-
-              _AppSettingsSection(),
-              const SizedBox(height: 32),
-
-              _LogoutButton(),
-            ],
-          ),
-        );
+          );
+        }
+        return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+// --- Each Section Widget now takes its own specific data model ---
+
+class _ProfileHeader extends StatelessWidget {
+  final PersonalInfo personalInfo;
+  const _ProfileHeader({required this.personalInfo});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        CircleAvatar(
+          radius: 50,
+          backgroundColor: theme.colorScheme.secondaryContainer,
+          backgroundImage: personalInfo.avatarUrl != null
+              ? AssetImage(personalInfo.avatarUrl!)
+              : null,
+          child: personalInfo.avatarUrl == null
+              ? Icon(
+                  Icons.person,
+                  size: 50,
+                  color: theme.colorScheme.onSecondaryContainer,
+                )
+              : null,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          personalInfo.name,
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Member since ${personalInfo.memberSince ?? "2024"}',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PersonalInfoSection extends StatelessWidget {
+  final PersonalInfo personalInfo;
+  const _PersonalInfoSection({required this.personalInfo});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () async {
+            await context.push('/member/edit-personal-info');
+            if (context.mounted) {
+              context.read<ProfileBloc>().add(FetchProfileData());
+            }
+          },
+          child: const _SectionHeader(title: 'Personal Information'),
+        ),
+        _ProfileListItem(label: 'Email', value: personalInfo.email),
+        _ProfileListItem(
+          label: 'Phone Number',
+          value: personalInfo.phone ?? "Not set",
+        ),
+        _ProfileListItem(
+          label: 'Gender',
+          value: personalInfo.gender?.name ?? 'Not set',
+        ),
+        _ProfileListItem(
+          label: 'Date of Birth',
+          value: personalInfo.dob != null
+              ? DateFormat.yMMMd().format(personalInfo.dob!)
+              : 'Not set',
+        ),
+      ],
+    );
+  }
+}
+
+class _FitnessGoalsSection extends StatelessWidget {
+  final FitnessInfo fitnessInfo;
+  const _FitnessGoalsSection({required this.fitnessInfo});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () async {
+            await context.push('/member/fitness-goals');
+            if (context.mounted) {
+              context.read<ProfileBloc>().add(FetchProfileData());
+            }
+          },
+          child: const _SectionHeader(title: 'Fitness Goals'),
+        ),
+        _ProfileListItem(
+          label: 'Primary Goal',
+          value: fitnessInfo.healthGoals ?? 'Not set',
+        ),
+        _ProfileListItem(
+          label: 'Workout Frequency',
+          value: fitnessInfo.workoutFrequency ?? 'Not set',
+        ),
+      ],
+    );
+  }
+}
+
+class _PreferencesSection extends StatelessWidget {
+  final FitnessInfo fitnessInfo;
+  const _PreferencesSection({required this.fitnessInfo});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () {
+            /* Navigate to edit preferences screen */
+          },
+          child: const _SectionHeader(title: 'Preferences'),
+        ),
+        _ProfileListItem(
+          label: 'Preferred Workouts',
+          value: fitnessInfo.preferredWorkouts.join(', '),
+        ),
+        _ProfileListItem(
+          label: 'Preferred Workout Time',
+          value: fitnessInfo.preferredWorkoutTime ?? 'Not set',
+        ),
+      ],
+    );
+  }
+}
+
+class _PaymentsSection extends StatelessWidget {
+  final PaymentInfo paymentInfo;
+  const _PaymentsSection({required this.paymentInfo});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => context.push('/member/payments'),
+          child: const _SectionHeader(title: 'Payments & Subscriptions'),
+        ),
+        _ProfileListItem(
+          label: 'Subscription Status',
+          value: paymentInfo.subscriptionStatus,
+        ),
+        _ProfileListItem(
+          label: 'Payment Method',
+          value: paymentInfo.paymentMethod,
+        ),
+      ],
     );
   }
 }
@@ -80,154 +270,6 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-// The header part with the user's avatar and name.
-class _ProfileHeader extends StatelessWidget {
-  final User user;
-  const _ProfileHeader({required this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      children: [
-        CircleAvatar(
-          radius: 50,
-          backgroundColor: theme.colorScheme.secondaryContainer,
-          backgroundImage: (user as Member).avatarUrl != null
-              ? AssetImage((user as Member).avatarUrl ?? "")
-              : null,
-          child: (user as Member).avatarUrl == null
-              ? Icon(
-                  Icons.check_circle,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 32,
-                )
-              : null,
-        ),
-        const SizedBox(height: 16),
-        Text(
-          user.name,
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Member since ${user.createdAt?.year ?? "2024"}',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// Each section is now a reusable and tappable widget.
-class _PersonalInfoSection extends StatelessWidget {
-  final Member user;
-  const _PersonalInfoSection({required this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InkWell(
-          child: _SectionHeader(title: 'Personal Information'),
-          onTap: () => context.push('/member/edit-personal-info'),
-        ),
-        _ProfileListItem(label: 'Email', value: user.email),
-        _ProfileListItem(label: 'Phone Number', value: user.phone ?? "Not set"),
-        _ProfileListItem(
-          label: 'Gender',
-          value: user.gender?.name ?? 'Not set',
-        ),
-        _ProfileListItem(
-          label: 'Date of Birth',
-          // Assuming 'dateOfBirth' would be added to your Member model
-          value: user.dob?.toIso8601String() ?? 'Not set', // Placeholder
-        ),
-      ],
-    );
-  }
-}
-
-class _FitnessGoalsSection extends StatelessWidget {
-  final User user;
-  const _FitnessGoalsSection({required this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InkWell(
-          onTap: () {
-            context.push('/member/fitness-goals');
-          },
-          child: const _SectionHeader(title: 'Fitness Goals'),
-        ),
-        _ProfileListItem(
-          label: 'Primary Goal',
-          value: (user as Member).healthGoals ?? 'Weight Loss',
-        ),
-        _ProfileListItem(
-          label: 'Workout Frequency',
-          value: (user as Member).workoutFrequency ?? '3-4 times a week',
-        ),
-      ],
-    );
-  }
-}
-
-class _PreferencesSection extends StatelessWidget {
-  final User user;
-  const _PreferencesSection({required this.user});
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InkWell(
-          onTap: () {
-            context.push('/member/preferences');
-          },
-          child: const _SectionHeader(title: 'Preferences'),
-        ),
-
-        _ProfileListItem(
-          label: 'Preferred Workouts',
-          value:
-              (user as Member).preferredWorkouts?.join(', ') ??
-              'Cardio, Strength Training',
-        ),
-        _ProfileListItem(label: 'Preferred Workout Time', value: 'Morning'),
-      ],
-    );
-  }
-}
-
-class _PaymentsSection extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InkWell(
-          onTap: () {
-            context.push('/member/payments');
-          },
-          child: const _SectionHeader(title: 'Payments & Subscriptions'),
-        ),
-
-        _ProfileListItem(label: 'Subscription Status', value: 'Active'),
-        _ProfileListItem(label: 'Payment Method', value: 'Visa **** 1234'),
-      ],
-    );
-  }
-}
-
 class _AppSettingsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -235,12 +277,9 @@ class _AppSettingsSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         InkWell(
-          onTap: () {
-            context.push('/member/settings');
-          },
+          onTap: () => context.push('/member/settings'),
           child: const _SectionHeader(title: 'App Settings'),
         ),
-
         _ProfileListItem(label: 'Notifications', value: ''),
         _ProfileListItem(label: 'Privacy Settings', value: ''),
         _ProfileListItem(label: 'Help & Support', value: ''),
@@ -249,7 +288,7 @@ class _AppSettingsSection extends StatelessWidget {
   }
 }
 
-// A generic display item. It no longer needs an onTap property.
+// A generic display item.
 class _ProfileListItem extends StatelessWidget {
   final String label;
   final String value;
@@ -295,8 +334,8 @@ class _LogoutButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SizedBox(
-      width: double.infinity,
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
       child: ElevatedButton(
         onPressed: () {
           context.read<AuthBloc>().add(AuthLogoutRequested());
