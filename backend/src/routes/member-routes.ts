@@ -19,6 +19,10 @@ router.put("/me", asyncHandler(userController.updateProfile));
 router.get("/fitness-goals", asyncHandler(userController.getFitnessGoals));
 router.put("/fitness-goals", asyncHandler(userController.updateFitnessGoals));
 
+router.get('/options/health-goals', asyncHandler(userController.getHealthGoalsOptions));
+router.get('/options/workout-frequencies', asyncHandler(userController.getWorkoutFrequencyOptions));
+router.get('/options/workouts', asyncHandler(userController.searchWorkouts)); // Searchable workouts
+
 // Get workout routine
 router.get("/workout", asyncHandler(userController.getWorkout));
 // Get diet plan

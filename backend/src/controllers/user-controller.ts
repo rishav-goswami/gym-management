@@ -1,22 +1,25 @@
 import { Request, Response } from "express";
 import User from "../models/user";
-import ApiResponse from "../utils/api_response";
+import ApiResponse from "../utils/api_response"; // Assuming this utility exists
 import { z } from "zod";
-import jwt from "jsonwebtoken";
-import WorkoutRoutine from "../models/workout-routine";
-import Workout from "../models/workout";
-import DietPlan from "../models/diet-plan";
-import PaymentHistory from "../models/payment-history";
-import PerformanceLogSchema from "../models/performance-log";
+import jwt from "jsonwebtoken"; // Ensure this is for token decoding if used, otherwise remove if only `req.user` is relied on
+import WorkoutRoutine from "../models/workout-routine"; // Unused in this snippet, keep if needed elsewhere
+import Workout from "../models/workout"; // Existing Workout model
+import DietPlan from "../models/diet-plan"; // Unused
+import PaymentHistory from "../models/payment-history"; // Unused
+import PerformanceLogSchema from "../models/performance-log"; // Unused
+import HealthGoal from "../models/health-goals"; // NEW: HealthGoal Model
+import WorkoutFrequency from "../models/workout-frequency"; // NEW: WorkoutFrequency Model
 
 declare global {
   namespace Express {
     interface Request {
-      user?: Object | any;
+      user?: Object | any; // Ensure this correctly types req.user from your auth middleware
     }
   }
 }
 
+// Ensure these schemas align with your User model update requirements
 const updateProfileSchema = z.object({
   name: z.string().min(2).optional(),
   email: z.string().email().optional(),
@@ -27,8 +30,8 @@ const updateProfileSchema = z.object({
   gender: z.enum(["male", "female", "other"]).optional(),
   height: z.number().min(0).max(300).optional(),
   weight: z.number().min(0).max(500).optional(),
-  healthGoals: z.string().optional(),
-  workoutFrequency: z.string().optional(),
+  healthGoals: z.string().optional(), // Now refers to ID from HealthGoal model
+  workoutFrequency: z.string().optional(), // Now refers to ID from WorkoutFrequency model
   preferredWorkouts: z
     .array(z.string().or(z.object({ _id: z.string() })))
     .optional(),
@@ -38,13 +41,13 @@ const updateProfileSchema = z.object({
 });
 
 const fitnessGoalsSchema = z.object({
-  healthGoals: z.string().optional(),
-  workoutFrequency: z.string().optional(),
-  preferredWorkouts: z.array(z.string()).optional(),
+  healthGoals: z.string().optional(), // Expecting HealthGoal _id
+  workoutFrequency: z.string().optional(), // Expecting WorkoutFrequency _id
+  preferredWorkouts: z.array(z.string()).optional(), // Expecting Workout _id
   preferredWorkoutTime: z.string().optional(),
 });
 
-// Utility to get userId from request
+// Utility to get userId from request (Assuming this is handled by auth middleware populating req.user)
 function getUserIdFromRequest(req: Request): string | null {
   const user = req.user;
   return user ? user.id : null;
@@ -54,21 +57,59 @@ export const userController = {
   // Get fitness goals for the current user, with preferredWorkouts populated
   getFitnessGoals: async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
-    // const xy = Workout.find({});
     if (!userId) return ApiResponse.error(res, "Unauthorized", 401);
-    const user = await User.findById(userId)
-      .select(
-        "healthGoals workoutFrequency preferredWorkouts preferredWorkoutTime"
-      )
-      .populate({ path: "preferredWorkouts" });
-    if (!user) return ApiResponse.error(res, "User not found", 404);
-    return ApiResponse.success(res, user, "Fitness goals fetched");
+
+    try {
+      const user = await User.findById(userId)
+        .select(
+          "healthGoals workoutFrequency preferredWorkouts preferredWorkoutTime"
+        )
+        .populate({ path: "preferredWorkouts", select: "_id name" }) // Populate _id and name for preferredWorkouts
+        .populate({ path: "healthGoals", select: "_id name" }) // Populate _id and name for healthGoals
+        .populate({ path: "workoutFrequency", select: "_id name" }); // Populate _id and name for workoutFrequency
+
+      if (!user) return ApiResponse.error(res, "User not found", 404);
+
+      // Map populated fields to their _id and name for consistency, or just the populated object
+      const formattedUserGoals = {
+        healthGoals: user.healthGoals
+          ? {
+              id: (user.healthGoals as any)._id,
+              name: (user.healthGoals as any).name,
+            }
+          : null,
+        workoutFrequency: user.workoutFrequency
+          ? {
+              id: (user.workoutFrequency as any)._id,
+              name: (user.workoutFrequency as any).name,
+            }
+          : null,
+        preferredWorkouts: ((user.preferredWorkouts as any[]) || []).map(
+          (w: any) => ({ id: w._id, name: w.name })
+        ),
+        preferredWorkoutTime: user.preferredWorkoutTime,
+      };
+
+      return ApiResponse.success(
+        res,
+        formattedUserGoals,
+        "Fitness goals fetched"
+      );
+    } catch (error: any) {
+      console.error("Error fetching fitness goals:", error);
+      return ApiResponse.error(
+        res,
+        "Failed to fetch fitness goals: " + error.message,
+        500
+      );
+    }
   },
 
   // Update fitness goals for the current user
   updateFitnessGoals: async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return ApiResponse.error(res, "Unauthorized", 401);
+
     const parsed = fitnessGoalsSchema.safeParse(req.body);
     if (!parsed.success) {
       return ApiResponse.validationError(
@@ -78,22 +119,136 @@ export const userController = {
       );
     }
     const update = parsed.data;
-    // If preferredWorkouts is present, ensure it is an array of ObjectIds (strings)
+
+    // Ensure preferredWorkouts are an array of ObjectIds (strings)
     if (update.preferredWorkouts) {
-      update.preferredWorkouts = update.preferredWorkouts.map((id: any) =>
-        typeof id === "string" ? id : id._id
+      update.preferredWorkouts = update.preferredWorkouts.map(
+        (id: any) => (typeof id === "string" ? id : id._id) // Handles both direct IDs and populated objects from frontend
       );
     }
-    const user = await User.findByIdAndUpdate(userId, update, {
-      new: true,
-      runValidators: true,
-    })
-      .select(
-        "healthGoals workoutFrequency preferredWorkouts preferredWorkoutTime"
-      )
-      .populate({ path: "preferredWorkouts" });
-    if (!user) return ApiResponse.error(res, "User not found", 404);
-    return ApiResponse.success(res, user, "Fitness goals updated");
+
+    try {
+      const user = await User.findByIdAndUpdate(userId, update, {
+        new: true,
+        runValidators: true,
+      })
+        .select(
+          "healthGoals workoutFrequency preferredWorkouts preferredWorkoutTime"
+        )
+        .populate({ path: "preferredWorkouts", select: "_id name" })
+        .populate({ path: "healthGoals", select: "_id name" })
+        .populate({ path: "workoutFrequency", select: "_id name" });
+
+      if (!user) return ApiResponse.error(res, "User not found", 404);
+
+      const formattedUserGoals = {
+        healthGoals: user.healthGoals
+          ? {
+              id: (user.healthGoals as any)._id,
+              name: (user.healthGoals as any).name,
+            }
+          : null,
+        workoutFrequency: user.workoutFrequency
+          ? {
+              id: (user.workoutFrequency as any)._id,
+              name: (user.workoutFrequency as any).name,
+            }
+          : null,
+        preferredWorkouts: ((user.preferredWorkouts as any[]) || []).map(
+          (w: any) => ({ id: w._id, name: w.name })
+        ),
+        preferredWorkoutTime: user.preferredWorkoutTime,
+      };
+
+      return ApiResponse.success(
+        res,
+        formattedUserGoals,
+        "Fitness goals updated"
+      );
+    } catch (error: any) {
+      console.error("Error updating fitness goals:", error);
+      return ApiResponse.error(
+        res,
+        "Failed to update fitness goals: " + error.message,
+        500
+      );
+    }
+  },
+
+  //Get all health goal options
+  getHealthGoalsOptions: async (req: Request, res: Response) => {
+    const userId = getUserIdFromRequest(req); // Still require auth for member options
+    if (!userId) return ApiResponse.error(res, "Unauthorized", 401);
+    try {
+      const goals = await HealthGoal.find({}, "_id name"); // Select only _id and name
+      return ApiResponse.success(
+        res,
+        goals.map((g) => ({ id: g._id, name: g.name })),
+        "Health goals options fetched"
+      );
+    } catch (error: any) {
+      console.error("Error fetching health goals options:", error);
+      return ApiResponse.error(
+        res,
+        "Failed to fetch health goals options: " + error.message,
+        500
+      );
+    }
+  },
+
+  //  Get all workout frequency options
+  getWorkoutFrequencyOptions: async (req: Request, res: Response) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return ApiResponse.error(res, "Unauthorized", 401);
+    try {
+      const frequencies = await WorkoutFrequency.find({}, "_id name"); // Select only _id and name
+      return ApiResponse.success(
+        res,
+        frequencies.map((f) => ({ id: f._id, name: f.name })),
+        "Workout frequency options fetched"
+      );
+    } catch (error: any) {
+      console.error("Error fetching workout frequency options:", error);
+      return ApiResponse.error(
+        res,
+        "Failed to fetch workout frequency options: " + error.message,
+        500
+      );
+    }
+  },
+
+  // Search and get workout options
+  searchWorkouts: async (req: Request, res: Response) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return ApiResponse.error(res, "Unauthorized", 401);
+
+    const searchQuery = (req.query.search as string) || "";
+    const limit = parseInt(req.query.limit as string) || 10; // Default limit
+    const page = parseInt(req.query.page as string) || 1; // Default page
+    const skip = (page - 1) * limit;
+
+    try {
+      const queryFilter = searchQuery
+        ? { name: { $regex: searchQuery, $options: "i" } } // Case-insensitive search by name
+        : {};
+
+      const workouts = await Workout.find(queryFilter, "_id name") // Select only _id and name
+        .skip(skip)
+        .limit(limit);
+
+      return ApiResponse.success(
+        res,
+        workouts.map((w) => ({ id: w._id, name: w.name })),
+        "Workouts fetched"
+      );
+    } catch (error: any) {
+      console.error("Error searching workouts:", error);
+      return ApiResponse.error(
+        res,
+        "Failed to search workouts: " + error.message,
+        500
+      );
+    }
   },
 
   getProfile: async (req: Request, res: Response) => {

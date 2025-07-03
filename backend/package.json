@@ -5,6 +5,7 @@
   "scripts": {
     "start": "tsc && node dist/index.js",
     "dev": "ts-node-dev src/index.ts --respawn --transpile-only --watch src --ignore-watch node_modules",
+    "seed": "tsc && node src/database/seed.js",
     "test": "tsc && jest"
   },
   "keywords": [],

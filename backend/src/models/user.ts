@@ -1,5 +1,8 @@
 import mongoose, { Document, Schema, Model, Types } from "mongoose";
 import bcrypt from "bcryptjs";
+import { IHealthGoal } from "./health-goals";
+import { IWorkoutFrequency } from "./workout-frequency";
+import { IWorkout } from "./workout";
 
 // Methods attached to user instance
 interface IUserMethods {
@@ -14,9 +17,9 @@ export interface IUser extends Document, IUserMethods {
   password: string;
   avatarUrl?: string;
   trainerId?: Types.ObjectId;
-  healthGoals: string;
-  workoutFrequency?: string;
-  preferredWorkouts?: Types.ObjectId[];
+  healthGoals?: Types.ObjectId | IHealthGoal; // Reference to HealthGoal model
+  workoutFrequency?: Types.ObjectId | IWorkoutFrequency; // Reference to WorkoutFrequency model
+  preferredWorkouts: (Types.ObjectId | IWorkout)[]; // Array of references to Workout model
   preferredWorkoutTime?: string;
   subscription: Types.ObjectId;
   performance: Types.ObjectId[];
@@ -39,9 +42,9 @@ const UserSchema = new Schema<IUser, Model<IUser>, IUserMethods>({
   password: { type: String, required: true },
   avatarUrl: { type: String },
   trainerId: { type: Schema.Types.ObjectId, ref: "Trainer" },
-  healthGoals: { type: String },
-  workoutFrequency: { type: String },
-  preferredWorkouts: [{ type: Schema.Types.ObjectId, ref: "Workout" }],
+  healthGoals: { type: Schema.Types.ObjectId, ref: "HealthGoal" }, // Reference
+  workoutFrequency: { type: Schema.Types.ObjectId, ref: "WorkoutFrequency" }, // Reference
+  preferredWorkouts: [{ type: Schema.Types.ObjectId, ref: "Workout" }], // Reference
   preferredWorkoutTime: { type: String },
   subscription: { type: Schema.Types.ObjectId, ref: "Subscription" },
   performance: [{ type: Schema.Types.ObjectId, ref: "PerformanceLog" }],

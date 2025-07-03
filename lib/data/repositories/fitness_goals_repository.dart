@@ -1,23 +1,35 @@
 import 'package:fit_and_fine/data/datasources/fitness_goals_data_source.dart';
 import 'package:fit_and_fine/data/models/fitness_goals_model.dart';
+import 'package:flutter/foundation.dart'; // For OptionItem
 
-// --- REPOSITORY ---
 class FitnessGoalsRepository {
-  final FitnessGoalsDataSource _dataSource;
+  final FitnessGoalsDataSource dataSource;
 
-  FitnessGoalsRepository({required FitnessGoalsDataSource dataSource})
-      : _dataSource = dataSource;
+  FitnessGoalsRepository({required this.dataSource});
 
-  Future<FitnessGoals> getFitnessGoals(String token) async {
-    final data = await _dataSource.fetchFitnessGoals(token);
-    return FitnessGoals.fromJson(data);
+  Future<FitnessGoals> getFitnessGoals(String token) {
+    return dataSource.getFitnessGoals(token);
   }
 
   Future<FitnessGoals> updateFitnessGoals(
     String token,
     Map<String, dynamic> updates,
-  ) async {
-    final data = await _dataSource.updateFitnessGoals(token, updates);
-    return FitnessGoals.fromJson(data);
+  ) {
+    return dataSource.updateFitnessGoals(token, updates);
+  }
+
+  // NEW: Fetch all health goal options
+  Future<List<OptionItem>> fetchHealthGoalsOptions(String token) {
+    return dataSource.fetchHealthGoalsOptions(token);
+  }
+
+  // NEW: Fetch all workout frequency options
+  Future<List<OptionItem>> fetchWorkoutFrequencyOptions(String token) {
+    return dataSource.fetchWorkoutFrequencyOptions(token);
+  }
+
+  // NEW: Search workouts
+  Future<List<OptionItem>> searchWorkouts(String token, String query) {
+    return dataSource.searchWorkouts(token, query);
   }
 }
