@@ -9,8 +9,8 @@ class ProfileRepository {
     : _dataSource = dataSource;
 
   // The repository now returns a tuple of our new models
-  Future<MemberProfileData> getFullUserProfile(String userId) async {
-    final data = await _dataSource.fetchFullProfile(userId);
+  Future<MemberProfileData> getFullUserProfile(String token) async {
+    final data = await _dataSource.fetchFullProfile(token);
 
     final personalInfo = PersonalInfo.fromJson(data['personal']);
     final fitnessInfo = FitnessInfo.fromJson(data['fitness']);

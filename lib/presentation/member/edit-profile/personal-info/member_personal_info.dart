@@ -152,7 +152,7 @@ class _EditPersonalInfoViewState extends State<_EditPersonalInfoView> {
     return BlocListener<PersonalInfoBloc, PersonalInfoState>(
       listener: (context, state) {
         if (state is PersonalInfoLoaded) {
-          final user = state.user;  
+          final user = state.personalInfo;  
           _nameController.text = user.name;
           _emailController.text = user.email;
           _phoneController.text = user.phone?.toString() ?? '';

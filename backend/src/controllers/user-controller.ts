@@ -250,13 +250,77 @@ export const userController = {
       );
     }
   },
-
+  /**
+   * This method fetches the full user profile for the logged-in user.
+   * It includes all user details except the password, and populates related fields
+   * @param req Request object containing user decoded from JWT
+   * @param res
+   * @returns Full user profile with populated fields
+   */
   getProfile: async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return ApiResponse.error(res, "Unauthorized", 401);
     const user = await User.findById(userId)
       .select("-password")
-      .populate("subscription performance trainerId");
+      .populate("healthGoals workoutFrequency preferredWorkouts");
+    if (!user) return ApiResponse.error(res, "User not found", 404);
+
+    const formattedUserProfile = {
+      personal: {
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        avatarUrl: user.avatarUrl,
+        dob: user.dob,
+        gender: user.gender,
+        height: user.height,
+        weight: user.weight,
+        bio: user.bio,
+      },
+      fitness: {
+        healthGoals:
+          typeof user.healthGoals === "object" &&
+          user.healthGoals !== null &&
+          "name" in user.healthGoals
+            ? (user.healthGoals as any).name
+            : user.healthGoals,
+        workoutFrequency:
+          typeof user.workoutFrequency === "object" &&
+          user.workoutFrequency !== null &&
+          "name" in user.workoutFrequency
+            ? (user.workoutFrequency as any).name
+            : user.workoutFrequency,
+        preferredWorkouts: Array.isArray(user.preferredWorkouts)
+          ? user.preferredWorkouts.map((w) =>
+              typeof w === "object" && w !== null && "name" in w
+                ? (w as any).name
+                : w
+            )
+          : [],
+        preferredWorkoutTime: user.preferredWorkoutTime,
+      },
+      payment: { status: "Active", method: "Mastercard **** 56780" },
+    };
+
+    return ApiResponse.success(res, formattedUserProfile, "Profile fetched");
+  },
+  getPersonalInfo: async (req: Request, res: Response) => {
+    // This method is for fetching the personal profile of the logged-in user for edit personal details screen
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return ApiResponse.error(res, "Unauthorized", 401);
+    const user = await User.findById(userId).select([
+      "-_id",
+      "name",
+      "email",
+      "phone",
+      "avatarUrl",
+      "dob",
+      "gender",
+      "height",
+      "weight",
+      "bio",
+    ]);
+
     if (!user) return ApiResponse.error(res, "User not found", 404);
     return ApiResponse.success(res, user, "Profile fetched");
   },

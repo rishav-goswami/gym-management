@@ -15,12 +15,12 @@ class PersonalInfoInitial extends PersonalInfoState {}
 class PersonalInfoLoading extends PersonalInfoState {}
 
 class PersonalInfoLoaded extends PersonalInfoState {
-  final Member user;
+  final PersonalInfo personalInfo;
 
-  const PersonalInfoLoaded(this.user);
+  const PersonalInfoLoaded(this.personalInfo);
 
   @override
-  List<Object> get props => [user];
+  List<Object> get props => [personalInfo];
 }
 
 class PersonalInfoUpdateSuccess extends PersonalInfoState {

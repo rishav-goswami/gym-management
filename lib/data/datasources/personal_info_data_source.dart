@@ -17,7 +17,7 @@ class PersonalInfoDataSource {
   Future<Map<String, dynamic>> fetchPersonalInfo(String token) async {
     try {
       final response = await client.get(
-        Uri.parse('${AppConstants.baseUrl}/member/me'),
+        Uri.parse('${AppConstants.baseUrl}/member/me/personal-info'),
         headers: _headers(token),
       );
       final data = jsonDecode(response.body);

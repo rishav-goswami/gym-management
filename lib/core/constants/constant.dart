@@ -9,7 +9,7 @@ class AppConstants {
 
   // API Endpoints
   static final String xApiKey = dotenv.env['X_API_KEY']!;
-  static final String baseUrl = "http://192.168.169.249:3002"; //dotenv.env['BASE_URL']!;
+  static final String baseUrl = "http://localhost:3002"; //dotenv.env['BASE_URL']!;
 
   // Asset paths
   static const String logoAsset = 'assets/images/logo.png';

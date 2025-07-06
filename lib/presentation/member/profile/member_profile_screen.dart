@@ -20,6 +20,7 @@ class ProfileTab extends StatelessWidget {
     return BlocProvider(
       create: (context) => ProfileBloc(
         profileRepository: ProfileRepository(dataSource: ProfileDataSource()),
+        authBloc: BlocProvider.of<AuthBloc>(context),
       )..add(FetchProfileData()),
       child: const MemberProfileScreen(),
     );
@@ -135,6 +136,7 @@ class _PersonalInfoSection extends StatelessWidget {
             await context.push('/member/edit-personal-info');
             if (context.mounted) {
               context.read<ProfileBloc>().add(FetchProfileData());
+              debugPrint('Personal Info Updated');
             }
           },
           child: const _SectionHeader(title: 'Personal Information'),
@@ -142,7 +144,7 @@ class _PersonalInfoSection extends StatelessWidget {
         _ProfileListItem(label: 'Email', value: personalInfo.email),
         _ProfileListItem(
           label: 'Phone Number',
-          value: personalInfo.phone ?? "Not set",
+          value: personalInfo.phone?.toString() ?? "Not set",
         ),
         _ProfileListItem(
           label: 'Gender',

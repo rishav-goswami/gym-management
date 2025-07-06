@@ -78,10 +78,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     // Check if the user is currently authenticated
     final currentState = state;
     if (currentState is AuthAuthenticated) {
-      // Create a new AuthModel with the existing token but the NEW user data
+      // Update the AuthModel with the existing token but the NEW user data
       final newAuthModel = AuthModel(
         accessToken: currentState.authModel.accessToken,
-        user: event.updatedUser,
+        user: event.updatedUser, // TODO: Instead of directly attaching the updated user use copyWith method to keep previous data  of authModel and only update the necessary fields
       );
       // Emit a new AuthAuthenticated state with the updated model
       emit(AuthAuthenticated(authModel: newAuthModel));

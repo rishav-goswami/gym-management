@@ -3,7 +3,6 @@ import 'package:fit_and_fine/core/widgets/custom_appbar.dart';
 import 'package:fit_and_fine/data/datasources/fitness_goals_data_source.dart';
 import 'package:fit_and_fine/data/repositories/fitness_goals_repository.dart';
 import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
-import 'package:fit_and_fine/logic/auth/auth_state.dart';
 import 'package:fit_and_fine/logic/member/fitness-goals/fitness_goals_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -89,7 +88,7 @@ class _EditFitnessGoalsViewState extends State<_EditFitnessGoalsView> {
       listener: (context, state) {
         if (state is FitnessGoalsLoaded) {
           // When user's goals data arrives, populate the form fields with names and store IDs
-          setState(() {
+          // setState(() {
             _selectedGoalId = state.goals.healthGoals?.id;
             _primaryGoalController.text = state.goals.healthGoals?.name ?? '';
 
@@ -103,7 +102,7 @@ class _EditFitnessGoalsViewState extends State<_EditFitnessGoalsView> {
               _selectedWorkoutIds.add(workout.id);
               _workoutNameCache[workout.id] = workout.name;
             }
-          });
+          // });
         } else if (state is FitnessGoalsUpdateSuccess) {
           ScaffoldMessenger.of(
             context,

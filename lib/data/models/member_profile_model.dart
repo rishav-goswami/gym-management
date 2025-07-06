@@ -39,11 +39,14 @@ class MemberProfileData {
 class PersonalInfo {
   final String name;
   final String email;
-  final String? phone;
+  final double? phone;
   final String? avatarUrl;
   final DateTime? dob;
   final Gender? gender;
   final String? memberSince;
+  final String? bio;
+  final double? height;
+  final double? weight;
 
   const PersonalInfo({
     required this.name,
@@ -53,19 +56,25 @@ class PersonalInfo {
     this.dob,
     this.gender,
     this.memberSince,
+    this.bio,
+    this.height,
+    this.weight,
   });
 
   factory PersonalInfo.fromJson(Map<String, dynamic> json) {
     return PersonalInfo(
       name: json['name'] ?? 'N/A',
       email: json['email'] ?? 'N/A',
-      phone: json['phone'],
+      phone: (json['phone'] as num?)?.toDouble(),
       avatarUrl: json['avatarUrl'],
       dob: json['dob'] != null ? DateTime.tryParse(json['dob']) : null,
       gender: json['gender'] != null
           ? Gender.values.byName(json['gender'])
           : null,
       memberSince: json['memberSince'],
+      bio: json['bio'],
+      height: (json['height'] as num?)?.toDouble(),
+      weight: (json['weight'] as num?)?.toDouble(),
     );
   }
 }

@@ -1,6 +1,5 @@
 import 'package:fit_and_fine/data/datasources/fitness_goals_data_source.dart';
 import 'package:fit_and_fine/data/models/fitness_goals_model.dart';
-import 'package:flutter/foundation.dart'; // For OptionItem
 
 class FitnessGoalsRepository {
   final FitnessGoalsDataSource dataSource;

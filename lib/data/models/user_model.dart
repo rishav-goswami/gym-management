@@ -13,7 +13,7 @@ enum Gender { male, female, other }
 /// Abstract base class representing common properties for all user roles.
 @immutable
 abstract class User {
-  final String id;
+  final String? id;
   final String name;
   final String email;
   final UserRole role;
@@ -23,7 +23,7 @@ abstract class User {
   final double? phone;
 
   const User({
-    required this.id,
+    this.id,
     required this.name,
     required this.email,
     required this.role,
@@ -37,7 +37,8 @@ abstract class User {
 @immutable
 class Member extends User {
   final String? avatarUrl;
-  final String? trainerId; // this should not be here instead userId should be in trainer list
+  final String?
+  trainerId; // this should not be here instead userId should be in trainer list
   final String? healthGoals;
   final String? subscription;
   final List<String>? performance;
@@ -53,7 +54,7 @@ class Member extends User {
   final String? preferredWorkoutTime;
 
   const Member({
-    required super.id,
+    super.id,
     required super.name,
     required super.email,
     super.createdAt,

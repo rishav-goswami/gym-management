@@ -205,11 +205,35 @@ export const authController = {
 
     // Fetch user based on role
     if (role === "MEMBER") {
-      user = await User.findById(id);
+      user = await User.findById(id).select([
+        "_id",
+        "name",
+        "email",
+        "phone",
+        "avatarUrl",
+        "createdAt",
+        "updatedAt",
+      ]);
     } else if (role === "TRAINER") {
-      user = await Trainer.findById(id);
+      user = await Trainer.findById(id).select([
+        "_id",
+        "name",
+        "email",
+        "phone",
+        "avatarUrl",
+        "createdAt",
+        "updatedAt",
+      ]);
     } else if (role === "ADMIN") {
-      user = await Admin.findById(id);
+      user = await Admin.findById(id).select([
+        "_id",
+        "name",
+        "email",
+        "phone",
+        "avatarUrl",
+        "createdAt",
+        "updatedAt",
+      ]);
     }
 
     if (!user) {

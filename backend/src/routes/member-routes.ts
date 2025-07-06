@@ -10,6 +10,7 @@ router.use(jwtAuth, requireRole(ROLES.MEMBER));
 
 // Get current user profile
 router.get("/me", asyncHandler(userController.getProfile));
+router.get("/me/personal-info", asyncHandler(userController.getPersonalInfo));
 
 // Update current user profile
 router.put("/me", asyncHandler(userController.updateProfile));
