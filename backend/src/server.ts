@@ -25,7 +25,7 @@ const server = createServer(app);
 
 // Middleware
 app.use(express.json());
-app.use(cors({ origin: ["http://localhost:3000", "http://localhost:62255"] }));
+app.use(cors({ origin: ["http://localhost:3000", "http://localhost:62217"] }));
 
 app.use(responseBodyInterceptor); // This must be used before using morganLogger
 app.use(morganLogger);

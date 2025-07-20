@@ -4,7 +4,7 @@ import { ZodError } from "zod";
 class ApiResponse {
   static success(
     res: Response,
-    data = {},
+    data: object | null = {},
     message = "Request successful",
     statusCode = 200
   ) {

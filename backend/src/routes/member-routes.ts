@@ -15,17 +15,30 @@ router.get("/me/personal-info", asyncHandler(userController.getPersonalInfo));
 // Update current user profile
 router.put("/me", asyncHandler(userController.updateProfile));
 
-
 // Fitness goals endpoints
 router.get("/fitness-goals", asyncHandler(userController.getFitnessGoals));
 router.put("/fitness-goals", asyncHandler(userController.updateFitnessGoals));
 
-router.get('/options/health-goals', asyncHandler(userController.getHealthGoalsOptions));
-router.get('/options/workout-frequencies', asyncHandler(userController.getWorkoutFrequencyOptions));
-router.get('/options/workouts', asyncHandler(userController.searchWorkouts)); // Searchable workouts
+router.get(
+  "/options/health-goals",
+  asyncHandler(userController.getHealthGoalsOptions)
+);
+router.get(
+  "/options/workout-frequencies",
+  asyncHandler(userController.getWorkoutFrequencyOptions)
+);
+router.get("/options/workouts", asyncHandler(userController.searchWorkouts)); // Searchable workouts
 
-// Get workout routine
-router.get("/workout", asyncHandler(userController.getWorkout));
+// Get workout plan
+router.get("/me/workout-plan", asyncHandler(userController.getWorkoutPlan));
+
+// Route to get the list of all exercises from the library (with search)
+// e.g., /api/users/exercises?search=squat&muscleGroup=Legs
+router.get("/exercises", asyncHandler(userController.getExerciseLibrary));
+
+// Route to get details for a single exercise
+router.get("/exercises/:id", asyncHandler(userController.getExerciseDetails));
+
 // Get diet plan
 router.get("/diet", asyncHandler(userController.getDiet));
 // Get payment history

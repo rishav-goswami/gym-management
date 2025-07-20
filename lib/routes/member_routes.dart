@@ -7,6 +7,7 @@ import 'package:fit_and_fine/presentation/member/edit-profile/personal-info/memb
 import 'package:fit_and_fine/presentation/member/profile/member_profile_screen.dart';
 import 'package:fit_and_fine/presentation/member/progress/progress_tab.dart';
 import 'package:fit_and_fine/presentation/member/workouts/workout_details_screen.dart';
+import 'package:fit_and_fine/presentation/member/workouts/workouts_tab.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -33,9 +34,8 @@ class MemberRoutes {
         ),
         GoRoute(
           path: '/member/workouts',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: Center(child: Text('Workouts')), // Placeholder
-          ),
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: WorkoutsTab()),
         ),
         GoRoute(
           path: '/member/progress',

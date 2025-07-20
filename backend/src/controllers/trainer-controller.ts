@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import ApiResponse from '../utils/api_response';
 import User from '../models/user';
-import WorkoutRoutine from '../models/workout-routine';
+import WorkoutRoutine from '../models/workout-plan';
 import DietPlan from '../models/diet-plan';
 
 export const trainerController = {

@@ -3,8 +3,8 @@ import User from "../models/user";
 import ApiResponse from "../utils/api_response"; // Assuming this utility exists
 import { z } from "zod";
 import jwt from "jsonwebtoken"; // Ensure this is for token decoding if used, otherwise remove if only `req.user` is relied on
-import WorkoutRoutine from "../models/workout-routine"; // Unused in this snippet, keep if needed elsewhere
-import Workout from "../models/workout"; // Existing Workout model
+import WorkoutPlan from "../models/workout-plan"; // Unused in this snippet, keep if needed elsewhere
+import Exercise from "../models/exercise"; // Existing Workout model
 import DietPlan from "../models/diet-plan"; // Unused
 import PaymentHistory from "../models/payment-history"; // Unused
 import PerformanceLogSchema from "../models/performance-log"; // Unused
@@ -232,7 +232,7 @@ export const userController = {
         ? { name: { $regex: searchQuery, $options: "i" } } // Case-insensitive search by name
         : {};
 
-      const workouts = await Workout.find(queryFilter, "_id name") // Select only _id and name
+      const workouts = await Exercise.find(queryFilter, "_id name") // Select only _id and name
         .skip(skip)
         .limit(limit);
 
@@ -345,11 +345,85 @@ export const userController = {
     return ApiResponse.success(res, user, "Profile updated");
   },
 
-  getWorkout: async (req: Request, res: Response) => {
+  /**
+   * Fetches the current user's weekly workout plan.
+   * It populates the details for each exercise from the Exercise library.
+   */
+  getWorkoutPlan: async (req: Request, res: Response) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) return ApiResponse.error(res, "Unauthorized", 401);
-    const routine = await WorkoutRoutine.findOne({ userId });
-    return ApiResponse.success(res, { routine });
+
+    try {
+      // Find the workout plan for the current user.
+      // We use a deep populate to get the details of each exercise.
+      const plan = await WorkoutPlan.findOne({ userId }).populate({
+        path: "days.exercises.exerciseId",
+        model: "Exercise", // Explicitly specify the model to populate from
+        select: "name description muscleGroup videoUrl", // Select fields you need
+      });
+
+      if (!plan) {
+        return ApiResponse.success(res, null, "No workout plan assigned yet.");
+      }
+
+      // The plan is already populated, so we can return it directly.
+      return ApiResponse.success(
+        res,
+        plan,
+        "Workout plan fetched successfully."
+      );
+    } catch (error: any) {
+      console.error("Error fetching workout plan:", error);
+      return ApiResponse.error(res, "Failed to fetch workout plan", 500);
+    }
+  },
+
+  /**
+   * Fetches the entire exercise library.
+   * Supports search, pagination, and filtering by muscle group.
+   */
+  getExerciseLibrary: async (req: Request, res: Response) => {
+    const { search, muscleGroup, page = 1, limit = 20 } = req.query;
+
+    try {
+      const query: any = {};
+      if (search) {
+        query.name = { $regex: search, $options: "i" }; // Case-insensitive search
+      }
+      if (muscleGroup) {
+        query.muscleGroup = muscleGroup;
+      }
+
+      const exercises = await Exercise.find(query)
+        .limit(Number(limit))
+        .skip((Number(page) - 1) * Number(limit));
+
+      // You might also want to return the total count for pagination
+      // const total = await Exercise.countDocuments(query);
+
+      return ApiResponse.success(res, exercises, "Exercise library fetched.");
+    } catch (error: any) {
+      console.error("Error fetching exercise library:", error);
+      return ApiResponse.error(res, "Failed to fetch exercise library", 500);
+    }
+  },
+
+  /**
+   * Fetches the full details for a single exercise by its ID.
+   */
+  getExerciseDetails: async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    try {
+      const exercise = await Exercise.findById(id);
+      if (!exercise) {
+        return ApiResponse.error(res, "Exercise not found", 404);
+      }
+      return ApiResponse.success(res, exercise, "Exercise details fetched.");
+    } catch (error: any) {
+      console.error("Error fetching exercise details:", error);
+      return ApiResponse.error(res, "Failed to fetch exercise details", 500);
+    }
   },
 
   getDiet: async (req: Request, res: Response) => {
