@@ -10,6 +10,10 @@ import 'package:fit_and_fine/core/constants/user_role_enum.dart';
 class LoginForm extends StatefulWidget {
   const LoginForm({super.key});
 
+  static bool isValidEmail(String value) {
+    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value.trim());
+  }
+
   @override
   State<LoginForm> createState() => _LoginFormState();
 }
@@ -81,8 +85,7 @@ class _LoginFormState extends State<LoginForm> {
                   if (value == null || value.trim().isEmpty) {
                     return 'Email is required';
                   }
-                  final emailRegex = RegExp(r"^[\w-\.]+@([\w-]+\.)+[\w]{2,4}$");
-                  if (!emailRegex.hasMatch(value.trim())) {
+                  if (!LoginForm.isValidEmail(value)) {
                     return 'Enter a valid email';
                   }
                   return null;

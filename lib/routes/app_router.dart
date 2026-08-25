@@ -3,6 +3,7 @@ import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
 import 'package:fit_and_fine/logic/auth/auth_state.dart';
 import 'package:fit_and_fine/presentation/auth/login/login_screen.dart';
 import 'package:fit_and_fine/presentation/auth/register/signup_screen.dart';
+import 'package:fit_and_fine/presentation/admin/dashboard/admin_dashboard_screen.dart';
 import 'package:fit_and_fine/presentation/member/member-layout/member_screen_layout.dart';
 import 'package:fit_and_fine/presentation/member/profile/member_profile_screen.dart';
 import 'package:fit_and_fine/routes/member_routes.dart';
@@ -39,10 +40,19 @@ class AppRouter {
         GoRoute(
           path: '/signup/:role',
           name: 'signup',
+          redirect: (context, state) =>
+              state.pathParameters['role']?.toLowerCase() == 'admin'
+              ? '/login/admin'
+              : null,
           builder: (context, state) {
             final role = state.pathParameters['role']!;
             return SignupScreen(role: role);
           },
+        ),
+        GoRoute(
+          path: '/admin-dashboard',
+          name: 'adminDashboard',
+          builder: (context, state) => const AdminDashboardScreen(),
         ),
 
         MemberRoutes.aLLMemberRoutes,

@@ -3,11 +3,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/constants/user_role_enum.dart';
 import 'login_form.dart';
 
 class LoginScreen extends StatelessWidget {
   final String role;
   const LoginScreen({super.key, required this.role});
+
+  static bool canSelfRegister(String role) =>
+      role.toUpperCase() != UserRole.admin.name;
 
   @override
   Widget build(BuildContext context) {
@@ -51,25 +55,32 @@ class LoginScreen extends StatelessWidget {
 
                   const SizedBox(height: 16),
 
-                  // 📝 Sign Up Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () => context.go("/signup/$role"),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24),
+                  if (canSelfRegister(role))
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => context.go("/signup/$role"),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.onPrimary,
                         ),
-                        backgroundColor: Theme.of(context).colorScheme.onPrimary,
-                        // foregroundColor: Colors.black87,
+                        child: const Text(
+                          "Sign Up",
+                          style: TextStyle(fontSize: 16),
+                        ),
                       ),
-                      child: const Text(
-                        "Sign Up",
-                        style: TextStyle(fontSize: 16),
-                      ),
+                    )
+                  else
+                    Text(
+                      "Administrator accounts are provisioned securely by the system.",
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
-                  ),
 
                   const SizedBox(height: 16),
 

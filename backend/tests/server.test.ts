@@ -43,6 +43,24 @@ describe("API server", () => {
     expect(response.body.errors).toEqual(expect.any(Array));
   });
 
+  it("does not allow administrators to self-register", async () => {
+    const response = await request(app)
+      .post("/auth/register")
+      .set("x-api-key", apiKey)
+      .send({
+        name: "Local Admin",
+        email: "admin@example.com",
+        password: "password123",
+        confirmPassword: "password123",
+        role: "ADMIN",
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: "role" })])
+    );
+  });
+
   it("requires a bearer token for member routes", async () => {
     const response = await request(app)
       .get("/member/me")

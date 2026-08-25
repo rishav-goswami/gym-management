@@ -64,6 +64,23 @@ The backend tests intentionally do not require MongoDB. This keeps validation,
 authentication-boundary, health-check, and JWT tests fast and deterministic.
 Use the default Compose stack for manual or future database integration tests.
 
+### Administrator accounts
+
+Administrators can log in from the Admin role screen, but cannot use public
+signup. Create them through the backend while the Compose stack is running:
+
+```sh
+docker compose exec \
+  -e ADMIN_NAME='Gym Administrator' \
+  -e ADMIN_EMAIL='admin@example.com' \
+  -e ADMIN_PASSWORD='replace-with-a-strong-password' \
+  backend npm run admin:create
+```
+
+The command validates the credentials, hashes the password through the Admin
+model, and refuses to create a duplicate email. Admin registration remains
+blocked by the public `/auth/register` endpoint.
+
 ### Production backend image
 
 ```sh

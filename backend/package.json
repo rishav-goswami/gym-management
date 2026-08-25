@@ -6,6 +6,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node-dev src/index.ts --respawn --transpile-only --watch src --ignore-watch node_modules",
+    "admin:create": "npm run build && node dist/scripts/create-admin.js",
     "seed": "npm run build && node src/database/seed.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch"

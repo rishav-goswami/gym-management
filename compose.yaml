@@ -22,7 +22,7 @@ services:
     environment:
       PORT: 3002
       MONGO_URI: mongodb://mongo:27017/fitness-app
-      AUTH_KEY: local-development-api-key
+      AUTH_KEY: ${X_API_KEY:-local-development-api-key}
       JWT_SECRET: local-only-change-before-deploying
       CORS_ORIGINS: http://localhost:3000,http://localhost:62217
     volumes:
