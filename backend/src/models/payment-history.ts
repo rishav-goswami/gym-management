@@ -1,8 +1,8 @@
-import mongoose, { Document, Schema, ObjectId } from "mongoose";
+import mongoose, { Document, Schema, Types } from "mongoose";
 
 interface IPaymentHistory extends Document {
-  _id: ObjectId;
-  userId: ObjectId;
+  _id: Types.ObjectId;
+  userId: Types.ObjectId;
   amount: number;
   method: "UPI" | "Card" | "Cash";
   date: Date;

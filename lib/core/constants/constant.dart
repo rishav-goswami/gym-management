@@ -8,8 +8,9 @@ class AppConstants {
   static const Duration animationDuration = Duration(milliseconds: 300);
 
   // API Endpoints
-  static final String xApiKey = dotenv.env['X_API_KEY']!;
-  static final String baseUrl = "http://localhost:3002"; //dotenv.env['BASE_URL']!;
+  static final String xApiKey = dotenv.env['X_API_KEY'] ?? '';
+  static final String baseUrl =
+      dotenv.env['BASE_URL'] ?? 'http://localhost:3002';
 
   // Asset paths
   static const String logoAsset = 'assets/images/logo.png';

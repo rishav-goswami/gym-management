@@ -1,5 +1,84 @@
 # 🏋️ Gym Management Flutter App - Full Feature & Flow Design
 
+## Local development
+
+### Prerequisites
+
+- FVM
+- Docker Desktop with Docker Compose
+
+The Flutter version is pinned in `.fvmrc`. FVM downloads it automatically when
+needed, so use `fvm flutter` instead of a globally installed Flutter SDK.
+
+Create the Flutter environment file once:
+
+```sh
+cp .env.example .env
+fvm flutter pub get
+```
+
+Start MongoDB and the hot-reloading backend:
+
+```sh
+docker compose up --build
+```
+
+The API is available at `http://localhost:3002`, and its public health check is
+`http://localhost:3002/health`. The Compose development API key matches the
+value in the root `.env.example` file.
+
+Run the Flutter application in another terminal:
+
+```sh
+fvm flutter run -d chrome
+```
+
+For an Android emulator, set `BASE_URL=http://10.0.2.2:3002` in `.env`. A
+physical device needs the development machine's LAN address instead of
+`localhost`.
+
+Stop the local services without deleting MongoDB data:
+
+```sh
+docker compose down
+```
+
+### Tests and checks
+
+```sh
+# Flutter
+fvm flutter test
+fvm flutter analyze
+
+# Backend on the host
+cd backend
+npm ci
+npm run build
+npm test
+
+# Backend in an isolated container, from the repository root
+docker compose --profile test run --rm backend-test
+```
+
+The backend tests intentionally do not require MongoDB. This keeps validation,
+authentication-boundary, health-check, and JWT tests fast and deterministic.
+Use the default Compose stack for manual or future database integration tests.
+
+### Production backend image
+
+```sh
+docker build --target production -t gym-management-backend ./backend
+docker run --rm -p 3002:3002 \
+  -e MONGO_URI='mongodb://host.docker.internal:27017/fitness-app' \
+  -e AUTH_KEY='replace-me' \
+  -e JWT_SECRET='replace-with-a-long-random-secret' \
+  gym-management-backend
+```
+
+For Cloud Run, provide `MONGO_URI`, `AUTH_KEY`, `JWT_SECRET`, and
+`CORS_ORIGINS` through managed environment variables or secrets. Never deploy
+the development values from `compose.yaml`.
+
 ---
 
 ## ✨ Overview

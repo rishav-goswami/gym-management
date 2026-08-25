@@ -1,15 +1,15 @@
-import mongoose, { Document, Schema, ObjectId } from "mongoose";
+import mongoose, { Document, Schema, Types } from "mongoose";
 
 interface IDietPlan extends Document {
-  _id: ObjectId;
-  userId: ObjectId;
+  _id: Types.ObjectId;
+  userId: Types.ObjectId;
   dayWiseDiet: [
     {
       day: string;
       meals: string[];
     }
   ];
-  createdBy: ObjectId;
+  createdBy: Types.ObjectId;
   createdAt: Date;
 }
 

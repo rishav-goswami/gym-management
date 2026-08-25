@@ -4,21 +4,13 @@ config();
 
 class MongoConnection {
   private static instance: MongoConnection;
-  private db: mongoose.Connection;
+  private readonly db: mongoose.Connection;
+  private readonly mongoUri: string;
 
   private constructor() {
-    const mongoUri =
+    this.mongoUri =
       process.env.MONGO_URI || "mongodb://localhost:27017/fitness-app";
-    mongoose.connect(mongoUri, {});
-
     this.db = mongoose.connection;
-    this.db.on(
-      "error",
-      console.error.bind(console, "MongoDB connection error:")
-    );
-    this.db.once("open", () => {
-      console.log("MongoDB connected successfully");
-    });
   }
 
   public static getInstance(): MongoConnection {
@@ -28,7 +20,10 @@ class MongoConnection {
     return MongoConnection.instance;
   }
 
-  public getDb(): mongoose.Connection {
+  public async connect(): Promise<mongoose.Connection> {
+    if (this.db.readyState === 0) {
+      await mongoose.connect(this.mongoUri);
+    }
     return this.db;
   }
 }

@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema, ObjectId } from "mongoose";
+import mongoose, { Document, Schema } from "mongoose";
 
 interface IPerformanceLog extends Document {
   date: Date;

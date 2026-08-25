@@ -10,13 +10,14 @@ export function apiKeyAuth(req: Request, res: Response, next: NextFunction) {
     (req.headers[AUTH_KEY.toLowerCase()] as string) ||
     (req.headers["x-api-key"] as string);
 
+  const expectedBuffer = Buffer.from(expectedKey || "");
+  const receivedBuffer = Buffer.from(receivedKey || "");
+
   if (
     !expectedKey ||
     !receivedKey ||
-    !crypto.timingSafeEqual(
-      Buffer.from(receivedKey),
-      Buffer.from(expectedKey)
-    )
+    expectedBuffer.length !== receivedBuffer.length ||
+    !crypto.timingSafeEqual(receivedBuffer, expectedBuffer)
   ) {
     res.status(401).json({ message: "Invalid or missing API key" });
     return;
