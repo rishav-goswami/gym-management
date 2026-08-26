@@ -79,6 +79,21 @@ Expected security behavior:
 - A trainer must not see platform controls or owner-only operations.
 - Only the platform-admin identity sees **Platform administration**.
 - Registering a public account does not create an owner, trainer, or admin role.
+- A verified public account may start one limited gym trial; it cannot choose an
+  arbitrary privileged role or start a second free trial.
+
+### Self-service owner trial
+
+1. Register a fresh customer identity and open its verification link from the
+   Auth emulator.
+2. Select **Start my gym**, confirm the displayed limits, and create the tenant.
+3. On the owner dashboard, confirm days remaining and usage counters appear.
+4. Invite members/trainers to the displayed limit. The next invitation can be
+   created, but accepting it must fail atomically with a plan-limit message.
+5. Select **Upgrade**, request Starter, then approve it in the platform console.
+6. Return to the owner dashboard and confirm the new plan snapshot and limits.
+
+See [`SAAS_TRIALS.md`](SAAS_TRIALS.md) for the data model and security guarantees.
 
 ## 4. Platform administrator
 
@@ -86,6 +101,8 @@ Sign in as `platform.admin@example.com` and open **Platform administration**.
 
 - Confirm that Pilot Gym appears in the tenant list.
 - Open the status menu and switch between trial and active.
+- Confirm SaaS plans can be versioned and pending upgrade requests can be
+  approved or rejected.
 - Temporarily selecting suspended should block normal tenant access. Restore the
   tenant to active before testing other roles.
 - To test provisioning, copy an Auth UID from the Emulator UI, select

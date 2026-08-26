@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   attendanceDocumentId,
+  assertWithinLimit,
   bookingDocumentId,
   expiryReminderWindow,
   hashToken,
@@ -8,7 +9,8 @@ import {
   normalizeEmail,
   normalizePhone,
   renewalWindow,
-  secureToken
+  secureToken,
+  usageFieldForRole
 } from "./domain";
 
 describe("tenant domain identifiers", () => {
@@ -47,5 +49,25 @@ describe("tenant domain identifiers", () => {
     expect([8, 7, 4, 3, 2, 1, 0].map(expiryReminderWindow)).toEqual([
       7, 7, 7, 3, 3, 1, 0
     ]);
+  });
+});
+
+describe("SaaS quota enforcement", () => {
+  it("maps tenant roles to independently enforced usage counters", () => {
+    expect(usageFieldForRole("member")).toBe("activeMembers");
+    expect(usageFieldForRole("trainer")).toBe("activeTrainers");
+    expect(usageFieldForRole("manager")).toBe("activeStaff");
+    expect(usageFieldForRole("owner")).toBeNull();
+  });
+
+  it("allows capacity and rejects the first unit above a plan limit", () => {
+    const limits = { activeMembers: 5 };
+    expect(assertWithinLimit("activeMembers", 4, 1, limits)).toBe(5);
+    expect(() => assertWithinLimit("activeMembers", 5, 1, limits))
+      .toThrow("LIMIT_EXCEEDED:activeMembers:5:5");
+  });
+
+  it("never lets usage counters become negative", () => {
+    expect(assertWithinLimit("activeTrainers", 0, -1, { activeTrainers: 1 })).toBe(0);
   });
 });

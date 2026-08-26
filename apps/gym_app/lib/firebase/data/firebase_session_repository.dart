@@ -48,6 +48,7 @@ class FirebaseSessionRepository {
       password: password,
     );
     await credential.user!.updateDisplayName(name.trim());
+    await credential.user!.sendEmailVerification();
     await firestore.doc('users/${credential.user!.uid}').set({
       'displayName': name.trim(),
       'email': email.trim().toLowerCase(),
@@ -61,6 +62,19 @@ class FirebaseSessionRepository {
   }
 
   Future<void> signOut() => auth.signOut();
+
+  Future<void> sendEmailVerification() async {
+    final user = auth.currentUser;
+    if (user == null) throw StateError('Sign in first.');
+    await user.sendEmailVerification();
+  }
+
+  Future<bool> reloadEmailVerification() async {
+    await auth.currentUser?.reload();
+    await auth.currentUser?.getIdToken(true);
+    return (auth.currentUser?.emailVerified ?? false) ||
+        auth.currentUser?.phoneNumber != null;
+  }
 
   Future<String?> sendPhoneCode(String phone) async {
     if (kIsWeb) {

@@ -32,6 +32,10 @@ export async function requireGymPermission<T>(
   if (!gym.exists || !ACTIVE_GYM_STATUSES.includes(gym.get("status"))) {
     throw new HttpsError("failed-precondition", "This gym is not active.");
   }
+  const planEndsAt = gym.get("platformPlanEndsAt");
+  if (planEndsAt?.toMillis?.() <= Date.now()) {
+    throw new HttpsError("failed-precondition", "This gym platform plan has expired. Ask the owner to renew or upgrade.");
+  }
   if (!membership.exists || membership.get("status") !== "active") {
     throw new HttpsError("permission-denied", "Active gym membership is required.");
   }

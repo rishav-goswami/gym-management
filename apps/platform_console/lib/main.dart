@@ -26,7 +26,7 @@ Future<void> main() async {
             projectId: 'demo-gym-dev',
             authDomain: 'demo-gym-dev.firebaseapp.com',
           )
-        : PlatformFirebaseOptions.web,
+        : DefaultFirebaseOptions.web,
   );
   if (useEmulators) {
     await FirebaseAuth.instance.useAuthEmulator(emulatorHost, 9099);
@@ -38,7 +38,7 @@ Future<void> main() async {
   const appCheckSiteKey = String.fromEnvironment('FIREBASE_APPCHECK_SITE_KEY');
   if (!useEmulators && appCheckSiteKey.isNotEmpty) {
     await FirebaseAppCheck.instance.activate(
-      providerWeb: ReCaptchaV3Provider(appCheckSiteKey),
+      providerWeb: ReCaptchaEnterpriseProvider(appCheckSiteKey),
     );
   }
   runApp(const PlatformConsoleApp());

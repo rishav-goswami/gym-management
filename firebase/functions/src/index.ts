@@ -16,6 +16,7 @@ import { requireAuth, requireGymPermission, requirePlatformAdmin } from "./authz
 import { REGION, ROLE_PERMISSIONS } from "./config";
 import {
   attendanceDocumentId,
+  assertWithinLimit,
   bookingDocumentId,
   expiryReminderWindow,
   hashToken,
@@ -23,7 +24,9 @@ import {
   normalizeEmail,
   normalizePhone,
   renewalWindow,
-  secureToken
+  secureToken,
+  usageFieldForRole,
+  type UsageField
 } from "./domain";
 
 initializeApp();
@@ -38,6 +41,168 @@ const gymSchema = z.object({
   locale: z.string().default("en-IN")
 });
 
+const planLimitsSchema = z.object({
+  activeMembers: z.number().int().min(0).max(100000),
+  activeTrainers: z.number().int().min(0).max(10000),
+  activeStaff: z.number().int().min(0).max(10000),
+  scheduledClasses: z.number().int().min(0).max(100000)
+});
+
+const planFeaturesSchema = z.object({
+  classes: z.boolean(),
+  chat: z.boolean(),
+  attendanceQr: z.boolean(),
+  dietPlans: z.boolean(),
+  progressPhotos: z.boolean()
+});
+
+const saasPlanSchema = z.object({
+  planId: z.string().regex(/^[a-z0-9-]{2,40}$/),
+  name: z.string().trim().min(2).max(80),
+  description: z.string().trim().max(300).default(""),
+  status: z.enum(["active", "inactive"]).default("active"),
+  isPublic: z.boolean().default(true),
+  isTrial: z.boolean().default(false),
+  trialDays: z.number().int().min(1).max(90).default(14),
+  currency: z.string().length(3).default("INR"),
+  priceMinor: z.number().int().nonnegative().default(0),
+  billingPeriod: z.enum(["trial", "monthly", "annual"]).default("monthly"),
+  limits: planLimitsSchema,
+  features: planFeaturesSchema
+});
+
+function planSnapshot(planId: string, plan: Record<string, unknown>) {
+  return {
+    planId,
+    planVersion: Number(plan.version ?? 1),
+    planName: String(plan.name),
+    limits: plan.limits as Record<string, number>,
+    features: plan.features as Record<string, boolean>,
+    currency: String(plan.currency ?? "INR"),
+    priceMinor: Number(plan.priceMinor ?? 0),
+    billingPeriod: String(plan.billingPeriod ?? "monthly")
+  };
+}
+
+function quotaError(error: unknown): never {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.startsWith("LIMIT_EXCEEDED:")) {
+    const [, field, current, limit] = message.split(":");
+    throw new HttpsError(
+      "resource-exhausted",
+      `Your plan limit for ${field} is ${limit} (currently ${current}). Upgrade to continue.`,
+      { field, current: Number(current), limit: Number(limit) }
+    );
+  }
+  throw error;
+}
+
+export const upsertSaasPlan = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requirePlatformAdmin(request);
+    const input = saasPlanSchema.parse(request.data);
+    const ref = db.doc(`saas_plans/${input.planId}`);
+    let version = 1;
+    await db.runTransaction(async (tx) => {
+      const current = await tx.get(ref);
+      version = Number(current.get("version") ?? 0) + 1;
+      tx.set(ref, {
+        ...input,
+        currency: input.currency.toUpperCase(),
+        version,
+        createdAt: current.exists ? current.get("createdAt") : FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: request.auth!.uid
+      });
+    });
+    return { planId: input.planId, version };
+  }
+);
+
+const startTrialSchema = z.object({
+  name: z.string().trim().min(2).max(100),
+  phone: z.string().min(8).max(20).optional(),
+  city: z.string().trim().max(80).optional(),
+  currency: z.string().length(3).default("INR"),
+  timezone: z.string().min(1).max(80).default("Asia/Kolkata"),
+  locale: z.string().min(2).max(20).default("en-IN")
+});
+
+export const startGymTrial = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requireAuth(request);
+    const input = startTrialSchema.parse(request.data);
+    const emailVerified = request.auth.token.email_verified === true;
+    if (!emailVerified && !request.auth.token.phone_number) {
+      throw new HttpsError("failed-precondition", "Verify your email or phone before starting a trial.");
+    }
+    const planRef = db.doc("saas_plans/trial");
+    const claimRef = db.doc(`trial_claims/${request.auth.uid}`);
+    const gymRef = db.collection("gyms").doc();
+    const membershipRef = db.doc(`gym_memberships/${gymRef.id}_${request.auth.uid}`);
+    const endsAtMillis = Date.now();
+
+    await db.runTransaction(async (tx) => {
+      const [planDoc, claimDoc] = await Promise.all([tx.get(planRef), tx.get(claimRef)]);
+      if (claimDoc.exists) {
+        throw new HttpsError("already-exists", "This account has already used its free gym trial.");
+      }
+      if (!planDoc.exists || planDoc.get("status") !== "active" || planDoc.get("isTrial") !== true) {
+        throw new HttpsError("failed-precondition", "Self-service trials are currently unavailable.");
+      }
+      const plan = planSnapshot(planDoc.id, planDoc.data()!);
+      const trialEndsAtMillis = endsAtMillis + Number(planDoc.get("trialDays")) * 86400000;
+      const now = FieldValue.serverTimestamp();
+      tx.create(claimRef, { uid: request.auth!.uid, gymId: gymRef.id, createdAt: now });
+      tx.create(gymRef, {
+        name: input.name,
+        status: "trial",
+        platformPlan: "trial",
+        platformPlanEndsAt: Timestamp.fromMillis(trialEndsAtMillis),
+        currency: input.currency.toUpperCase(),
+        timezone: input.timezone,
+        locale: input.locale,
+        city: input.city ?? null,
+        phone: input.phone ? normalizePhone(input.phone) : null,
+        branding: { primaryColor: "#2563EB", secondaryColor: "#0F172A" },
+        features: plan.features,
+        createdBy: request.auth!.uid,
+        createdAt: now,
+        updatedAt: now
+      });
+      tx.create(membershipRef, {
+        gymId: gymRef.id, uid: request.auth!.uid, role: "owner", status: "active",
+        permissions: ROLE_PERMISSIONS.owner, createdAt: now, updatedAt: now
+      });
+      tx.create(db.doc(`gyms/${gymRef.id}/staff/${request.auth!.uid}`), {
+        gymId: gymRef.id, uid: request.auth!.uid, role: "owner", status: "active",
+        displayName: request.auth!.token.name ?? null,
+        email: request.auth!.token.email ? normalizeEmail(String(request.auth!.token.email)) : null,
+        phone: request.auth!.token.phone_number ?? input.phone ?? null,
+        createdAt: now, updatedAt: now
+      });
+      tx.create(db.doc(`gyms/${gymRef.id}/platform_subscription/current`), {
+        ...plan, status: "trial", startsAt: now,
+        endsAt: Timestamp.fromMillis(trialEndsAtMillis), createdAt: now, updatedAt: now
+      });
+      tx.create(db.doc(`gyms/${gymRef.id}/entitlements/current`), {
+        ...plan, status: "active", endsAt: Timestamp.fromMillis(trialEndsAtMillis), updatedAt: now
+      });
+      tx.create(db.doc(`gyms/${gymRef.id}/usage/current`), {
+        activeMembers: 0, activeTrainers: 0, activeStaff: 0, scheduledClasses: 0, updatedAt: now
+      });
+      tx.create(db.doc(`gyms/${gymRef.id}/dashboard_metrics/current`), {
+        activeMembers: 0, expiringSoon: 0, todayAttendance: 0,
+        monthlyRevenueMinor: 0, updatedAt: now
+      });
+    });
+    await writeAudit(db, gymRef.id, request.auth.uid, "gym.self_service_trial_started", {});
+    return { gymId: gymRef.id };
+  }
+);
+
 export const provisionGym = onCall(
   { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
@@ -50,22 +215,22 @@ export const provisionGym = onCall(
     const now = FieldValue.serverTimestamp();
 
     await db.runTransaction(async (tx) => {
+      const planDoc = await tx.get(db.doc("saas_plans/trial"));
+      if (!planDoc.exists || planDoc.get("status") !== "active") {
+        throw new HttpsError("failed-precondition", "Configure the trial SaaS plan first.");
+      }
+      const plan = planSnapshot(planDoc.id, planDoc.data()!);
+      const trialEndsAt = Timestamp.fromMillis(Date.now() + Number(planDoc.get("trialDays")) * 86400000);
       tx.create(gymRef, {
         name: input.name,
         status: "trial",
         platformPlan: "trial",
-        platformPlanEndsAt: Timestamp.fromMillis(Date.now() + 30 * 86400000),
+        platformPlanEndsAt: trialEndsAt,
         currency: input.currency,
         timezone: input.timezone,
         locale: input.locale,
         branding: { primaryColor: "#2563EB", secondaryColor: "#0F172A" },
-        features: {
-          classes: true,
-          chat: true,
-          attendanceQr: true,
-          dietPlans: true,
-          progressPhotos: true
-        },
+        features: plan.features,
         createdAt: now,
         updatedAt: now
       });
@@ -92,6 +257,16 @@ export const provisionGym = onCall(
         todayAttendance: 0,
         monthlyRevenueMinor: 0,
         updatedAt: now
+      });
+      tx.create(db.doc(`gyms/${gymRef.id}/platform_subscription/current`), {
+        ...plan, status: "trial", startsAt: now, endsAt: trialEndsAt,
+        createdAt: now, updatedAt: now
+      });
+      tx.create(db.doc(`gyms/${gymRef.id}/entitlements/current`), {
+        ...plan, status: "active", endsAt: trialEndsAt, updatedAt: now
+      });
+      tx.create(db.doc(`gyms/${gymRef.id}/usage/current`), {
+        activeMembers: 0, activeTrainers: 0, activeStaff: 0, scheduledClasses: 0, updatedAt: now
       });
     });
 
@@ -145,8 +320,13 @@ export const acceptInvitation = onCall(
     const memberRef = db.doc(
       `gym_memberships/${membershipDocumentId(gymId, request.auth.uid)}`
     );
-    await db.runTransaction(async (tx) => {
-      const invite = await tx.get(inviteRef);
+    const entitlementRef = db.doc(`gyms/${gymId}/entitlements/current`);
+    const usageRef = db.doc(`gyms/${gymId}/usage/current`);
+    try {
+      await db.runTransaction(async (tx) => {
+      const [invite, entitlement, usage] = await Promise.all([
+        tx.get(inviteRef), tx.get(entitlementRef), tx.get(usageRef)
+      ]);
       if (!invite.exists || invite.get("status") !== "pending") {
         throw new HttpsError("not-found", "Invitation is invalid or already used.");
       }
@@ -160,6 +340,19 @@ export const acceptInvitation = onCall(
         throw new HttpsError("permission-denied", "Invitation does not match this account.");
       }
       const role = String(invite.get("role"));
+      const usageField = usageFieldForRole(role);
+      if (usageField) {
+        if (!entitlement.exists || !usage.exists) {
+          throw new HttpsError("failed-precondition", "Gym plan entitlements are not configured.");
+        }
+        const next = assertWithinLimit(
+          usageField,
+          Number(usage.get(usageField) ?? 0),
+          1,
+          entitlement.get("limits") ?? {}
+        );
+        tx.update(usageRef, { [usageField]: next, updatedAt: FieldValue.serverTimestamp() });
+      }
       tx.create(memberRef, {
         gymId,
         uid: request.auth!.uid,
@@ -196,7 +389,10 @@ export const acceptInvitation = onCall(
         phone: tokenPhone,
         updatedAt: FieldValue.serverTimestamp()
       }, { merge: true });
-    });
+      });
+    } catch (error) {
+      quotaError(error);
+    }
     return { gymId };
   }
 );
@@ -219,6 +415,123 @@ export const updateGymStatus = onCall(
     });
     await writeAudit(db, input.gymId, request.auth!.uid, "gym.status_updated", input);
     return { updated: true };
+  }
+);
+
+export const requestPlatformUpgrade = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    const input = z.object({
+      gymId: z.string().min(1),
+      planId: z.string().regex(/^[a-z0-9-]{2,40}$/),
+      note: z.string().trim().max(500).optional()
+    }).parse(request.data);
+    const actor = await requireGymPermission(request, input.gymId, "dashboard.read");
+    if (actor.role !== "owner") {
+      throw new HttpsError("permission-denied", "Only the gym owner can request a plan change.");
+    }
+    const plan = await db.doc(`saas_plans/${input.planId}`).get();
+    if (!plan.exists || plan.get("status") !== "active" || plan.get("isPublic") !== true || plan.get("isTrial") === true) {
+      throw new HttpsError("failed-precondition", "Select an available paid plan.");
+    }
+    await db.doc(`platform_upgrade_requests/${input.gymId}`).set({
+      gymId: input.gymId,
+      gymName: actor.gym.name,
+      ownerUid: request.auth!.uid,
+      requestedPlanId: input.planId,
+      requestedPlanName: plan.get("name"),
+      note: input.note ?? "",
+      status: "pending",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    });
+    await writeAudit(db, input.gymId, request.auth!.uid, "platform.upgrade_requested", { planId: input.planId });
+    return { requested: true };
+  }
+);
+
+export const reviewPlatformUpgrade = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requirePlatformAdmin(request);
+    const input = z.object({
+      gymId: z.string().min(1),
+      decision: z.enum(["approved", "rejected"]),
+      note: z.string().trim().max(500).optional()
+    }).parse(request.data);
+    const requestRef = db.doc(`platform_upgrade_requests/${input.gymId}`);
+    await db.runTransaction(async (tx) => {
+      const upgrade = await tx.get(requestRef);
+      if (!upgrade.exists || upgrade.get("status") !== "pending") {
+        throw new HttpsError("failed-precondition", "There is no pending request for this gym.");
+      }
+      const planId = String(upgrade.get("requestedPlanId"));
+      const planDoc = await tx.get(db.doc(`saas_plans/${planId}`));
+      if (!planDoc.exists || planDoc.get("status") !== "active") {
+        throw new HttpsError("failed-precondition", "The requested plan is unavailable.");
+      }
+      const now = FieldValue.serverTimestamp();
+      tx.update(requestRef, {
+        status: input.decision, reviewNote: input.note ?? "",
+        reviewedBy: request.auth!.uid, reviewedAt: now, updatedAt: now
+      });
+      if (input.decision === "approved") {
+        const plan = planSnapshot(planDoc.id, planDoc.data()!);
+        const periodDays = planDoc.get("billingPeriod") === "annual" ? 365 : 30;
+        const endsAt = Timestamp.fromMillis(Date.now() + periodDays * 86400000);
+        tx.update(db.doc(`gyms/${input.gymId}`), {
+          status: "active", platformPlan: planId, platformPlanEndsAt: endsAt,
+          features: plan.features, updatedAt: now
+        });
+        tx.set(db.doc(`gyms/${input.gymId}/platform_subscription/current`), {
+          ...plan, status: "active", startsAt: now, endsAt, updatedAt: now
+        }, { merge: true });
+        tx.set(db.doc(`gyms/${input.gymId}/entitlements/current`), {
+          ...plan, status: "active", endsAt, updatedAt: now
+        });
+      }
+    });
+    await writeAudit(db, input.gymId, request.auth!.uid, `platform.upgrade_${input.decision}`, {});
+    return { reviewed: true };
+  }
+);
+
+export const createClassSession = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    const input = z.object({
+      gymId: z.string().min(1),
+      name: z.string().trim().min(2).max(100),
+      capacity: z.number().int().min(1).max(500),
+      startsAtMillis: z.number().int().min(Date.now() - 300000),
+      trainerUid: z.string().optional()
+    }).parse(request.data);
+    await requireGymPermission(request, input.gymId, "classes.manage");
+    const sessionRef = db.collection(`gyms/${input.gymId}/class_sessions`).doc();
+    const usageRef = db.doc(`gyms/${input.gymId}/usage/current`);
+    const entitlementRef = db.doc(`gyms/${input.gymId}/entitlements/current`);
+    try {
+      await db.runTransaction(async (tx) => {
+        const [usage, entitlement] = await Promise.all([tx.get(usageRef), tx.get(entitlementRef)]);
+        if (!usage.exists || !entitlement.exists) {
+          throw new HttpsError("failed-precondition", "Gym plan entitlements are not configured.");
+        }
+        const next = assertWithinLimit(
+          "scheduledClasses", Number(usage.get("scheduledClasses") ?? 0), 1,
+          entitlement.get("limits") ?? {}
+        );
+        tx.update(usageRef, { scheduledClasses: next, updatedAt: FieldValue.serverTimestamp() });
+        tx.create(sessionRef, {
+          gymId: input.gymId, name: input.name, capacity: input.capacity,
+          bookedCount: 0, trainerUid: input.trainerUid ?? null, status: "scheduled",
+          startsAt: Timestamp.fromMillis(input.startsAtMillis), createdBy: request.auth!.uid,
+          createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+        });
+      });
+    } catch (error) {
+      quotaError(error);
+    }
+    return { sessionId: sessionRef.id };
   }
 );
 
@@ -305,36 +618,60 @@ export const updateGymMembership = onCall(
       ...ROLE_PERMISSIONS[input.role],
       ...permissionOverrides
     };
-    const profileCollection = input.role === "member" ? "members" : "staff";
-    const oldProfileCollection = oldRole === "member" ? "members" : "staff";
-    const batch = db.batch();
-    batch.update(targetRef, {
-      role: input.role,
-      status: input.status,
-      permissions,
-      permissionOverrides,
-      updatedAt: FieldValue.serverTimestamp(),
-      updatedBy: request.auth!.uid
-    });
-    batch.set(db.doc(`gyms/${input.gymId}/${profileCollection}/${input.uid}`), {
-      gymId: input.gymId,
-      uid: input.uid,
-      role: input.role,
-      status: input.status,
-      updatedAt: FieldValue.serverTimestamp()
-    }, { merge: true });
-    if (oldProfileCollection !== profileCollection) {
-      batch.delete(db.doc(`gyms/${input.gymId}/${oldProfileCollection}/${input.uid}`));
+    const entitlementRef = db.doc(`gyms/${input.gymId}/entitlements/current`);
+    const usageRef = db.doc(`gyms/${input.gymId}/usage/current`);
+    try {
+      await db.runTransaction(async (tx) => {
+        const [current, entitlement, usage] = await Promise.all([
+          tx.get(targetRef), tx.get(entitlementRef), tx.get(usageRef)
+        ]);
+        if (!current.exists) throw new HttpsError("not-found", "Membership was not found.");
+        const currentRole = String(current.get("role"));
+        const wasActive = current.get("status") === "active";
+        const willBeActive = input.status === "active";
+        const oldField = wasActive ? usageFieldForRole(currentRole) : null;
+        const newField = willBeActive ? usageFieldForRole(input.role) : null;
+        if ((oldField || newField) && (!entitlement.exists || !usage.exists)) {
+          throw new HttpsError("failed-precondition", "Gym plan entitlements are not configured.");
+        }
+        const changes = new Map<string, number>();
+        if (oldField) changes.set(oldField, (changes.get(oldField) ?? 0) - 1);
+        if (newField) changes.set(newField, (changes.get(newField) ?? 0) + 1);
+        const usageUpdate: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
+        for (const [field, change] of changes) {
+          if (change === 0) continue;
+          usageUpdate[field] = assertWithinLimit(
+            field as UsageField,
+            Number(usage.get(field) ?? 0), change, entitlement.get("limits") ?? {}
+          );
+        }
+        if (changes.size > 0) tx.update(usageRef, usageUpdate);
+
+        const profileCollection = input.role === "member" ? "members" : "staff";
+        const oldProfileCollection = currentRole === "member" ? "members" : "staff";
+        tx.update(targetRef, {
+          role: input.role, status: input.status, permissions, permissionOverrides,
+          updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth!.uid
+        });
+        tx.set(db.doc(`gyms/${input.gymId}/${profileCollection}/${input.uid}`), {
+          gymId: input.gymId, uid: input.uid, role: input.role, status: input.status,
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        if (oldProfileCollection !== profileCollection) {
+          tx.delete(db.doc(`gyms/${input.gymId}/${oldProfileCollection}/${input.uid}`));
+        }
+        const wasActiveMember = currentRole === "member" && wasActive;
+        const isActiveMember = input.role === "member" && willBeActive;
+        if (wasActiveMember !== isActiveMember) {
+          tx.set(db.doc(`gyms/${input.gymId}/dashboard_metrics/current`), {
+            activeMembers: FieldValue.increment(isActiveMember ? 1 : -1),
+            updatedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+        }
+      });
+    } catch (error) {
+      quotaError(error);
     }
-    const wasActiveMember = oldRole === "member" && target.get("status") === "active";
-    const isActiveMember = input.role === "member" && input.status === "active";
-    if (wasActiveMember !== isActiveMember) {
-      batch.set(db.doc(`gyms/${input.gymId}/dashboard_metrics/current`), {
-        activeMembers: FieldValue.increment(isActiveMember ? 1 : -1),
-        updatedAt: FieldValue.serverTimestamp()
-      }, { merge: true });
-    }
-    await batch.commit();
     await writeAudit(db, input.gymId, request.auth!.uid, "membership.updated", {
       uid: input.uid,
       role: input.role,
@@ -878,6 +1215,37 @@ export const sendClassReminders = onSchedule(
       }
     }
     logger.info("Class reminders generated", { sessions: sessions.size });
+  }
+);
+
+export const closeStartedClassSessions = onSchedule(
+  { region: REGION, schedule: "every 30 minutes", timeZone: "Asia/Kolkata" },
+  async () => {
+    const sessions = await db.collectionGroup("class_sessions")
+      .where("status", "==", "scheduled")
+      .where("startsAt", "<=", Timestamp.now())
+      .limit(500)
+      .get();
+    for (const session of sessions.docs) {
+      const gymRef = session.ref.parent.parent;
+      if (!gymRef) continue;
+      const usageRef = gymRef.collection("usage").doc("current");
+      await db.runTransaction(async (tx) => {
+        const [current, usage] = await Promise.all([tx.get(session.ref), tx.get(usageRef)]);
+        if (!current.exists || current.get("status") !== "scheduled") return;
+        tx.update(session.ref, {
+          status: "completed", completedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        if (usage.exists) {
+          tx.update(usageRef, {
+            scheduledClasses: Math.max(0, Number(usage.get("scheduledClasses") ?? 0) - 1),
+            updatedAt: FieldValue.serverTimestamp()
+          });
+        }
+      });
+    }
+    logger.info("Started class sessions closed", { count: sessions.size });
   }
 );
 

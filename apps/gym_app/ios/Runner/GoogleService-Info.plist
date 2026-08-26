@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>API_KEY</key>
-	<string>AIzaSyC6UBjNwB0Ainl62gPdFbtbn0WNzvCwkQo</string>
+	<string>AIzaSyDw8S3oON2LTj_5hC0Cd983du7w1tjF1mA</string>
 	<key>GCM_SENDER_ID</key>
-	<string>818455248956</string>
+	<string>996305810467</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>com.rishva.gymmanagement</string>
 	<key>PROJECT_ID</key>
-	<string>recipe-app-cdeef</string>
+	<string>createmix-in</string>
 	<key>STORAGE_BUCKET</key>
-	<string>recipe-app-cdeef.appspot.com</string>
+	<string>createmix-in.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:818455248956:ios:d69ec43c8948da91ae8339</string>
+	<string>1:996305810467:ios:1d9a9c1cdc384c8e7bad96</string>
 </dict>
 </plist>

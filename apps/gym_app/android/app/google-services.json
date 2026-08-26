@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "818455248956",
-    "project_id": "recipe-app-cdeef",
-    "storage_bucket": "recipe-app-cdeef.appspot.com"
+    "project_number": "996305810467",
+    "project_id": "createmix-in",
+    "storage_bucket": "createmix-in.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:818455248956:android:2af4befd8c93277bae8339",
+        "mobilesdk_app_id": "1:996305810467:android:56c3f9c7cff8cfa27bad96",
         "android_client_info": {
           "package_name": "com.rishva.gymmanagement"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAt3v7ZVU8y96UyB5aAxFuw5n09ZnSsHAY"
+          "current_key": "AIzaSyAQfdRGRV6G9bTcFW72GvH9IANZQfz1-Ys"
         }
       ],
       "services": {

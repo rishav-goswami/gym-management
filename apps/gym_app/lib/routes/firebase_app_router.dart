@@ -7,6 +7,7 @@ import '../firebase/logic/session_cubit.dart';
 import '../firebase/presentation/auth/firebase_login_screen.dart';
 import '../firebase/presentation/auth/firebase_register_screen.dart';
 import '../firebase/presentation/context/gym_context_screen.dart';
+import '../firebase/presentation/onboarding/start_gym_trial_screen.dart';
 import '../firebase/presentation/workspace/gym_workspace_screen.dart';
 
 GoRouter createFirebaseRouter(SessionCubit session) => GoRouter(
@@ -20,6 +21,7 @@ GoRouter createFirebaseRouter(SessionCubit session) => GoRouter(
       builder: (_, _) => const FirebaseRegisterScreen(),
     ),
     GoRoute(path: '/contexts', builder: (_, _) => const GymContextScreen()),
+    GoRoute(path: '/start-gym', builder: (_, _) => const StartGymTrialScreen()),
     GoRoute(path: '/workspace', builder: (_, _) => const GymWorkspaceScreen()),
   ],
   redirect: (_, routerState) {
@@ -31,14 +33,16 @@ GoRouter createFirebaseRouter(SessionCubit session) => GoRouter(
       SessionStatus.signedOut => authRoute ? null : '/login',
       SessionStatus.failure => authRoute ? null : '/login',
       SessionStatus.selectingContext =>
-        location == '/contexts' ? null : '/contexts',
+        location == '/contexts' || location == '/start-gym'
+            ? null
+            : '/contexts',
       SessionStatus.ready => _readyRedirect(state, location),
     };
   },
 );
 
 String? _readyRedirect(SessionState state, String location) {
-  if (location == '/contexts') return null;
+  if (location == '/contexts' || location == '/start-gym') return null;
   if (state.activeMembership != null) {
     return location == '/workspace' ? null : '/workspace';
   }

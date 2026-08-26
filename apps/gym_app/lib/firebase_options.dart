@@ -41,46 +41,46 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyB1kkvEhiRF8zOVlnrOcDjnlO703i1ii80',
-    appId: '1:818455248956:web:3e5c0a6f6ad25621ae8339',
-    messagingSenderId: '818455248956',
-    projectId: 'recipe-app-cdeef',
-    authDomain: 'recipe-app-cdeef.firebaseapp.com',
-    storageBucket: 'recipe-app-cdeef.appspot.com',
-    measurementId: 'G-YC7627RDKF',
+    apiKey: 'AIzaSyA1M3pF7VvrGQt2uI3Ao31DPIabgMoxil4',
+    appId: '1:996305810467:web:b20ab104434075da7bad96',
+    messagingSenderId: '996305810467',
+    projectId: 'createmix-in',
+    authDomain: 'createmix-in.firebaseapp.com',
+    storageBucket: 'createmix-in.firebasestorage.app',
+    measurementId: 'G-RQ0WD1YM3B',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAt3v7ZVU8y96UyB5aAxFuw5n09ZnSsHAY',
-    appId: '1:818455248956:android:2af4befd8c93277bae8339',
-    messagingSenderId: '818455248956',
-    projectId: 'recipe-app-cdeef',
-    storageBucket: 'recipe-app-cdeef.appspot.com',
+    apiKey: 'AIzaSyAQfdRGRV6G9bTcFW72GvH9IANZQfz1-Ys',
+    appId: '1:996305810467:android:56c3f9c7cff8cfa27bad96',
+    messagingSenderId: '996305810467',
+    projectId: 'createmix-in',
+    storageBucket: 'createmix-in.firebasestorage.app',
   );
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyC6UBjNwB0Ainl62gPdFbtbn0WNzvCwkQo',
-    appId: '1:818455248956:ios:d69ec43c8948da91ae8339',
-    messagingSenderId: '818455248956',
-    projectId: 'recipe-app-cdeef',
-    storageBucket: 'recipe-app-cdeef.appspot.com',
+    apiKey: 'AIzaSyDw8S3oON2LTj_5hC0Cd983du7w1tjF1mA',
+    appId: '1:996305810467:ios:1d9a9c1cdc384c8e7bad96',
+    messagingSenderId: '996305810467',
+    projectId: 'createmix-in',
+    storageBucket: 'createmix-in.firebasestorage.app',
     iosBundleId: 'com.rishva.gymmanagement',
   );
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyC6UBjNwB0Ainl62gPdFbtbn0WNzvCwkQo',
-    appId: '1:818455248956:ios:d69ec43c8948da91ae8339',
-    messagingSenderId: '818455248956',
-    projectId: 'recipe-app-cdeef',
-    storageBucket: 'recipe-app-cdeef.appspot.com',
+    apiKey: 'AIzaSyDw8S3oON2LTj_5hC0Cd983du7w1tjF1mA',
+    appId: '1:996305810467:ios:1d9a9c1cdc384c8e7bad96',
+    messagingSenderId: '996305810467',
+    projectId: 'createmix-in',
+    storageBucket: 'createmix-in.firebasestorage.app',
     iosBundleId: 'com.rishva.gymmanagement',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyB1kkvEhiRF8zOVlnrOcDjnlO703i1ii80',
-    appId: '1:818455248956:web:90eb94b8b8717b87ae8339',
-    messagingSenderId: '818455248956',
-    projectId: 'recipe-app-cdeef',
-    authDomain: 'recipe-app-cdeef.firebaseapp.com',
-    storageBucket: 'recipe-app-cdeef.appspot.com',
-    measurementId: 'G-FQ609JKQ9D',
+    apiKey: 'AIzaSyA1M3pF7VvrGQt2uI3Ao31DPIabgMoxil4',
+    appId: '1:996305810467:web:94b70b5a5c2f885f7bad96',
+    messagingSenderId: '996305810467',
+    projectId: 'createmix-in',
+    authDomain: 'createmix-in.firebaseapp.com',
+    storageBucket: 'createmix-in.firebasestorage.app',
+    measurementId: 'G-JCE9ZENGGH',
   );
 }

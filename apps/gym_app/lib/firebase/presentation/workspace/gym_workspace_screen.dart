@@ -16,6 +16,7 @@ import 'package:gym_core/gym_core.dart';
 import '../../logic/session_cubit.dart';
 import 'billing_management_panel.dart';
 import 'member_billing_panel.dart';
+import 'platform_plan_banner.dart';
 
 class GymWorkspaceScreen extends StatefulWidget {
   const GymWorkspaceScreen({super.key});
@@ -323,6 +324,11 @@ class _Dashboard extends StatelessWidget {
             style: Theme.of(context).textTheme.headlineMedium,
           ),
           Text('Live operational summary for ${membership.gymName}'),
+          if (membership.role == GymRole.owner ||
+              membership.role == GymRole.manager) ...[
+            const SizedBox(height: 12),
+            PlatformPlanBanner(membership: membership),
+          ],
           if (membership.role == GymRole.member) ...[
             const SizedBox(height: 16),
             MemberSubscriptionBanner(membership: membership),
@@ -1170,21 +1176,12 @@ class _ClassesPanel extends StatelessWidget {
     );
     if (accepted != true || !context.mounted) return;
     try {
-      await context.read<GymRepository>().createManagedRecord(
+      await context.read<GymRepository>().createClassSession(
         gymId: membership.gymId,
-        collection: 'class_sessions',
-        data: {
-          'name': name.text.trim(),
-          'capacity': int.parse(capacity.text),
-          'bookedCount': 0,
-          'trainerUid': membership.role == GymRole.trainer
-              ? membership.uid
-              : null,
-          'status': 'scheduled',
-          'startsAt': Timestamp.fromDate(
-            DateTime.now().add(const Duration(days: 1)),
-          ),
-        },
+        name: name.text.trim(),
+        capacity: int.parse(capacity.text),
+        trainerUid: membership.role == GymRole.trainer ? membership.uid : null,
+        startsAt: DateTime.now().add(const Duration(days: 1)),
       );
     } catch (error) {
       if (context.mounted) {

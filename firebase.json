@@ -75,42 +75,42 @@
     "platforms": {
       "android": {
         "default": {
-          "projectId": "recipe-app-cdeef",
-          "appId": "1:818455248956:android:2af4befd8c93277bae8339",
+          "projectId": "createmix-in",
+          "appId": "1:996305810467:android:56c3f9c7cff8cfa27bad96",
           "fileOutput": "apps/gym_app/android/app/google-services.json"
         }
       },
       "ios": {
         "default": {
-          "projectId": "recipe-app-cdeef",
-          "appId": "1:818455248956:ios:d69ec43c8948da91ae8339",
+          "projectId": "createmix-in",
+          "appId": "1:996305810467:ios:1d9a9c1cdc384c8e7bad96",
           "uploadDebugSymbols": true,
           "fileOutput": "apps/gym_app/ios/Runner/GoogleService-Info.plist"
         }
       },
       "macos": {
         "default": {
-          "projectId": "recipe-app-cdeef",
-          "appId": "1:818455248956:ios:d69ec43c8948da91ae8339",
+          "projectId": "createmix-in",
+          "appId": "1:996305810467:ios:1d9a9c1cdc384c8e7bad96",
           "uploadDebugSymbols": true,
           "fileOutput": "apps/gym_app/macos/Runner/GoogleService-Info.plist"
         }
       },
       "dart": {
         "apps/gym_app/lib/firebase_options.dart": {
-          "projectId": "recipe-app-cdeef",
+          "projectId": "createmix-in",
           "configurations": {
-            "android": "1:818455248956:android:2af4befd8c93277bae8339",
-            "ios": "1:818455248956:ios:d69ec43c8948da91ae8339",
-            "macos": "1:818455248956:ios:d69ec43c8948da91ae8339",
-            "web": "1:818455248956:web:3e5c0a6f6ad25621ae8339",
-            "windows": "1:818455248956:web:90eb94b8b8717b87ae8339"
+            "android": "1:996305810467:android:56c3f9c7cff8cfa27bad96",
+            "ios": "1:996305810467:ios:1d9a9c1cdc384c8e7bad96",
+            "macos": "1:996305810467:ios:1d9a9c1cdc384c8e7bad96",
+            "web": "1:996305810467:web:b20ab104434075da7bad96",
+            "windows": "1:996305810467:web:94b70b5a5c2f885f7bad96"
           }
         },
         "apps/platform_console/lib/firebase_options.dart": {
-          "projectId": "recipe-app-cdeef",
+          "projectId": "createmix-in",
           "configurations": {
-            "web": "1:818455248956:web:2c806f83bc91e051ae8339"
+            "web": "1:996305810467:web:769c342a5836b4ef7bad96"
           }
         }
       }

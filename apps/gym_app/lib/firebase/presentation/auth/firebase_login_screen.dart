@@ -179,12 +179,10 @@ class _FirebaseLoginScreenState extends State<FirebaseLoginScreen> {
                       const SizedBox(height: 10),
                       TextButton(
                         onPressed: () => context.go('/register'),
-                        child: const Text(
-                          'Create an identity for an invitation',
-                        ),
+                        child: const Text('Create an account or start a gym'),
                       ),
                       const Text(
-                        'Gym roles are assigned by invitation. Owner, trainer and administrator access cannot be self-selected.',
+                        'Owners can start one verified free trial. Staff and member roles are assigned by secure invitation.',
                         textAlign: TextAlign.center,
                       ),
                     ],

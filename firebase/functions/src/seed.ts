@@ -32,6 +32,31 @@ async function seed() {
   await auth.setCustomUserClaims(admin.uid, { platformAdmin: true });
   const ownerUid = owner.uid;
   const batch = db.batch();
+  const trialEndsAt = Timestamp.fromMillis(Date.now() + 14 * 86400000);
+  const trialLimits = {
+    activeMembers: 5, activeTrainers: 1, activeStaff: 1, scheduledClasses: 3
+  };
+  const trialFeatures = {
+    classes: true, chat: true, attendanceQr: true, dietPlans: true, progressPhotos: false
+  };
+  batch.set(db.doc("saas_plans/trial"), {
+    planId: "trial", name: "Free trial", description: "Explore the gym core suite",
+    status: "active", isPublic: true, isTrial: true, trialDays: 14,
+    currency: "INR", priceMinor: 0, billingPeriod: "trial", version: 1,
+    limits: trialLimits, features: trialFeatures,
+    createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+  });
+  batch.set(db.doc("saas_plans/starter"), {
+    planId: "starter", name: "Starter", description: "For growing neighbourhood gyms",
+    status: "active", isPublic: true, isTrial: false, trialDays: 14,
+    currency: "INR", priceMinor: 99900, billingPeriod: "monthly", version: 1,
+    limits: { activeMembers: 100, activeTrainers: 5, activeStaff: 5, scheduledClasses: 100 },
+    features: { ...trialFeatures, progressPhotos: true },
+    createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+  });
+  batch.set(db.doc(`trial_claims/${ownerUid}`), {
+    uid: ownerUid, gymId, createdAt: FieldValue.serverTimestamp()
+  });
   batch.set(db.doc(`gyms/${gymId}`), {
     name: "Pilot Fitness",
     status: "trial",
@@ -40,13 +65,8 @@ async function seed() {
     timezone: "Asia/Kolkata",
     locale: "en-IN",
     branding: { primaryColor: "#2563EB", secondaryColor: "#0F172A" },
-    features: {
-      classes: true,
-      chat: true,
-      attendanceQr: true,
-      dietPlans: true,
-      progressPhotos: true
-    },
+    features: trialFeatures,
+    platformPlanEndsAt: trialEndsAt,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp()
   });
@@ -62,6 +82,21 @@ async function seed() {
   }
   batch.set(db.doc(`gyms/${gymId}/dashboard_metrics/current`), {
     activeMembers: 1, expiringSoon: 0, todayAttendance: 0, monthlyRevenueMinor: 0,
+    updatedAt: FieldValue.serverTimestamp()
+  });
+  batch.set(db.doc(`gyms/${gymId}/platform_subscription/current`), {
+    planId: "trial", planVersion: 1, planName: "Free trial", status: "trial",
+    limits: trialLimits, features: trialFeatures, currency: "INR", priceMinor: 0,
+    billingPeriod: "trial", startsAt: FieldValue.serverTimestamp(), endsAt: trialEndsAt,
+    createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
+  });
+  batch.set(db.doc(`gyms/${gymId}/entitlements/current`), {
+    planId: "trial", planVersion: 1, planName: "Free trial", status: "active",
+    limits: trialLimits, features: trialFeatures, endsAt: trialEndsAt,
+    updatedAt: FieldValue.serverTimestamp()
+  });
+  batch.set(db.doc(`gyms/${gymId}/usage/current`), {
+    activeMembers: 1, activeTrainers: 1, activeStaff: 0, scheduledClasses: 0,
     updatedAt: FieldValue.serverTimestamp()
   });
   batch.set(db.doc(`gyms/${gymId}/membership_plans/monthly`), {

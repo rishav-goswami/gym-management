@@ -11,7 +11,9 @@ service cloud.firestore {
     }
     function activeGym(gymId) {
       return signedIn() && membership(gymId).status == 'active' &&
-        get(/databases/$(database)/documents/gyms/$(gymId)).data.status in ['trial', 'active'];
+        get(/databases/$(database)/documents/gyms/$(gymId)).data.status in ['trial', 'active'] &&
+        (!('platformPlanEndsAt' in get(/databases/$(database)/documents/gyms/$(gymId)).data) ||
+         get(/databases/$(database)/documents/gyms/$(gymId)).data.platformPlanEndsAt > request.time);
     }
     function role(gymId, allowed) {
       return activeGym(gymId) && membership(gymId).role in allowed;
@@ -44,6 +46,20 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /saas_plans/{planId} {
+      allow read: if (signedIn() && resource.data.status == 'active' && resource.data.isPublic == true) || platformAdmin();
+      allow write: if false;
+    }
+
+    match /platform_upgrade_requests/{gymId} {
+      allow read: if platformAdmin() || role(gymId, ['owner']);
+      allow write: if false;
+    }
+
+    match /trial_claims/{uid} {
+      allow read, write: if false;
+    }
+
     match /gyms/{gymId} {
       allow read: if platformAdmin() || activeGym(gymId);
       allow write: if false;
@@ -56,8 +72,12 @@ service cloud.firestore {
       match /members/{uid} {
         allow read: if platformAdmin() || (activeGym(gymId) && request.auth.uid == uid) ||
           permission(gymId, 'members.read') || role(gymId, ['trainer']);
-        allow create, update: if tenantValid(gymId) && identityValid(uid) &&
-          ((activeGym(gymId) && request.auth.uid == uid) || permission(gymId, 'members.write'));
+        allow create: if false;
+        allow update: if tenantValid(gymId) && identityValid(uid) &&
+          activeGym(gymId) && request.auth.uid == uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'displayName', 'phone', 'photoUrl', 'dateOfBirth', 'gender', 'updatedAt'
+          ]);
         allow delete: if permission(gymId, 'members.delete');
       }
 
@@ -109,8 +129,22 @@ service cloud.firestore {
 
       match /class_sessions/{sessionId} {
         allow read: if activeGym(gymId);
-        allow create, update: if permission(gymId, 'classes.manage') && tenantValid(gymId);
-        allow delete: if permission(gymId, 'classes.manage');
+        allow write: if false;
+      }
+
+      match /platform_subscription/{documentId} {
+        allow read: if platformAdmin() || role(gymId, ['owner']);
+        allow write: if false;
+      }
+
+      match /entitlements/{documentId} {
+        allow read: if platformAdmin() || role(gymId, ['owner', 'manager']);
+        allow write: if false;
+      }
+
+      match /usage/{documentId} {
+        allow read: if platformAdmin() || role(gymId, ['owner', 'manager']);
+        allow write: if false;
       }
 
       match /class_bookings/{bookingId} {

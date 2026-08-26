@@ -59,7 +59,7 @@ class FirebaseBootstrap {
           ? const AppleDebugProvider()
           : const AppleAppAttestWithDeviceCheckFallbackProvider(),
       providerWeb: kIsWeb
-          ? ReCaptchaV3Provider(AppEnvironment.webAppCheckSiteKey)
+          ? ReCaptchaEnterpriseProvider(AppEnvironment.webAppCheckSiteKey)
           : null,
     );
   }

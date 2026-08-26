@@ -44,7 +44,7 @@ class _FirebaseRegisterScreenState extends State<FirebaseRegisterScreen> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'This does not grant a gym role. Sign up with the email used in your invitation.',
+                  'Verify your email to start a gym trial, or use the identity from your invitation to join a gym.',
                 ),
                 const SizedBox(height: 24),
                 TextFormField(

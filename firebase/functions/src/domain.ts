@@ -51,3 +51,37 @@ export function expiryReminderWindow(daysRemaining: number): 0 | 1 | 3 | 7 {
   if (daysRemaining <= 3) return 3;
   return 7;
 }
+
+export const USAGE_FIELDS = [
+  "activeMembers",
+  "activeTrainers",
+  "activeStaff",
+  "scheduledClasses"
+] as const;
+
+export type UsageField = typeof USAGE_FIELDS[number];
+
+export function usageFieldForRole(role: string): UsageField | null {
+  if (role === "member") return "activeMembers";
+  if (role === "trainer") return "activeTrainers";
+  if (["manager", "receptionist", "accountant"].includes(role)) return "activeStaff";
+  return null;
+}
+
+export function assertWithinLimit(
+  field: UsageField,
+  current: number,
+  change: number,
+  limits: Record<string, unknown>
+): number {
+  const next = Math.max(0, current + change);
+  const rawLimit = limits[field];
+  const limit = typeof rawLimit === "number" ? rawLimit : 0;
+  if (!Number.isInteger(limit) || limit < 0) {
+    throw new Error(`Invalid entitlement limit: ${field}`);
+  }
+  if (next > limit) {
+    throw new Error(`LIMIT_EXCEEDED:${field}:${current}:${limit}`);
+  }
+  return next;
+}

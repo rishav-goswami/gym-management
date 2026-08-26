@@ -8,10 +8,10 @@ App Store.
 
 | Application | URL |
 |---|---|
-| Customer Gym Management web app | <https://gym-management-app-cdeef.web.app> |
-| Private platform console | <https://gym-management-admin-cdeef.web.app> |
+| Customer Gym Management web app | <https://createmix-gym-app.web.app> |
+| Private platform console | <https://createmix-gym-admin.web.app> |
 
-Both currently use Firebase project `recipe-app-cdeef`, but each has its own
+Both use the owned Firebase project `createmix-in`, but each has its own
 Firebase Web App registration and Hosting target.
 
 ## Access model
@@ -65,7 +65,7 @@ From the repository root:
 npm run console:analyze
 npm run console:test
 npm run console:build:web
-firebase deploy --project recipe-app-cdeef --only hosting:platform-console
+firebase deploy --project createmix-in --only hosting:platform-console
 ```
 
 `npm run deploy:web` builds and deploys both web applications.

@@ -12,6 +12,45 @@ class GymRepository {
   final FirebaseFirestore firestore;
   final FirebaseFunctions functions;
 
+  Stream<DocumentSnapshot<Map<String, dynamic>>> platformSubscription(
+    String gymId,
+  ) => firestore.doc('gyms/$gymId/platform_subscription/current').snapshots();
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> usage(String gymId) =>
+      firestore.doc('gyms/$gymId/usage/current').snapshots();
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> publicSaasPlans() => firestore
+      .collection('saas_plans')
+      .where('status', isEqualTo: 'active')
+      .where('isPublic', isEqualTo: true)
+      .snapshots();
+
+  Future<Map<String, dynamic>> startGymTrial({
+    required String name,
+    String? phone,
+    String? city,
+  }) async => Map<String, dynamic>.from(
+    (await functions.httpsCallable('startGymTrial').call({
+          'name': name.trim(),
+          if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+          if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+          'currency': 'INR',
+          'timezone': 'Asia/Kolkata',
+          'locale': 'en-IN',
+        })).data
+        as Map,
+  );
+
+  Future<void> requestPlatformUpgrade({
+    required String gymId,
+    required String planId,
+    String? note,
+  }) => functions.httpsCallable('requestPlatformUpgrade').call<void>({
+    'gymId': gymId,
+    'planId': planId,
+    if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+  });
+
   Stream<Map<String, dynamic>> dashboard(String gymId) => firestore
       .doc('gyms/$gymId/dashboard_metrics/current')
       .snapshots()
@@ -166,6 +205,20 @@ class GymRepository {
         'gymId': gymId,
         'sessionId': sessionId,
       });
+
+  Future<void> createClassSession({
+    required String gymId,
+    required String name,
+    required int capacity,
+    required DateTime startsAt,
+    String? trainerUid,
+  }) => functions.httpsCallable('createClassSession').call<void>({
+    'gymId': gymId,
+    'name': name.trim(),
+    'capacity': capacity,
+    'startsAtMillis': startsAt.millisecondsSinceEpoch,
+    if (trainerUid != null) 'trainerUid': trainerUid,
+  });
 
   Future<void> updateConfiguration({
     required String gymId,

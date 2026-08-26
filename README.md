@@ -14,6 +14,7 @@ Platform code is not imported into the customer application. A separate Firebase
 - Runtime gym name/color branding and responsive staff, trainer, and member workspaces.
 - A separately deployed platform console for tenant provisioning and status control, with no public registration or customer-app route.
 - Callable Functions for gym provisioning, invitations, recorded renewals, rotating QR attendance, atomic class booking, safe chat creation, export/deletion requests, FCM notifications, and expiry reminders.
+- Verified self-service owner trials with versioned SaaS plans, transactional usage limits, upgrade requests, and platform-admin approval.
 - Firestore and Storage rules that deny cross-gym access and stop access to suspended gyms.
 - Development/staging/production aliases, tracked rules/indexes, Emulator Suite configuration, and a repeatable pilot seed.
 - Existing Express/MongoDB code remains in `backend/` for temporary comparison only. The Flutter entrypoint no longer uses it.
@@ -31,6 +32,8 @@ The member-facing plan, receipt, renewal-request, and reminder flow is in
 [`docs/MEMBER_BILLING.md`](docs/MEMBER_BILLING.md).
 Platform-console access, local operation, and deployment are documented in
 [`docs/PLATFORM_CONSOLE.md`](docs/PLATFORM_CONSOLE.md).
+Owner onboarding, quotas, and upgrades are documented in
+[`docs/SAAS_TRIALS.md`](docs/SAAS_TRIALS.md).
 
 ## Prerequisites
 
@@ -115,7 +118,7 @@ macOS Firewall must allow the emulator processes, and the phone and Mac must sha
 ## Real Firebase projects
 
 The development build is currently connected to Firebase project
-`recipe-app-cdeef`. The Firebase project ID is immutable, but the registered
+`createmix-in`. The Firebase project ID is immutable, but the registered
 apps and the product shown to users are named **Gym Management**. The configured
 development identifiers are:
 
@@ -132,18 +135,48 @@ fvm flutter run -d chrome
 fvm flutter run -d YOUR_IOS_DEVICE_ID
 ```
 
-The development cloud project currently has email/password and phone OTP
-enabled, Gym Management Firestore/Storage rules released, Remote Config
-published, and the required composite indexes building. It is on Firebase's
-free Spark plan, so Cloud Functions and Firestore TTL are not deployed. Enable
-billing before testing privileged cloud workflows such as tenant provisioning,
-invitations, payments, attendance validation, scheduled reminders, and account
-export/deletion.
+The development cloud project is on Blaze. It has its Firestore database in
+`asia-south1` with deletion protection enabled, tenant rules and indexes
+released, invitation/QR TTL enabled, Remote Config published, Authentication
+configured, and the Node.js 22 Functions deployed in `asia-south1`. The
+customer and platform web applications are live on their dedicated Hosting
+sites. Firebase Storage is the only remaining one-time service setup.
 
-For the first cloud login, select **Create an identity for an invitation** and
-register the email that should become the platform maintainer. A trusted CLI or
-server process must then add the `platformAdmin: true` custom claim; the public
-app intentionally cannot grant itself administrator access.
+### Finish the `createmix-in` cloud setup
+
+Open [Firebase Storage](https://console.firebase.google.com/project/createmix-in/storage),
+click **Get started**, and keep the bucket in an India-appropriate location
+when Firebase offers a choice. Then deploy the checked-in Storage rules:
+
+```sh
+npx firebase deploy --project createmix-in --only storage
+```
+
+For a fresh Firebase environment, run the secure bootstrap from the repository
+root before deploying backend configuration:
+
+```sh
+node scripts/bootstrap-cloud.mjs \
+  createmix-in \
+  1:996305810467:web:769c342a5836b4ef7bad96 \
+  rishva343@gmail.com
+
+npx firebase deploy --project createmix-in \
+  --only functions,firestore:indexes,storage
+```
+
+The bootstrap is deliberately narrow: it enables the Identity Toolkit and
+Compute APIs required by Auth and second-generation Functions, enables
+email/password authentication, creates or updates only the named platform
+administrator, adds the `platformAdmin: true` claim, sends that address a
+password-reset email, and writes only the `trial` and `starter` SaaS plan
+documents. It does not create prototype gyms, members, trainers, or payments.
+It is safe to rerun for the same administrator.
+
+The customer app can create ordinary identities and verified owners may use one
+self-service gym trial. A trusted CLI or server process must add the
+`platformAdmin: true` custom claim to platform maintainers; no public app can
+grant platform administrator access.
 
 Before publishing, replace `com.rishva` if a different company-owned namespace
 is required. Android's application ID and Apple's bundle ID should be treated as
@@ -157,13 +190,13 @@ export PATH="/opt/homebrew/opt/ruby/bin:$HOME/.pub-cache/bin:$PATH"
 /opt/homebrew/opt/ruby/bin/gem install xcodeproj --user-install
 cd apps/gym_app
 flutterfire configure \
-  --project=recipe-app-cdeef \
+  --project=createmix-in \
   --platforms=android,ios,macos,web,windows \
   --android-package-name=com.rishva.gymmanagement \
   --ios-bundle-id=com.rishva.gymmanagement \
   --macos-bundle-id=com.rishva.gymmanagement \
-  --web-app-id=1:818455248956:web:3e5c0a6f6ad25621ae8339 \
-  --windows-app-id=1:818455248956:web:90eb94b8b8717b87ae8339 \
+  --web-app-id=1:996305810467:web:b20ab104434075da7bad96 \
+  --windows-app-id=1:996305810467:web:94b70b5a5c2f885f7bad96 \
   --yes --overwrite-firebase-options
 ```
 
@@ -175,7 +208,7 @@ fvm flutter run -d chrome
 ```
 
 The console uses Firebase Web App ID
-`1:818455248956:web:2c806f83bc91e051ae8339`. It intentionally supports only
+`1:996305810467:web:769c342a5836b4ef7bad96`. It intentionally supports only
 email/password sign-in and rejects every authenticated identity whose refreshed
 token does not contain `platformAdmin: true`.
 
@@ -254,8 +287,8 @@ The development Firebase project has two mapped Hosting targets:
 
 | Target | Application | URL |
 |---|---|---|
-| `gym-app` | Customer web app | `https://gym-management-app-cdeef.web.app` |
-| `platform-console` | Private platform console | `https://gym-management-admin-cdeef.web.app` |
+| `gym-app` | Customer web app | `https://createmix-gym-app.web.app` |
+| `platform-console` | Private platform console | `https://createmix-gym-admin.web.app` |
 
 Build and deploy both from the repository root:
 
@@ -263,14 +296,28 @@ Build and deploy both from the repository root:
 npm run deploy:web
 ```
 
+The production web build commands include the domain-restricted reCAPTCHA
+Enterprise site keys used by Firebase App Check. These keys identify the web
+clients and are safe to include in frontend builds; authorization still comes
+from Firebase Auth, Firestore rules, and callable Function permission checks.
+To recreate the App Check registrations for a replacement Firebase project,
+run:
+
+```sh
+node scripts/configure-web-app-check.mjs PROJECT_ID CUSTOMER_WEB_APP_ID CONSOLE_WEB_APP_ID
+```
+
+Then replace the two `FIREBASE_APPCHECK_SITE_KEY` values in `package.json` with
+the keys printed by the script before deploying.
+
 Deploy one site without affecting the other:
 
 ```sh
 npm run app:build:web
-firebase deploy --project recipe-app-cdeef --only hosting:gym-app
+firebase deploy --project createmix-in --only hosting:gym-app
 
 npm run console:build:web
-firebase deploy --project recipe-app-cdeef --only hosting:platform-console
+firebase deploy --project createmix-in --only hosting:platform-console
 ```
 
 Creating a separate frontend does not make privileged operations safe by

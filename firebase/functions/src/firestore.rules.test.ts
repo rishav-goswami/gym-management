@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { assertFails, assertSucceeds, initializeTestEnvironment, RulesTestEnvironment } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, Timestamp, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
@@ -21,6 +21,12 @@ beforeEach(async () => {
     await setDoc(doc(store, "gyms/gym-a"), { name: "Gym A", status: "active" });
     await setDoc(doc(store, "gyms/gym-b"), { name: "Gym B", status: "active" });
     await setDoc(doc(store, "gyms/gym-suspended"), { name: "Suspended", status: "suspended" });
+    await setDoc(doc(store, "gyms/gym-expired"), {
+      name: "Expired Trial", status: "trial", platformPlanEndsAt: Timestamp.fromMillis(Date.now() - 1000)
+    });
+    await setDoc(doc(store, "saas_plans/trial"), {
+      name: "Free trial", status: "active", isPublic: true, isTrial: true
+    });
     await setDoc(doc(store, "gym_memberships/gym-a_member-a"), {
       gymId: "gym-a", uid: "member-a", role: "member", status: "active", permissions: { "fitness.read": true }
     });
@@ -29,6 +35,9 @@ beforeEach(async () => {
     });
     await setDoc(doc(store, "gym_memberships/gym-suspended_member-a"), {
       gymId: "gym-suspended", uid: "member-a", role: "member", status: "active", permissions: { "fitness.read": true }
+    });
+    await setDoc(doc(store, "gym_memberships/gym-expired_member-a"), {
+      gymId: "gym-expired", uid: "member-a", role: "member", status: "active", permissions: {}
     });
     await setDoc(doc(store, "gym_memberships/gym-a_owner-a"), {
       gymId: "gym-a", uid: "owner-a", role: "owner", status: "active",
@@ -83,6 +92,11 @@ describe("Firestore tenant isolation", () => {
     await assertFails(getDoc(doc(store, "gyms/gym-suspended")));
   });
 
+  it("blocks tenant access after a trial expires", async () => {
+    const store = environment.authenticatedContext("member-a").firestore();
+    await assertFails(getDoc(doc(store, "gyms/gym-expired")));
+  });
+
   it("does not allow client-side membership privilege escalation", async () => {
     const store = environment.authenticatedContext("member-a").firestore();
     await assertFails(setDoc(doc(store, "gym_memberships/gym-a_member-a"), {
@@ -97,6 +111,19 @@ describe("Firestore tenant isolation", () => {
     }));
     await assertFails(setDoc(doc(store, "gyms/gym-a/payments/fake"), {
       gymId: "gym-a", memberUid: "owner-a", amountMinor: 1
+    }));
+  });
+
+  it("allows signed-in plan discovery but denies all client plan and quota writes", async () => {
+    const owner = environment.authenticatedContext("owner-a").firestore();
+    await assertSucceeds(getDoc(doc(owner, "saas_plans/trial")));
+    await assertFails(setDoc(doc(owner, "saas_plans/trial"), { status: "inactive" }));
+    await assertFails(setDoc(doc(owner, "gyms/gym-a/usage/current"), { activeMembers: 0 }));
+    await assertFails(setDoc(doc(owner, "gyms/gym-a/class_sessions/forged"), {
+      gymId: "gym-a", name: "Bypass", capacity: 999
+    }));
+    await assertFails(setDoc(doc(owner, "gyms/gym-a/members/forged"), {
+      gymId: "gym-a", uid: "forged", status: "active"
     }));
   });
 
