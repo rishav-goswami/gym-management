@@ -1,7 +1,7 @@
 // screens/sidebar.dart
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../logic/member/profile/profile_bloc.dart';
-import 'package:fit_and_fine/core/theme/theme.dart';
+import 'package:gym_management/core/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:getwidget/getwidget.dart';
 

@@ -2,7 +2,9 @@
   "functions": {
     "source": "firebase/functions",
     "runtime": "nodejs22",
-    "predeploy": ["npm --prefix firebase/functions run build"]
+    "predeploy": [
+      "npm --prefix firebase/functions run build"
+    ]
   },
   "firestore": {
     "rules": "firebase/firestore.rules",
@@ -15,11 +17,66 @@
     "template": "firebase/remoteconfig.template.json"
   },
   "emulators": {
-    "auth": { "host": "0.0.0.0", "port": 9099 },
-    "functions": { "host": "0.0.0.0", "port": 5001 },
-    "firestore": { "host": "0.0.0.0", "port": 8080 },
-    "storage": { "host": "0.0.0.0", "port": 9199 },
-    "ui": { "enabled": true, "host": "127.0.0.1", "port": 4000 },
+    "auth": {
+      "host": "0.0.0.0",
+      "port": 9099
+    },
+    "functions": {
+      "host": "0.0.0.0",
+      "port": 5001
+    },
+    "firestore": {
+      "host": "0.0.0.0",
+      "port": 8080
+    },
+    "storage": {
+      "host": "0.0.0.0",
+      "port": 9199
+    },
+    "ui": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 4000
+    },
     "singleProjectMode": true
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "recipe-app-cdeef",
+          "appId": "1:818455248956:android:2af4befd8c93277bae8339",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "recipe-app-cdeef",
+          "appId": "1:818455248956:ios:d69ec43c8948da91ae8339",
+          "uploadDebugSymbols": true,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "recipe-app-cdeef",
+          "appId": "1:818455248956:ios:d69ec43c8948da91ae8339",
+          "uploadDebugSymbols": true,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "recipe-app-cdeef",
+          "configurations": {
+            "android": "1:818455248956:android:2af4befd8c93277bae8339",
+            "ios": "1:818455248956:ios:d69ec43c8948da91ae8339",
+            "macos": "1:818455248956:ios:d69ec43c8948da91ae8339",
+            "web": "1:818455248956:web:3e5c0a6f6ad25621ae8339",
+            "windows": "1:818455248956:web:90eb94b8b8717b87ae8339"
+          }
+        }
+      }
+    }
   }
 }

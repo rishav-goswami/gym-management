@@ -1,6 +1,6 @@
-# FitLife multi-tenant gym platform
+# Gym Management multi-tenant gym platform
 
-One responsive Flutter app for gym members, trainers, staff, owners, and FitLife platform administrators. Firebase is the system of record. A user signs in once and then selects one of their gym/role memberships.
+One responsive Flutter app for gym members, trainers, staff, owners, and Gym Management platform administrators. Firebase is the system of record. A user signs in once and then selects one of their gym/role memberships.
 
 ## What is implemented
 
@@ -93,9 +93,65 @@ macOS Firewall must allow the emulator processes, and the phone and Mac must sha
 
 ## Real Firebase projects
 
-Create three Firebase projects and replace the staging/production placeholders in `.firebaserc`. Register the iOS, Android, and web apps in each project, enable email/password and phone providers, and create Firestore and Storage.
+The development build is currently connected to Firebase project
+`recipe-app-cdeef`. The Firebase project ID is immutable, but the registered
+apps and the product shown to users are named **Gym Management**. The configured
+development identifiers are:
 
-Pass each app's Firebase values as CI secrets or local `--dart-define` values:
+- Flutter/Dart package: `gym_management`
+- Android, iOS, and macOS: `com.rishva.gymmanagement`
+- Product/display name: `Gym Management`
+
+Run directly against the development Firebase project with:
+
+```sh
+fvm flutter run -d chrome
+# or
+fvm flutter run -d YOUR_IOS_DEVICE_ID
+```
+
+The development cloud project currently has email/password and phone OTP
+enabled, Gym Management Firestore/Storage rules released, Remote Config
+published, and the required composite indexes building. It is on Firebase's
+free Spark plan, so Cloud Functions and Firestore TTL are not deployed. Enable
+billing before testing privileged cloud workflows such as tenant provisioning,
+invitations, payments, attendance validation, scheduled reminders, and account
+export/deletion.
+
+For the first cloud login, select **Create an identity for an invitation** and
+register the email that should become the platform maintainer. A trusted CLI or
+server process must then add the `platformAdmin: true` custom claim; the public
+app intentionally cannot grant itself administrator access.
+
+Before publishing, replace `com.rishva` if a different company-owned namespace
+is required. Android's application ID and Apple's bundle ID should be treated as
+permanent after their first store release.
+
+To regenerate Firebase configuration on macOS, ensure FlutterFire and its Xcode
+project dependency are available:
+
+```sh
+export PATH="/opt/homebrew/opt/ruby/bin:$HOME/.pub-cache/bin:$PATH"
+/opt/homebrew/opt/ruby/bin/gem install xcodeproj --user-install
+flutterfire configure \
+  --project=recipe-app-cdeef \
+  --platforms=android,ios,macos,web,windows \
+  --android-package-name=com.rishva.gymmanagement \
+  --ios-bundle-id=com.rishva.gymmanagement \
+  --macos-bundle-id=com.rishva.gymmanagement \
+  --web-app-id=1:818455248956:web:3e5c0a6f6ad25621ae8339 \
+  --windows-app-id=1:818455248956:web:90eb94b8b8717b87ae8339 \
+  --yes --overwrite-firebase-options
+```
+
+Create dedicated staging and production Firebase projects before release and
+replace their placeholders in `.firebaserc`. Register Android, Apple, web, and
+Windows apps in each project, then enable email/password and phone providers and
+create Firestore and Storage.
+
+The checked-in `firebase_options.dart` contains only the development Firebase
+client configuration (these client values are not service-account secrets).
+Pass staging or production values as CI secrets or local `--dart-define` values:
 
 ```sh
 fvm flutter run -d chrome \
@@ -109,6 +165,7 @@ fvm flutter run -d chrome \
 ```
 
 Use `FIREBASE_IOS_APP_ID` and `FIREBASE_ANDROID_APP_ID` for their respective builds.
+Use `FIREBASE_WINDOWS_APP_ID` for Windows.
 
 Also add the downloaded native files for full iOS/Android services:
 

@@ -1,11 +1,11 @@
 // lib/presentation/member/profile/edit_personal_info_screen.dart
 
-import 'package:fit_and_fine/core/widgets/custom_appbar.dart';
-import 'package:fit_and_fine/data/datasources/personal_info_data_source.dart';
-import 'package:fit_and_fine/data/models/user_model.dart';
-import 'package:fit_and_fine/data/repositories/personal_info_repository.dart';
-import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
-import 'package:fit_and_fine/logic/member/personal-info/personal_info_bloc.dart';
+import 'package:gym_management/core/widgets/custom_appbar.dart';
+import 'package:gym_management/data/datasources/personal_info_data_source.dart';
+import 'package:gym_management/data/models/user_model.dart';
+import 'package:gym_management/data/repositories/personal_info_repository.dart';
+import 'package:gym_management/logic/auth/auth_bloc.dart';
+import 'package:gym_management/logic/member/personal-info/personal_info_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';

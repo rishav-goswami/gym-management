@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'package:fit_and_fine/core/constants/constant.dart';
+import 'package:gym_management/core/constants/constant.dart';
 import 'package:http/http.dart' as http;
-import 'package:fit_and_fine/data/models/fitness_goals_model.dart'; // Make sure this is updated
+import 'package:gym_management/data/models/fitness_goals_model.dart'; // Make sure this is updated
 
 class FitnessGoalsDataSource {
   final String _baseUrl =

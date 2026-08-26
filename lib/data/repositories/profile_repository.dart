@@ -1,5 +1,5 @@
-import 'package:fit_and_fine/data/datasources/profile_data_source.dart';
-import 'package:fit_and_fine/data/models/member_profile_model.dart';
+import 'package:gym_management/data/datasources/profile_data_source.dart';
+import 'package:gym_management/data/models/member_profile_model.dart';
 
 // Mock DataSource that simulates a more complex API response
 

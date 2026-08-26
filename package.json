@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "firebase": "firebase",
-    "emulators": "sh scripts/firebase-with-java.sh emulators:start --import=.firebase-data --export-on-exit=.firebase-data",
+    "emulators": "sh scripts/firebase-with-java.sh emulators:start --project demo-gym-dev --import=.firebase-data --export-on-exit=.firebase-data",
     "emulators:test": "sh scripts/firebase-with-java.sh emulators:exec --only auth,firestore,storage --project demo-gym-dev 'npm --prefix firebase/functions test'",
     "emulators:seed": "sh scripts/firebase-with-java.sh emulators:exec --only auth,firestore,storage --project demo-gym-dev 'npm run seed'",
     "functions:build": "npm --prefix firebase/functions run build",

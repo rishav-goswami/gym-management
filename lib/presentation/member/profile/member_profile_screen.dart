@@ -1,11 +1,11 @@
 // lib/presentation/member/profile/profile_screen.dart
 
-import 'package:fit_and_fine/data/datasources/profile_data_source.dart';
-import 'package:fit_and_fine/data/models/member_profile_model.dart';
-import 'package:fit_and_fine/data/repositories/profile_repository.dart';
-import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
-import 'package:fit_and_fine/logic/auth/auth_event.dart';
-import 'package:fit_and_fine/logic/member/profile/profile_bloc.dart';
+import 'package:gym_management/data/datasources/profile_data_source.dart';
+import 'package:gym_management/data/models/member_profile_model.dart';
+import 'package:gym_management/data/repositories/profile_repository.dart';
+import 'package:gym_management/logic/auth/auth_bloc.dart';
+import 'package:gym_management/logic/auth/auth_event.dart';
+import 'package:gym_management/logic/member/profile/profile_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';

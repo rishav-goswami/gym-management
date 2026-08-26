@@ -63,7 +63,7 @@ class _FirebaseLoginScreenState extends State<FirebaseLoginScreen> {
                       ),
                       const SizedBox(height: 18),
                       Text(
-                        'Welcome to FitLife',
+                        'Welcome to Gym Management',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),

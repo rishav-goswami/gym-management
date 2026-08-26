@@ -11,7 +11,7 @@ class PlatformAdminScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('FitLife Platform'),
+      title: const Text('Gym Management Platform'),
       actions: [
         IconButton(
           onPressed: context.read<SessionCubit>().chooseAnotherContext,

@@ -25,7 +25,7 @@ class SignupScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    "Welcome to FitLife",
+                    "Welcome to Gym Management",
                     style: Theme.of(
                       context,
                     ).textTheme.titleLarge?.copyWith(fontSize: 26),

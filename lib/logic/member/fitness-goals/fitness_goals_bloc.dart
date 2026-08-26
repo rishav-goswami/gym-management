@@ -1,10 +1,10 @@
 import 'package:equatable/equatable.dart';
-import 'package:fit_and_fine/data/models/fitness_goals_model.dart';
-import 'package:fit_and_fine/data/repositories/fitness_goals_repository.dart';
+import 'package:gym_management/data/models/fitness_goals_model.dart';
+import 'package:gym_management/data/repositories/fitness_goals_repository.dart';
 import 'package:flutter/foundation.dart'; // For listEquals
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
-import 'package:fit_and_fine/logic/auth/auth_state.dart';
+import 'package:gym_management/logic/auth/auth_bloc.dart';
+import 'package:gym_management/logic/auth/auth_state.dart';
 
 part 'fitness_goals_event.dart';
 part 'fitness_goals_state.dart';

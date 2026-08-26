@@ -1,9 +1,9 @@
-import 'package:fit_and_fine/core/widgets/error_displayer.dart';
-import 'package:fit_and_fine/data/datasources/workout_data_source.dart';
-import 'package:fit_and_fine/data/models/workout_models.dart';
-import 'package:fit_and_fine/data/repositories/workouts_repository.dart';
-import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
-import 'package:fit_and_fine/logic/member/workout-tab/workout_bloc.dart';
+import 'package:gym_management/core/widgets/error_displayer.dart';
+import 'package:gym_management/data/datasources/workout_data_source.dart';
+import 'package:gym_management/data/models/workout_models.dart';
+import 'package:gym_management/data/repositories/workouts_repository.dart';
+import 'package:gym_management/logic/auth/auth_bloc.dart';
+import 'package:gym_management/logic/member/workout-tab/workout_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';

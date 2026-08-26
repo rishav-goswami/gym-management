@@ -1,5 +1,5 @@
-import 'package:fit_and_fine/data/datasources/workout_data_source.dart';
-import 'package:fit_and_fine/data/models/workout_models.dart';
+import 'package:gym_management/data/datasources/workout_data_source.dart';
+import 'package:gym_management/data/models/workout_models.dart';
 
 class WorkoutRepository {
   final WorkoutDataSource _dataSource;

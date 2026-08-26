@@ -1,15 +1,15 @@
 import 'dart:async';
-import 'package:fit_and_fine/core/widgets/custom_appbar.dart';
-import 'package:fit_and_fine/data/datasources/fitness_goals_data_source.dart';
-import 'package:fit_and_fine/data/repositories/fitness_goals_repository.dart';
-import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
-import 'package:fit_and_fine/logic/member/fitness-goals/fitness_goals_bloc.dart';
+import 'package:gym_management/core/widgets/custom_appbar.dart';
+import 'package:gym_management/data/datasources/fitness_goals_data_source.dart';
+import 'package:gym_management/data/repositories/fitness_goals_repository.dart';
+import 'package:gym_management/logic/auth/auth_bloc.dart';
+import 'package:gym_management/logic/member/fitness-goals/fitness_goals_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/foundation.dart'; // For listEquals in BlocBuilder's buildWhen if needed
 
 // Ensure your FitnessGoalsModel and OptionItem are correctly imported
-import 'package:fit_and_fine/data/models/fitness_goals_model.dart';
+import 'package:gym_management/data/models/fitness_goals_model.dart';
 
 class EditFitnessGoalsScreen extends StatelessWidget {
   const EditFitnessGoalsScreen({super.key});

@@ -1,13 +1,13 @@
-import 'package:fit_and_fine/presentation/member/dashboard/home_tab.dart';
-import 'package:fit_and_fine/presentation/member/edit-profile/app-settings/member_settings_screen.dart';
-import 'package:fit_and_fine/presentation/member/edit-profile/fitness-goal/edit_fitness_goals.dart';
-import 'package:fit_and_fine/presentation/member/edit-profile/payments/member_payment_screen.dart';
-import 'package:fit_and_fine/presentation/member/member-layout/member_screen_layout.dart';
-import 'package:fit_and_fine/presentation/member/edit-profile/personal-info/member_personal_info.dart';
-import 'package:fit_and_fine/presentation/member/profile/member_profile_screen.dart';
-import 'package:fit_and_fine/presentation/member/progress/progress_tab.dart';
-import 'package:fit_and_fine/presentation/member/workouts/workout_details_screen.dart';
-import 'package:fit_and_fine/presentation/member/workouts/workouts_tab.dart';
+import 'package:gym_management/presentation/member/dashboard/home_tab.dart';
+import 'package:gym_management/presentation/member/edit-profile/app-settings/member_settings_screen.dart';
+import 'package:gym_management/presentation/member/edit-profile/fitness-goal/edit_fitness_goals.dart';
+import 'package:gym_management/presentation/member/edit-profile/payments/member_payment_screen.dart';
+import 'package:gym_management/presentation/member/member-layout/member_screen_layout.dart';
+import 'package:gym_management/presentation/member/edit-profile/personal-info/member_personal_info.dart';
+import 'package:gym_management/presentation/member/profile/member_profile_screen.dart';
+import 'package:gym_management/presentation/member/progress/progress_tab.dart';
+import 'package:gym_management/presentation/member/workouts/workout_details_screen.dart';
+import 'package:gym_management/presentation/member/workouts/workouts_tab.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 

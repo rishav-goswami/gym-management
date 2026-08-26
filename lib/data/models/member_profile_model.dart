@@ -1,6 +1,6 @@
 // lib/data/models/member_profile_data.dart
 
-import 'package:fit_and_fine/data/models/user_model.dart'; // For Gender enum
+import 'package:gym_management/data/models/user_model.dart'; // For Gender enum
 import 'package:flutter/foundation.dart';
 
 // -------------------

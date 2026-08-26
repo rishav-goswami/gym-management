@@ -3,12 +3,12 @@
 // ===============================================
 
 import 'package:equatable/equatable.dart';
-import 'package:fit_and_fine/data/models/progress_models.dart';
+import 'package:gym_management/data/models/progress_models.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 // Import your repository here when you create it
-// import 'package:fit_and_fine/data/repositories/progress_repository.dart';
+// import 'package:gym_management/data/repositories/progress_repository.dart';
 
 part 'progress_event.dart';
 part 'progress_state.dart';

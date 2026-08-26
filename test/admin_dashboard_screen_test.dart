@@ -1,9 +1,9 @@
-import 'package:fit_and_fine/core/services/storage_service.dart';
-import 'package:fit_and_fine/data/datasources/auth_remote_data_source.dart';
-import 'package:fit_and_fine/data/repositories/auth_repository.dart';
-import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
-import 'package:fit_and_fine/logic/auth/auth_state.dart';
-import 'package:fit_and_fine/presentation/admin/dashboard/admin_dashboard_screen.dart';
+import 'package:gym_management/core/services/storage_service.dart';
+import 'package:gym_management/data/datasources/auth_remote_data_source.dart';
+import 'package:gym_management/data/repositories/auth_repository.dart';
+import 'package:gym_management/logic/auth/auth_bloc.dart';
+import 'package:gym_management/logic/auth/auth_state.dart';
+import 'package:gym_management/presentation/admin/dashboard/admin_dashboard_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';

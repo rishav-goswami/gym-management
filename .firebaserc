@@ -1,7 +1,7 @@
 {
   "projects": {
-    "default": "demo-gym-dev",
-    "development": "demo-gym-dev",
+    "default": "recipe-app-cdeef",
+    "development": "recipe-app-cdeef",
     "staging": "gym-management-staging",
     "production": "gym-management-production"
   }

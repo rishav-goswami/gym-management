@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:fit_and_fine/core/constants/constant.dart';
+import 'package:gym_management/core/constants/constant.dart';
 
 class WorkoutDataSource {
   final http.Client client;

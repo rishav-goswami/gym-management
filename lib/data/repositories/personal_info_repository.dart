@@ -1,7 +1,7 @@
 // lib/data/repositories/personal_info_repository.dart
 
-import 'package:fit_and_fine/data/datasources/personal_info_data_source.dart';
-import 'package:fit_and_fine/data/models/member_profile_model.dart';
+import 'package:gym_management/data/datasources/personal_info_data_source.dart';
+import 'package:gym_management/data/models/member_profile_model.dart';
 
 class PersonalInfoRepository {
   final PersonalInfoDataSource _dataSource;

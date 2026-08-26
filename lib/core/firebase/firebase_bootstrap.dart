@@ -18,7 +18,9 @@ class FirebaseBootstrap {
 
   static Future<void> initialize() async {
     await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
+      options: AppEnvironment.useEmulators || AppEnvironment.hasFirebaseOverride
+          ? AppEnvironment.firebaseOptions
+          : DefaultFirebaseOptions.currentPlatform,
     );
 
     if (AppEnvironment.useEmulators) {

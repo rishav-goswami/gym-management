@@ -1,8 +1,8 @@
-import 'package:fit_and_fine/data/models/auth_model.dart';
+import 'package:gym_management/data/models/auth_model.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:fit_and_fine/data/repositories/auth_repository.dart';
-import 'package:fit_and_fine/logic/auth/auth_event.dart';
-import 'package:fit_and_fine/logic/auth/auth_state.dart';
+import 'package:gym_management/data/repositories/auth_repository.dart';
+import 'package:gym_management/logic/auth/auth_event.dart';
+import 'package:gym_management/logic/auth/auth_state.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository repository;

@@ -1,6 +1,6 @@
-import 'package:fit_and_fine/core/widgets/activity_card.dart';
-import 'package:fit_and_fine/core/widgets/dashboard_header.dart';
-import 'package:fit_and_fine/core/widgets/quick_action_button.dart';
+import 'package:gym_management/core/widgets/activity_card.dart';
+import 'package:gym_management/core/widgets/dashboard_header.dart';
+import 'package:gym_management/core/widgets/quick_action_button.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 

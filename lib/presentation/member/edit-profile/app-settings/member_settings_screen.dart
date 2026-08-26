@@ -1,4 +1,4 @@
-import 'package:fit_and_fine/core/widgets/custom_appbar.dart';
+import 'package:gym_management/core/widgets/custom_appbar.dart';
 import 'package:flutter/material.dart';
 
 class MemberSettingsScreen extends StatelessWidget {

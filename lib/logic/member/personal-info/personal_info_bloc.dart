@@ -1,12 +1,12 @@
 // lib/logic/member/profile/personal_info/personal_info_bloc.dart
 
 import 'package:equatable/equatable.dart';
-import 'package:fit_and_fine/data/models/member_profile_model.dart';
-import 'package:fit_and_fine/data/models/user_model.dart';
-import 'package:fit_and_fine/data/repositories/personal_info_repository.dart';
-import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
-import 'package:fit_and_fine/logic/auth/auth_event.dart';
-import 'package:fit_and_fine/logic/auth/auth_state.dart';
+import 'package:gym_management/data/models/member_profile_model.dart';
+import 'package:gym_management/data/models/user_model.dart';
+import 'package:gym_management/data/repositories/personal_info_repository.dart';
+import 'package:gym_management/logic/auth/auth_bloc.dart';
+import 'package:gym_management/logic/auth/auth_event.dart';
+import 'package:gym_management/logic/auth/auth_state.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 

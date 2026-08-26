@@ -5,7 +5,7 @@
  **/
 
 import 'package:flutter/foundation.dart';
-import 'package:fit_and_fine/core/constants/user_role_enum.dart'; // Assuming you have this enum
+import 'package:gym_management/core/constants/user_role_enum.dart'; // Assuming you have this enum
 
 // An enum for gender to ensure type safety on the front end.
 enum Gender { male, female, other }

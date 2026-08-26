@@ -1,8 +1,8 @@
 import 'package:equatable/equatable.dart';
-import 'package:fit_and_fine/data/models/member_profile_model.dart';
-import 'package:fit_and_fine/data/repositories/profile_repository.dart';
-import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
-import 'package:fit_and_fine/logic/auth/auth_state.dart';
+import 'package:gym_management/data/models/member_profile_model.dart';
+import 'package:gym_management/data/repositories/profile_repository.dart';
+import 'package:gym_management/logic/auth/auth_bloc.dart';
+import 'package:gym_management/logic/auth/auth_state.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 part 'profile_event.dart';

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "818455248956",
+    "project_id": "recipe-app-cdeef",
+    "storage_bucket": "recipe-app-cdeef.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:818455248956:android:2af4befd8c93277bae8339",
+        "android_client_info": {
+          "package_name": "com.rishva.gymmanagement"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAt3v7ZVU8y96UyB5aAxFuw5n09ZnSsHAY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

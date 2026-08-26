@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
-import 'package:fit_and_fine/core/constants/user_role_enum.dart';
-import 'package:fit_and_fine/data/models/user_model.dart';
+import 'package:gym_management/core/constants/user_role_enum.dart';
+import 'package:gym_management/data/models/user_model.dart';
 
 abstract class AuthEvent extends Equatable {
   const AuthEvent();

@@ -1,6 +1,6 @@
-import 'package:fit_and_fine/core/constants/user_role_enum.dart';
-import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
-import 'package:fit_and_fine/logic/auth/auth_state.dart';
+import 'package:gym_management/core/constants/user_role_enum.dart';
+import 'package:gym_management/logic/auth/auth_bloc.dart';
+import 'package:gym_management/logic/auth/auth_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 

@@ -1,11 +1,11 @@
 {
-    "name": "fit_and_fine",
-    "short_name": "fit_and_fine",
+    "name": "Gym Management",
+    "short_name": "Gym Management",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Multi-tenant gym management for owners, trainers, staff, and members.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

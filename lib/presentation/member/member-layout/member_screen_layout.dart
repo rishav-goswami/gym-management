@@ -1,6 +1,6 @@
-import 'package:fit_and_fine/core/constants/constant.dart';
-import 'package:fit_and_fine/core/widgets/custom_appbar.dart';
-import 'package:fit_and_fine/core/widgets/role_based_bottom_navigation.dart';
+import 'package:gym_management/core/constants/constant.dart';
+import 'package:gym_management/core/widgets/custom_appbar.dart';
+import 'package:gym_management/core/widgets/role_based_bottom_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 

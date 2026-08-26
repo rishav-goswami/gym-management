@@ -35,7 +35,7 @@ class LoginScreen extends StatelessWidget {
 
                   // ✨ Welcome Text
                   Text(
-                    "Welcome to FitLife",
+                    "Welcome to Gym Management",
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       // color: Colors.black,

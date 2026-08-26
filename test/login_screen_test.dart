@@ -1,5 +1,5 @@
-import 'package:fit_and_fine/presentation/auth/login/login_screen.dart';
-import 'package:fit_and_fine/presentation/auth/login/login_form.dart';
+import 'package:gym_management/presentation/auth/login/login_screen.dart';
+import 'package:gym_management/presentation/auth/login/login_form.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

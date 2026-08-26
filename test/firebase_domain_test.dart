@@ -1,6 +1,6 @@
-import 'package:fit_and_fine/firebase/domain/fitness_domain.dart';
-import 'package:fit_and_fine/firebase/domain/billing_domain.dart';
-import 'package:fit_and_fine/firebase/domain/gym_context.dart';
+import 'package:gym_management/firebase/domain/fitness_domain.dart';
+import 'package:gym_management/firebase/domain/billing_domain.dart';
+import 'package:gym_management/firebase/domain/gym_context.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -58,7 +58,7 @@ class _GymAppState extends State<GymApp> {
         builder: (context, session) {
           final seed = _brandColor(session.activeMembership?.primaryColor);
           return MaterialApp.router(
-            title: session.activeMembership?.gymName ?? 'FitLife',
+            title: session.activeMembership?.gymName ?? 'Gym Management',
             debugShowCheckedModeBanner: false,
             theme: lightTheme.copyWith(
               colorScheme: ColorScheme.fromSeed(seedColor: seed),

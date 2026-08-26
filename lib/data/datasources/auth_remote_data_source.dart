@@ -5,7 +5,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:fit_and_fine/core/constants/constant.dart';
+import 'package:gym_management/core/constants/constant.dart';
 
 class AuthRemoteDataSource {
   final http.Client client;

@@ -1,10 +1,10 @@
-import 'package:fit_and_fine/data/models/user_model.dart';
-import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
-import 'package:fit_and_fine/logic/auth/auth_state.dart';
-import 'package:fit_and_fine/presentation/auth/login/login_screen.dart';
-import 'package:fit_and_fine/presentation/auth/register/signup_screen.dart';
-import 'package:fit_and_fine/presentation/admin/dashboard/admin_dashboard_screen.dart';
-import 'package:fit_and_fine/routes/member_routes.dart';
+import 'package:gym_management/data/models/user_model.dart';
+import 'package:gym_management/logic/auth/auth_bloc.dart';
+import 'package:gym_management/logic/auth/auth_state.dart';
+import 'package:gym_management/presentation/auth/login/login_screen.dart';
+import 'package:gym_management/presentation/auth/register/signup_screen.dart';
+import 'package:gym_management/presentation/admin/dashboard/admin_dashboard_screen.dart';
+import 'package:gym_management/routes/member_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

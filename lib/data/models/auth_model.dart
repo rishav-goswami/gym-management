@@ -1,5 +1,5 @@
 // lib/data/auth_model.dart
-import 'package:fit_and_fine/core/constants/user_role_enum.dart';
+import 'package:gym_management/core/constants/user_role_enum.dart';
 
 import 'user_model.dart';
 

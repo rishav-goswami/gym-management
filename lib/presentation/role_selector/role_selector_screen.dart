@@ -1,5 +1,5 @@
-import 'package:fit_and_fine/core/constants/user_role_enum.dart';
-import 'package:fit_and_fine/core/services/storage_service.dart';
+import 'package:gym_management/core/constants/user_role_enum.dart';
+import 'package:gym_management/core/services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
