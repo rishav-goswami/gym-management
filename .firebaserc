@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "demo-gym-dev",
+    "development": "demo-gym-dev",
+    "staging": "gym-management-staging",
+    "production": "gym-management-production"
+  }
+}

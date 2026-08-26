@@ -1,0 +1,26 @@
+{
+  "conditions": [],
+  "parameters": {
+    "chat_enabled": {
+      "defaultValue": { "value": "true" },
+      "valueType": "BOOLEAN",
+      "description": "Emergency platform-level switch for direct chat."
+    },
+    "attendance_qr_enabled": {
+      "defaultValue": { "value": "true" },
+      "valueType": "BOOLEAN",
+      "description": "Emergency platform-level switch for rotating QR attendance."
+    },
+    "progress_photos_enabled": {
+      "defaultValue": { "value": "true" },
+      "valueType": "BOOLEAN",
+      "description": "Emergency platform-level switch for progress-photo uploads."
+    },
+    "maintenance_message": {
+      "defaultValue": { "value": "" },
+      "valueType": "STRING",
+      "description": "Optional global maintenance message shown by clients."
+    }
+  },
+  "parameterGroups": {}
+}

@@ -1,58 +1,85 @@
-// main.dart
-import 'package:fit_and_fine/data/datasources/auth_remote_data_source.dart';
-import 'package:fit_and_fine/data/repositories/auth_repository.dart';
-import 'package:fit_and_fine/logic/auth/auth_bloc.dart';
-import 'package:fit_and_fine/logic/auth/auth_event.dart';
-import 'package:fit_and_fine/routes/app_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'core/theme/theme.dart';
-import 'logic/auth/auth_state.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
 
-Future main() async {
-  await dotenv.load(fileName: ".env");
-  return runApp(GymApp());
+import 'core/firebase/firebase_bootstrap.dart';
+import 'core/theme/theme.dart';
+import 'firebase/data/firebase_session_repository.dart';
+import 'firebase/data/gym_media_repository.dart';
+import 'firebase/data/gym_repository.dart';
+import 'firebase/logic/session_cubit.dart';
+import 'routes/firebase_app_router.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await FirebaseBootstrap.initialize();
+  runApp(const GymApp());
 }
 
-class GymApp extends StatelessWidget {
+class GymApp extends StatefulWidget {
   const GymApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(
-          create: (_) => AuthBloc(
-            AuthRepository(remote: AuthRemoteDataSource(client: http.Client())),
-          )..add(AuthCheckRequested()), // This part validates if local token
-        ),
-        // BlocProvider(create: (_) => ProfileBloc()),
-      ],
-      child: Builder(
-        builder: (context) {
-          return BlocListener<AuthBloc, AuthState>(
-            listener: (context, state) {
-              // if (state is AuthAuthenticated) {
-              //   context.read<ProfileBloc>().setToken(
-              //     state.authModel.accessToken,
-              //   );
-              //   context.read<ProfileBloc>().add(FetchProfile());
-              // } else if (state is AuthUnauthenticated) {
-              //   context.read<ProfileBloc>().setToken(null);
-              // }
-            },
-            child: MaterialApp.router(
-              title: 'Gym Suggestion App',
-              theme: lightTheme,
-              darkTheme: darkTheme,
-              themeMode: ThemeMode.system,
-              routerConfig: AppRouter.getRouter(context),
+  State<GymApp> createState() => _GymAppState();
+}
+
+class _GymAppState extends State<GymApp> {
+  late final FirebaseSessionRepository _sessionRepository;
+  late final GymRepository _gymRepository;
+  late final GymMediaRepository _mediaRepository;
+  late final SessionCubit _sessionCubit;
+  late final router = createFirebaseRouter(_sessionCubit);
+
+  @override
+  void initState() {
+    super.initState();
+    _sessionRepository = FirebaseSessionRepository();
+    _gymRepository = GymRepository();
+    _mediaRepository = GymMediaRepository();
+    _sessionCubit = SessionCubit(_sessionRepository);
+  }
+
+  @override
+  void dispose() {
+    _sessionCubit.close();
+    router.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => MultiRepositoryProvider(
+    providers: [
+      RepositoryProvider.value(value: _sessionRepository),
+      RepositoryProvider.value(value: _gymRepository),
+      RepositoryProvider.value(value: _mediaRepository),
+    ],
+    child: BlocProvider.value(
+      value: _sessionCubit,
+      child: BlocBuilder<SessionCubit, SessionState>(
+        builder: (context, session) {
+          final seed = _brandColor(session.activeMembership?.primaryColor);
+          return MaterialApp.router(
+            title: session.activeMembership?.gymName ?? 'FitLife',
+            debugShowCheckedModeBanner: false,
+            theme: lightTheme.copyWith(
+              colorScheme: ColorScheme.fromSeed(seedColor: seed),
             ),
+            darkTheme: darkTheme.copyWith(
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: seed,
+                brightness: Brightness.dark,
+              ),
+            ),
+            themeMode: ThemeMode.system,
+            routerConfig: router,
           );
         },
       ),
-    );
+    ),
+  );
+
+  Color _brandColor(String? hex) {
+    final value = hex?.replaceFirst('#', '');
+    if (value == null || value.length != 6) return const Color(0xFF2563EB);
+    return Color(int.parse('FF$value', radix: 16));
   }
 }

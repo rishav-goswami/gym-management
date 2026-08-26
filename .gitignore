@@ -51,4 +51,10 @@ app.*.map.json
 !.env.example
 node_modules/
 dist/
+firebase/functions/lib/
 .fvm/
+.firebase/
+.firebase-data/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log

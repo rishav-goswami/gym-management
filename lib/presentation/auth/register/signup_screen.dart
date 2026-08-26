@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/theme/theme.dart';
 import 'signup_form.dart';
 
 class SignupScreen extends StatelessWidget {

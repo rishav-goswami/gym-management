@@ -6,8 +6,6 @@ class MemberSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: const CustomAppBar(title: 'App Settings'),
       body: ListView(

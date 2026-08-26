@@ -1,0 +1,70 @@
+import 'package:flutter/foundation.dart';
+
+enum AppFlavor { development, staging, production }
+
+class AppEnvironment {
+  const AppEnvironment._();
+
+  static const flavorName = String.fromEnvironment(
+    'APP_FLAVOR',
+    defaultValue: 'development',
+  );
+  static const useEmulators = bool.fromEnvironment(
+    'USE_FIREBASE_EMULATORS',
+    defaultValue: false,
+  );
+  static const emulatorHostOverride = String.fromEnvironment('EMULATOR_HOST');
+
+  static AppFlavor get flavor => switch (flavorName) {
+    'production' => AppFlavor.production,
+    'staging' => AppFlavor.staging,
+    _ => AppFlavor.development,
+  };
+
+  static String get projectId => const String.fromEnvironment(
+    'FIREBASE_PROJECT_ID',
+    defaultValue: 'demo-gym-dev',
+  );
+  static String get apiKey => const String.fromEnvironment(
+    'FIREBASE_API_KEY',
+    defaultValue: 'demo-api-key',
+  );
+  static String get appId {
+    if (kIsWeb) {
+      return const String.fromEnvironment(
+        'FIREBASE_WEB_APP_ID',
+        defaultValue: '1:1234567890:web:demo-gym-dev',
+      );
+    }
+    if (defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS) {
+      return const String.fromEnvironment(
+        'FIREBASE_IOS_APP_ID',
+        defaultValue: '1:1234567890:ios:demo-gym-dev',
+      );
+    }
+    return const String.fromEnvironment(
+      'FIREBASE_ANDROID_APP_ID',
+      defaultValue: '1:1234567890:android:demo-gym-dev',
+    );
+  }
+
+  static String get messagingSenderId => const String.fromEnvironment(
+    'FIREBASE_MESSAGING_SENDER_ID',
+    defaultValue: '1234567890',
+  );
+  static String get storageBucket => const String.fromEnvironment(
+    'FIREBASE_STORAGE_BUCKET',
+    defaultValue: 'demo-gym-dev.appspot.com',
+  );
+  static String get webAppCheckSiteKey =>
+      const String.fromEnvironment('FIREBASE_APPCHECK_SITE_KEY');
+
+  static String get emulatorHost {
+    if (emulatorHostOverride.isNotEmpty) return emulatorHostOverride;
+    if (kIsWeb) return '127.0.0.1';
+    return defaultTargetPlatform == TargetPlatform.android
+        ? '10.0.2.2'
+        : '127.0.0.1';
+  }
+}

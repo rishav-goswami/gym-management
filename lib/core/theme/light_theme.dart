@@ -49,7 +49,6 @@ final ThemeData lightTheme = ThemeData(
   colorScheme: const ColorScheme.light(
     primary: AppColors.primary,
     secondary: AppColors.accent,
-    background: AppColors.backgroundLight,
     surface: AppColors.cardLight,
     onPrimary: Colors.white, // text/icons on primary (e.g. buttons)
     onSecondary: Colors.white, // text/icons on accent

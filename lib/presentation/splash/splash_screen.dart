@@ -1,8 +1,5 @@
-import 'package:fit_and_fine/core/services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:go_router/go_router.dart';
-import '../../core/constants/user_role_enum.dart';
 // import 'package:lottie/lottie.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -12,9 +9,7 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
-    with TickerProviderStateMixin {
-  late final AnimationController _controller;
+class _SplashScreenState extends State<SplashScreen> {
 
   // @override
   // void initState() {

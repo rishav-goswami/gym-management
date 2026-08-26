@@ -55,7 +55,6 @@ class RoleBasedBottomNavBar extends StatelessWidget {
         ];
         break;
       case UserRole.member:
-      default:
         items = const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Dashboard'),
           BottomNavigationBarItem(
