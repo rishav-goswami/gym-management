@@ -13,8 +13,9 @@ import '../../data/gym_repository.dart';
 import '../../data/gym_media_repository.dart';
 import '../../data/firebase_session_repository.dart';
 import '../../domain/gym_context.dart';
-import '../../domain/fitness_domain.dart';
 import '../../logic/session_cubit.dart';
+import 'billing_management_panel.dart';
+import 'member_billing_panel.dart';
 
 class GymWorkspaceScreen extends StatefulWidget {
   const GymWorkspaceScreen({super.key});
@@ -117,6 +118,11 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
           'workout_assignments',
         ),
         const _Destination('Progress', Icons.insights, 'measurements'),
+        const _Destination(
+          'Membership',
+          Icons.card_membership_outlined,
+          'billing',
+        ),
         if (AppFeatureFlags.attendanceQr && membership.feature('attendanceQr'))
           const _Destination('Check in', Icons.qr_code_scanner, 'attendance'),
         if (membership.feature('classes'))
@@ -272,7 +278,10 @@ class _WorkspaceContent extends StatelessWidget {
       return _GymSettingsPanel(membership: membership);
     }
     if (destination.collection == 'payments') {
-      return _PaymentsPanel(membership: membership);
+      return BillingManagementPanel(membership: membership);
+    }
+    if (destination.collection == 'billing') {
+      return MemberBillingPanel(membership: membership);
     }
     if (destination.collection == 'conversations') {
       return _ConversationsPanel(membership: membership);
@@ -314,6 +323,10 @@ class _Dashboard extends StatelessWidget {
             style: Theme.of(context).textTheme.headlineMedium,
           ),
           Text('Live operational summary for ${membership.gymName}'),
+          if (membership.role == GymRole.member) ...[
+            const SizedBox(height: 16),
+            MemberSubscriptionBanner(membership: membership),
+          ],
           const SizedBox(height: 24),
           GridView.builder(
             shrinkWrap: true,
@@ -1403,190 +1416,6 @@ class _ChatDialogState extends State<_ChatDialog> {
       senderUid: widget.membership.uid,
       text: text,
     );
-  }
-}
-
-class _PaymentsPanel extends StatelessWidget {
-  const _PaymentsPanel({required this.membership});
-  final GymMembership membership;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Recorded payments',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-            ),
-            Wrap(
-              spacing: 8,
-              children: [
-                if (membership.can('payments.read'))
-                  OutlinedButton.icon(
-                    onPressed: () => _exportPayments(context),
-                    icon: const Icon(Icons.download),
-                    label: const Text('Export'),
-                  ),
-                if (membership.can('payments.write'))
-                  FilledButton.icon(
-                    onPressed: () => _record(context),
-                    icon: const Icon(Icons.add_card),
-                    label: const Text('Record renewal'),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      Expanded(
-        child: _CollectionView(
-          destination: const _Destination(
-            'Payments',
-            Icons.payments_outlined,
-            'payments',
-          ),
-          membership: membership,
-        ),
-      ),
-    ],
-  );
-
-  Future<void> _record(BuildContext context) async {
-    final memberUid = TextEditingController();
-    final planId = TextEditingController(text: 'monthly');
-    final amount = TextEditingController();
-    final duration = TextEditingController(text: '30');
-    var method = 'upi';
-    final accepted = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Record payment and renewal'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: memberUid,
-                  decoration: const InputDecoration(labelText: 'Member UID'),
-                ),
-                TextField(
-                  controller: planId,
-                  decoration: const InputDecoration(labelText: 'Plan ID'),
-                ),
-                TextField(
-                  controller: amount,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(labelText: 'Amount'),
-                ),
-                TextField(
-                  controller: duration,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Duration in days',
-                  ),
-                ),
-                DropdownButtonFormField<String>(
-                  initialValue: method,
-                  items: const ['upi', 'cash', 'card', 'bank_transfer', 'other']
-                      .map(
-                        (value) =>
-                            DropdownMenuItem(value: value, child: Text(value)),
-                      )
-                      .toList(),
-                  onChanged: (value) => setDialogState(() => method = value!),
-                  decoration: const InputDecoration(labelText: 'Method'),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Record'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (accepted != true || !context.mounted) return;
-    try {
-      final quote = MembershipQuote.create(
-        amount: amount.text,
-        startsAt: DateTime.now(),
-        durationDays: int.parse(duration.text),
-      );
-      await context.read<GymRepository>().recordPayment(
-        gymId: membership.gymId,
-        memberUid: memberUid.text.trim(),
-        planId: planId.text.trim(),
-        amountMinor: quote.amountMinor,
-        method: method,
-        startsAt: quote.startsAt,
-        endsAt: quote.endsAt,
-      );
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Payment and renewal recorded atomically.'),
-          ),
-        );
-      }
-    } catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
-      }
-    }
-  }
-
-  Future<void> _exportPayments(BuildContext context) async {
-    try {
-      final repository = context.read<GymRepository>();
-      final payments = await repository.exportCsv(
-        gymId: membership.gymId,
-        collection: 'payments',
-      );
-      final subscriptions = await repository.exportCsv(
-        gymId: membership.gymId,
-        collection: 'subscriptions',
-      );
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [
-            XFile.fromData(
-              Uint8List.fromList(utf8.encode(payments)),
-              mimeType: 'text/csv',
-              name: '${membership.gymId}-payments.csv',
-            ),
-            XFile.fromData(
-              Uint8List.fromList(utf8.encode(subscriptions)),
-              mimeType: 'text/csv',
-              name: '${membership.gymId}-subscriptions.csv',
-            ),
-          ],
-          subject: '${membership.gymName} payment reports',
-        ),
-      );
-    } catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
-      }
-    }
   }
 }
 

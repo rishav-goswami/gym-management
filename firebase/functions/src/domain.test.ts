@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   attendanceDocumentId,
   bookingDocumentId,
+  expiryReminderWindow,
   hashToken,
   membershipDocumentId,
   normalizeEmail,
   normalizePhone,
+  renewalWindow,
   secureToken
 } from "./domain";
 
@@ -26,5 +28,24 @@ describe("tenant domain identifiers", () => {
     expect(token.length).toBeGreaterThan(30);
     expect(hashToken(token)).toMatch(/^[a-f0-9]{64}$/);
     expect(hashToken(token)).not.toContain(token);
+  });
+
+  it("extends an active subscription without overlapping its current period", () => {
+    const now = Date.UTC(2026, 7, 26);
+    const currentEnd = Date.UTC(2026, 8, 15);
+    expect(renewalWindow(now, currentEnd, 30)).toEqual({
+      startsAtMillis: currentEnd,
+      endsAtMillis: currentEnd + 30 * 86400000
+    });
+    expect(renewalWindow(now, now - 1, 30)).toEqual({
+      startsAtMillis: now,
+      endsAtMillis: now + 30 * 86400000
+    });
+  });
+
+  it("buckets expiry reminders for deduplicated 7, 3, 1 and expiry messages", () => {
+    expect([8, 7, 4, 3, 2, 1, 0].map(expiryReminderWindow)).toEqual([
+      7, 7, 7, 3, 3, 1, 0
+    ]);
   });
 });

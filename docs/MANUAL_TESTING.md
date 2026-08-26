@@ -90,9 +90,10 @@ Sign in as `owner@pilotgym.example.com` and select Pilot Gym.
 - **Attendance:** generate a 60-second QR and confirm it renders. Attendance CSV
   export should complete even when the list is small.
 - **Classes:** schedule a class with a positive capacity and confirm it appears.
-- **Payments:** record a renewal using a real member UID from Emulator Auth,
-  a plan ID, integer/decimal amount, duration, and payment method. Confirm both
-  the payment and renewed subscription documents in Firestore.
+- **Payments:** open **Plans** and confirm the three seeded offerings. Use
+  **Record renewal** to select the seeded member and a plan, then enter the
+  received amount and method. Confirm the receipt, payment, renewed subscription,
+  and audit event in Firestore. See [`BILLING.md`](BILLING.md) for renewal rules.
 - **Staff:** create an invitation using a valid email and role. Copy the private
   token shown in the snackbar immediately; only its hash is stored.
 - **Notices:** publish a notice and confirm it appears in the bounded list.
@@ -134,7 +135,10 @@ this pass verifies.
 
 Sign in as `member@pilotgym.example.com`.
 
-- **Home:** confirm the tenant-branded summary loads.
+- **Home:** confirm the tenant-branded summary and five-day expiry banner load.
+- **Membership:** inspect the current plan, payment receipt, and unread reminder.
+  Send a renewal request and confirm the selected plan becomes pending. Log in
+  as owner and confirm it appears under **Payments → Overview**.
 - **Workout:** confirm assigned workouts appear after the trainer test.
 - **Progress:** log a measurement. Upload a small image and verify that the
   private object appears under the gym/member Storage path without a public URL.

@@ -73,18 +73,25 @@ service cloud.firestore {
 
       match /membership_plans/{planId} {
         allow read: if activeGym(gymId);
-        allow create, update: if permission(gymId, 'plans.manage') && tenantValid(gymId);
-        allow delete: if permission(gymId, 'plans.manage');
+        allow write: if false;
       }
 
       match /subscriptions/{subscriptionId} {
-        allow read: if platformAdmin() || resource.data.memberUid == request.auth.uid ||
+        allow read: if platformAdmin() ||
+          (activeGym(gymId) && subscriptionId == request.auth.uid) ||
           permission(gymId, 'subscriptions.read');
         allow write: if false;
       }
 
       match /payments/{paymentId} {
         allow read: if platformAdmin() || resource.data.memberUid == request.auth.uid ||
+          permission(gymId, 'payments.read');
+        allow write: if false;
+      }
+
+      match /renewal_requests/{requestId} {
+        allow read: if platformAdmin() ||
+          (activeGym(gymId) && requestId == request.auth.uid) ||
           permission(gymId, 'payments.read');
         allow write: if false;
       }

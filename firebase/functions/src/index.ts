@@ -17,15 +17,18 @@ import { REGION, ROLE_PERMISSIONS } from "./config";
 import {
   attendanceDocumentId,
   bookingDocumentId,
+  expiryReminderWindow,
   hashToken,
   membershipDocumentId,
   normalizeEmail,
   normalizePhone,
+  renewalWindow,
   secureToken
 } from "./domain";
 
 initializeApp();
 const db = getFirestore();
+const ENFORCE_APP_CHECK = process.env.FUNCTIONS_EMULATOR !== "true";
 
 const gymSchema = z.object({
   name: z.string().min(2).max(100),
@@ -36,7 +39,7 @@ const gymSchema = z.object({
 });
 
 export const provisionGym = onCall(
-  { region: REGION, enforceAppCheck: true },
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
     requirePlatformAdmin(request);
     const input = gymSchema.parse(request.data);
@@ -109,7 +112,7 @@ const invitationSchema = z.object({
 }).refine((value) => value.email || value.phone, "Email or phone is required.");
 
 export const createInvitation = onCall(
-  { region: REGION, enforceAppCheck: true },
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
     const input = invitationSchema.parse(request.data);
     await requireGymPermission(request, input.gymId, input.role === "member" ? "members.write" : "staff.manage");
@@ -134,7 +137,7 @@ export const createInvitation = onCall(
 );
 
 export const acceptInvitation = onCall(
-  { region: REGION, enforceAppCheck: true },
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
     requireAuth(request);
     const { gymId, token } = z.object({ gymId: z.string(), token: z.string().min(20) }).parse(request.data);
@@ -199,7 +202,7 @@ export const acceptInvitation = onCall(
 );
 
 export const updateGymStatus = onCall(
-  { region: REGION, enforceAppCheck: true },
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
     requirePlatformAdmin(request);
     const input = z.object({
@@ -220,7 +223,7 @@ export const updateGymStatus = onCall(
 );
 
 export const updateGymConfiguration = onCall(
-  { region: REGION, enforceAppCheck: true },
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
     const input = z.object({
       gymId: z.string().min(1),
@@ -257,7 +260,7 @@ export const updateGymConfiguration = onCall(
 );
 
 export const updateGymMembership = onCall(
-  { region: REGION, enforceAppCheck: true },
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
     const input = z.object({
       gymId: z.string().min(1),
@@ -342,6 +345,48 @@ export const updateGymMembership = onCall(
   }
 );
 
+const membershipPlanSchema = z.object({
+  gymId: z.string().min(1),
+  planId: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/).optional(),
+  name: z.string().trim().min(2).max(80),
+  description: z.string().trim().max(300).default(""),
+  durationDays: z.number().int().min(1).max(3660),
+  priceMinor: z.number().int().nonnegative(),
+  status: z.enum(["active", "inactive"]).default("active")
+});
+
+export const upsertMembershipPlan = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    const input = membershipPlanSchema.parse(request.data);
+    const { gym } = await requireGymPermission(request, input.gymId, "plans.manage");
+    const planRef = input.planId
+      ? db.doc(`gyms/${input.gymId}/membership_plans/${input.planId}`)
+      : db.collection(`gyms/${input.gymId}/membership_plans`).doc();
+    const existing = await planRef.get();
+    await planRef.set({
+      gymId: input.gymId,
+      name: input.name,
+      description: input.description,
+      durationDays: input.durationDays,
+      priceMinor: input.priceMinor,
+      currency: gym.currency ?? "INR",
+      status: input.status,
+      updatedBy: request.auth!.uid,
+      updatedAt: FieldValue.serverTimestamp(),
+      ...(!existing.exists
+        ? { createdBy: request.auth!.uid, createdAt: FieldValue.serverTimestamp() }
+        : {})
+    }, { merge: true });
+    await writeAudit(db, input.gymId, request.auth!.uid, existing.exists ? "plan.updated" : "plan.created", {
+      planId: planRef.id,
+      name: input.name,
+      status: input.status
+    });
+    return { planId: planRef.id };
+  }
+);
+
 const paymentSchema = z.object({
   gymId: z.string(),
   memberUid: z.string(),
@@ -349,48 +394,153 @@ const paymentSchema = z.object({
   amountMinor: z.number().int().nonnegative(),
   method: z.enum(["cash", "upi", "card", "bank_transfer", "other"]),
   paidAtMillis: z.number().int(),
-  startsAtMillis: z.number().int(),
-  endsAtMillis: z.number().int(),
-  reference: z.string().max(120).optional()
+  requestedStartMillis: z.number().int(),
+  reference: z.string().trim().max(120).optional(),
+  notes: z.string().trim().max(500).optional()
 });
 
 export const recordPayment = onCall(
-  { region: REGION, enforceAppCheck: true },
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
     const input = paymentSchema.parse(request.data);
     const { gym } = await requireGymPermission(request, input.gymId, "payments.write");
     const paymentRef = db.collection(`gyms/${input.gymId}/payments`).doc();
     const subscriptionRef = db.doc(`gyms/${input.gymId}/subscriptions/${input.memberUid}`);
+    const planRef = db.doc(`gyms/${input.gymId}/membership_plans/${input.planId}`);
+    const memberRef = db.doc(`gyms/${input.gymId}/members/${input.memberUid}`);
+    const renewalRequestRef = db.doc(`gyms/${input.gymId}/renewal_requests/${input.memberUid}`);
+    let receiptNumber = "";
+    let startsAtMillis = input.requestedStartMillis;
+    let endsAtMillis = input.requestedStartMillis;
     await db.runTransaction(async (tx) => {
+      const [plan, member, existingSubscription, renewalRequest] = await Promise.all([
+        tx.get(planRef),
+        tx.get(memberRef),
+        tx.get(subscriptionRef),
+        tx.get(renewalRequestRef)
+      ]);
+      if (!plan.exists || plan.get("status") !== "active") {
+        throw new HttpsError("failed-precondition", "Select an active membership plan.");
+      }
+      if (!member.exists || member.get("status") !== "active" || member.get("role") !== "member") {
+        throw new HttpsError("failed-precondition", "Select an active gym member.");
+      }
+      if (input.amountMinor !== Number(plan.get("priceMinor")) && !input.notes) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Add an internal note when the received amount differs from the plan price."
+        );
+      }
+      const durationDays = Number(plan.get("durationDays"));
+      const currentEnd = existingSubscription.exists && existingSubscription.get("status") === "active"
+        ? (existingSubscription.get("endAt") as Timestamp | undefined)?.toMillis() ?? null
+        : null;
+      const window = renewalWindow(input.requestedStartMillis, currentEnd, durationDays);
+      startsAtMillis = window.startsAtMillis;
+      endsAtMillis = window.endsAtMillis;
+      receiptNumber = `PAY-${paymentRef.id.slice(0, 8).toUpperCase()}`;
       tx.create(paymentRef, {
         ...input,
+        receiptNumber,
+        status: "paid",
+        memberName: member.get("displayName") ?? member.get("email") ?? input.memberUid,
+        planName: plan.get("name"),
+        listPriceMinor: plan.get("priceMinor"),
+        durationDays,
         currency: gym.currency ?? "INR",
         recordedBy: request.auth!.uid,
         paidAt: Timestamp.fromMillis(input.paidAtMillis),
+        subscriptionStartsAt: Timestamp.fromMillis(startsAtMillis),
+        subscriptionEndsAt: Timestamp.fromMillis(endsAtMillis),
         createdAt: FieldValue.serverTimestamp()
       });
       tx.set(subscriptionRef, {
         gymId: input.gymId,
         memberUid: input.memberUid,
+        memberName: member.get("displayName") ?? member.get("email") ?? input.memberUid,
         planId: input.planId,
+        planName: plan.get("name"),
         status: "active",
-        startAt: Timestamp.fromMillis(input.startsAtMillis),
-        endAt: Timestamp.fromMillis(input.endsAtMillis),
+        startAt: Timestamp.fromMillis(startsAtMillis),
+        endAt: Timestamp.fromMillis(endsAtMillis),
         lastPaymentId: paymentRef.id,
+        lastPaymentAmountMinor: input.amountMinor,
+        currency: gym.currency ?? "INR",
         updatedAt: FieldValue.serverTimestamp()
       }, { merge: true });
+      if (renewalRequest.exists && renewalRequest.get("status") === "pending") {
+        tx.update(renewalRequestRef, {
+          status: "completed",
+          paymentId: paymentRef.id,
+          completedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+      }
     });
     await writeAudit(db, input.gymId, request.auth!.uid, "payment.recorded", {
       paymentId: paymentRef.id,
       memberUid: input.memberUid,
       amountMinor: input.amountMinor
     });
-    return { paymentId: paymentRef.id };
+    return { paymentId: paymentRef.id, receiptNumber, startsAtMillis, endsAtMillis };
+  }
+);
+
+export const requestMembershipRenewal = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requireAuth(request);
+    const input = z.object({
+      gymId: z.string().min(1),
+      planId: z.string().min(1).max(80)
+    }).parse(request.data);
+    const { role } = await requireGymPermission(request, input.gymId, "fitness.read");
+    if (role !== "member") {
+      throw new HttpsError("permission-denied", "Only members can request their own renewal.");
+    }
+    const [plan, member] = await Promise.all([
+      db.doc(`gyms/${input.gymId}/membership_plans/${input.planId}`).get(),
+      db.doc(`gyms/${input.gymId}/members/${request.auth.uid}`).get()
+    ]);
+    if (!plan.exists || plan.get("status") !== "active") {
+      throw new HttpsError("failed-precondition", "This membership plan is unavailable.");
+    }
+    const requestRef = db.doc(`gyms/${input.gymId}/renewal_requests/${request.auth.uid}`);
+    const existing = await requestRef.get();
+    if (existing.exists && existing.get("status") === "pending") {
+      throw new HttpsError("already-exists", "A renewal request is already pending.");
+    }
+    await requestRef.set({
+      gymId: input.gymId,
+      memberUid: request.auth.uid,
+      memberName: member.get("displayName") ?? member.get("email") ?? request.auth.uid,
+      planId: plan.id,
+      planName: plan.get("name"),
+      amountMinor: plan.get("priceMinor"),
+      currency: plan.get("currency") ?? "INR",
+      status: "pending",
+      channel: "member_app",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    });
+    await db.collection(`gyms/${input.gymId}/notifications`).add({
+      gymId: input.gymId,
+      recipientUid: request.auth.uid,
+      type: "renewal_request",
+      title: "Renewal request received",
+      body: `Your request for ${String(plan.get("name"))} was sent to the gym.`,
+      read: false,
+      createdAt: FieldValue.serverTimestamp()
+    });
+    await writeAudit(db, input.gymId, request.auth.uid, "renewal.requested", {
+      planId: plan.id
+    });
+    return { requestId: requestRef.id, status: "pending" };
   }
 );
 
 export const createAttendanceQr = onCall(
-  { region: REGION, enforceAppCheck: true },
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
     const { gymId } = z.object({ gymId: z.string() }).parse(request.data);
     await requireGymPermission(request, gymId, "attendance.manage");
@@ -408,7 +558,7 @@ export const createAttendanceQr = onCall(
 );
 
 export const checkIn = onCall(
-  { region: REGION, enforceAppCheck: true },
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
     requireAuth(request);
     const { gymId, token } = z.object({ gymId: z.string(), token: z.string() }).parse(request.data);
@@ -437,7 +587,7 @@ export const checkIn = onCall(
 );
 
 export const correctAttendance = onCall(
-  { region: REGION, enforceAppCheck: true },
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
     const input = z.object({
       gymId: z.string().min(1),
@@ -529,7 +679,7 @@ export const onPaymentCreated = onDocumentCreated(
 );
 
 export const bookClass = onCall(
-  { region: REGION, enforceAppCheck: true },
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
     requireAuth(request);
     const { gymId, sessionId } = z.object({ gymId: z.string(), sessionId: z.string() }).parse(request.data);
@@ -561,7 +711,7 @@ export const bookClass = onCall(
 );
 
 export const cancelClassBooking = onCall(
-  { region: REGION, enforceAppCheck: true },
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
     requireAuth(request);
     const { gymId, sessionId } = z.object({ gymId: z.string(), sessionId: z.string() }).parse(request.data);
@@ -581,7 +731,7 @@ export const cancelClassBooking = onCall(
 );
 
 export const createConversation = onCall(
-  { region: REGION, enforceAppCheck: true },
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
     requireAuth(request);
     const { gymId, targetUid } = z.object({
@@ -651,28 +801,38 @@ export const sendExpiryReminders = onSchedule(
   async () => {
     const now = Date.now();
     const cutoff = Timestamp.fromMillis(now + 7 * 86400000);
+    const previousDay = Timestamp.fromMillis(now - 86400000);
     const expiring = await db.collectionGroup("subscriptions")
       .where("status", "==", "active")
+      .where("endAt", ">=", previousDay)
       .where("endAt", "<=", cutoff)
       .get();
     for (const subscription of expiring.docs) {
       const data = subscription.data();
-      if (data.endAt.toMillis() < now) continue;
-      const notificationId = `expiry_${subscription.id}_${data.endAt.toMillis()}`;
+      const remainingMillis = data.endAt.toMillis() - now;
+      const daysRemaining = Math.max(0, Math.ceil(remainingMillis / 86400000));
+      const reminderWindow = expiryReminderWindow(daysRemaining);
+      const expired = daysRemaining === 0;
+      const notificationId = `expiry_${subscription.id}_${data.endAt.toMillis()}_${reminderWindow}`;
       const notificationRef = subscription.ref.parent.parent!.collection("notifications").doc(notificationId);
       if ((await notificationRef.get()).exists) continue;
+      const title = expired ? "Membership expired" : "Membership expiring soon";
+      const body = expired
+        ? "Renew your plan to continue your gym membership."
+        : `Your membership expires in ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}.`;
       await notificationRef.create({
         gymId: data.gymId,
         recipientUid: data.memberUid,
-        type: "subscription_expiry",
-        title: "Membership expiring soon",
-        body: "Contact your gym to renew your membership.",
+        type: expired ? "subscription_expired" : "subscription_expiry",
+        title,
+        body,
+        data: { endAtMillis: data.endAt.toMillis(), daysRemaining },
         read: false,
         createdAt: FieldValue.serverTimestamp()
       });
-      await sendPush(data.memberUid, "Membership expiring soon", "Contact your gym to renew your membership.", {
+      await sendPush(data.memberUid, title, body, {
         gymId: String(data.gymId),
-        type: "subscription_expiry"
+        type: expired ? "subscription_expired" : "subscription_expiry"
       });
     }
     logger.info("Subscription expiry reminders generated", { count: expiring.size });
@@ -737,7 +897,7 @@ async function sendPush(
 }
 
 export const exportMyData = onCall(
-  { region: REGION, enforceAppCheck: true },
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
     requireAuth(request);
     const memberships = await db.collection("gym_memberships").where("uid", "==", request.auth.uid).get();
@@ -777,7 +937,7 @@ export const exportMyData = onCall(
 );
 
 export const requestAccountDeletion = onCall(
-  { region: REGION, enforceAppCheck: true },
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
     requireAuth(request);
     await db.doc(`users/${request.auth.uid}`).set({

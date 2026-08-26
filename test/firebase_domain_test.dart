@@ -1,4 +1,5 @@
 import 'package:fit_and_fine/firebase/domain/fitness_domain.dart';
+import 'package:fit_and_fine/firebase/domain/billing_domain.dart';
 import 'package:fit_and_fine/firebase/domain/gym_context.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -24,6 +25,33 @@ void main() {
     );
     expect(quote.amountMinor, 149950);
     expect(quote.endsAt, DateTime.utc(2026, 9, 24));
+  });
+
+  test('billing amount parsing avoids floating point money errors', () {
+    expect(BillingAmount.parseMinor('1,499.50'), 149950);
+    expect(BillingAmount.parseMinor('99.9'), 9990);
+    expect(() => BillingAmount.parseMinor('12.345'), throwsFormatException);
+    expect(() => BillingAmount.parseMinor('-1'), throwsFormatException);
+  });
+
+  test('subscription health derives expiry without trusting stale status', () {
+    final now = DateTime.utc(2026, 8, 26);
+    expect(
+      subscriptionHealth(
+        storedStatus: 'active',
+        endsAt: now.add(const Duration(days: 3)),
+        now: now,
+      ),
+      SubscriptionHealth.expiringSoon,
+    );
+    expect(
+      subscriptionHealth(
+        storedStatus: 'active',
+        endsAt: now.subtract(const Duration(seconds: 1)),
+        now: now,
+      ),
+      SubscriptionHealth.expired,
+    );
   });
 
   test('workout parser handles sets, reps, and weight', () {

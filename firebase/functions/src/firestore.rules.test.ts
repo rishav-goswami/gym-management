@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { assertFails, assertSucceeds, initializeTestEnvironment, RulesTestEnvironment } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
@@ -8,7 +8,7 @@ let environment: RulesTestEnvironment;
 
 beforeAll(async () => {
   environment = await initializeTestEnvironment({
-    projectId: "demo-gym-rules",
+    projectId: "demo-gym-dev",
     firestore: { rules: readFileSync("../firestore.rules", "utf8") },
     storage: { rules: readFileSync("../storage.rules", "utf8") }
   });
@@ -30,10 +30,32 @@ beforeEach(async () => {
     await setDoc(doc(store, "gym_memberships/gym-suspended_member-a"), {
       gymId: "gym-suspended", uid: "member-a", role: "member", status: "active", permissions: { "fitness.read": true }
     });
+    await setDoc(doc(store, "gym_memberships/gym-a_owner-a"), {
+      gymId: "gym-a", uid: "owner-a", role: "owner", status: "active",
+      permissions: { "plans.manage": true, "payments.write": true, "payments.read": true }
+    });
     await setDoc(doc(store, "gyms/gym-a/members/member-a"), { memberUid: "member-a", name: "A" });
     await setDoc(doc(store, "gyms/gym-b/members/member-b"), { memberUid: "member-b", name: "B" });
     await setDoc(doc(store, "gyms/gym-a/workout_assignments/assignment-a"), { memberUid: "member-a" });
     await setDoc(doc(store, "gyms/gym-a/workout_assignments/assignment-other"), { memberUid: "member-b" });
+    await setDoc(doc(store, "gyms/gym-a/subscriptions/member-a"), {
+      gymId: "gym-a", memberUid: "member-a", status: "active"
+    });
+    await setDoc(doc(store, "gyms/gym-a/subscriptions/member-b"), {
+      gymId: "gym-a", memberUid: "member-b", status: "active"
+    });
+    await setDoc(doc(store, "gyms/gym-a/payments/payment-a"), {
+      gymId: "gym-a", memberUid: "member-a", amountMinor: 100
+    });
+    await setDoc(doc(store, "gyms/gym-a/payments/payment-b"), {
+      gymId: "gym-a", memberUid: "member-b", amountMinor: 100
+    });
+    await setDoc(doc(store, "gyms/gym-a/renewal_requests/member-a"), {
+      gymId: "gym-a", memberUid: "member-a", status: "pending"
+    });
+    await setDoc(doc(store, "gyms/gym-a/notifications/reminder-a"), {
+      gymId: "gym-a", recipientUid: "member-a", read: false
+    });
   });
 });
 
@@ -65,6 +87,38 @@ describe("Firestore tenant isolation", () => {
     const store = environment.authenticatedContext("member-a").firestore();
     await assertFails(setDoc(doc(store, "gym_memberships/gym-a_member-a"), {
       gymId: "gym-a", uid: "member-a", role: "owner", status: "active"
+    }));
+  });
+
+  it("keeps plans and payments behind privileged Functions", async () => {
+    const store = environment.authenticatedContext("owner-a").firestore();
+    await assertFails(setDoc(doc(store, "gyms/gym-a/membership_plans/monthly"), {
+      gymId: "gym-a", name: "Unsafe client plan", durationDays: 30, priceMinor: 1
+    }));
+    await assertFails(setDoc(doc(store, "gyms/gym-a/payments/fake"), {
+      gymId: "gym-a", memberUid: "owner-a", amountMinor: 1
+    }));
+  });
+
+  it("lets members read only their own billing records", async () => {
+    const store = environment.authenticatedContext("member-a").firestore();
+    await assertSucceeds(getDoc(doc(store, "gyms/gym-a/subscriptions/member-a")));
+    await assertFails(getDoc(doc(store, "gyms/gym-a/subscriptions/member-b")));
+    await assertSucceeds(getDoc(doc(store, "gyms/gym-a/payments/payment-a")));
+    await assertFails(getDoc(doc(store, "gyms/gym-a/payments/payment-b")));
+    await assertSucceeds(getDoc(doc(store, "gyms/gym-a/renewal_requests/member-a")));
+  });
+
+  it("allows read acknowledgement but blocks forged reminders and renewal requests", async () => {
+    const store = environment.authenticatedContext("member-a").firestore();
+    await assertSucceeds(updateDoc(doc(store, "gyms/gym-a/notifications/reminder-a"), {
+      read: true
+    }));
+    await assertFails(setDoc(doc(store, "gyms/gym-a/notifications/fake"), {
+      gymId: "gym-a", recipientUid: "member-a", title: "Fake"
+    }));
+    await assertFails(setDoc(doc(store, "gyms/gym-a/renewal_requests/forged"), {
+      gymId: "gym-a", memberUid: "member-a", status: "paid"
     }));
   });
 });

@@ -64,10 +64,78 @@ async function seed() {
     activeMembers: 1, expiringSoon: 0, todayAttendance: 0, monthlyRevenueMinor: 0,
     updatedAt: FieldValue.serverTimestamp()
   });
-  batch.set(db.doc(`gyms/${gymId}/subscriptions/${member.uid}`), {
-    gymId, memberUid: member.uid, status: "active", planId: "monthly",
-    startAt: Timestamp.now(), endAt: Timestamp.fromMillis(Date.now() + 30 * 86400000),
+  batch.set(db.doc(`gyms/${gymId}/membership_plans/monthly`), {
+    gymId,
+    name: "Monthly Unlimited",
+    description: "Full gym access for 30 days",
+    durationDays: 30,
+    priceMinor: 149900,
+    currency: "INR",
+    status: "active",
+    createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp()
+  });
+  batch.set(db.doc(`gyms/${gymId}/membership_plans/quarterly`), {
+    gymId,
+    name: "Quarterly Value",
+    description: "Full gym access for 90 days",
+    durationDays: 90,
+    priceMinor: 399900,
+    currency: "INR",
+    status: "active",
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp()
+  });
+  batch.set(db.doc(`gyms/${gymId}/membership_plans/annual`), {
+    gymId,
+    name: "Annual Pro",
+    description: "Full gym access for 365 days",
+    durationDays: 365,
+    priceMinor: 1299900,
+    currency: "INR",
+    status: "active",
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp()
+  });
+  const subscriptionEnd = Date.now() + 5 * 86400000;
+  batch.set(db.doc(`gyms/${gymId}/subscriptions/${member.uid}`), {
+    gymId, memberUid: member.uid, memberName: member.displayName,
+    status: "active", planId: "monthly", planName: "Monthly Unlimited",
+    currency: "INR",
+    startAt: Timestamp.fromMillis(Date.now() - 25 * 86400000),
+    endAt: Timestamp.fromMillis(subscriptionEnd),
+    lastPaymentId: "pilot-payment",
+    lastPaymentAmountMinor: 149900,
+    updatedAt: FieldValue.serverTimestamp()
+  });
+  batch.set(db.doc(`gyms/${gymId}/payments/pilot-payment`), {
+    gymId,
+    memberUid: member.uid,
+    memberName: member.displayName,
+    planId: "monthly",
+    planName: "Monthly Unlimited",
+    receiptNumber: "PAY-PILOT001",
+    status: "paid",
+    amountMinor: 149900,
+    listPriceMinor: 149900,
+    currency: "INR",
+    method: "upi",
+    reference: "DEMO-UPI-001",
+    durationDays: 30,
+    paidAt: Timestamp.fromMillis(Date.now() - 25 * 86400000),
+    subscriptionStartsAt: Timestamp.fromMillis(Date.now() - 25 * 86400000),
+    subscriptionEndsAt: Timestamp.fromMillis(subscriptionEnd),
+    createdAt: FieldValue.serverTimestamp()
+  });
+  batch.set(db.doc(`gyms/${gymId}/notifications/pilot-expiry-reminder`), {
+    gymId,
+    recipientUid: member.uid,
+    type: "subscription_expiry",
+    title: "Membership expiring soon",
+    body: "Your membership expires in 5 days.",
+    data: { endAtMillis: subscriptionEnd, daysRemaining: 5 },
+    read: false,
+    createdAt: FieldValue.serverTimestamp()
   });
   for (const [name, muscleGroup] of exercises) {
     const ref = db.collection(`gyms/${gymId}/exercises`).doc();

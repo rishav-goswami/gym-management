@@ -17,6 +17,99 @@ class GymRepository {
       .snapshots()
       .map((snapshot) => snapshot.data() ?? const {});
 
+  Stream<QuerySnapshot<Map<String, dynamic>>> membershipPlans(String gymId) =>
+      firestore
+          .collection('gyms/$gymId/membership_plans')
+          .orderBy('name')
+          .limit(100)
+          .snapshots();
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> subscriptions(String gymId) =>
+      firestore
+          .collection('gyms/$gymId/subscriptions')
+          .orderBy('endAt')
+          .limit(250)
+          .snapshots();
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> payments(String gymId) =>
+      firestore
+          .collection('gyms/$gymId/payments')
+          .orderBy('paidAt', descending: true)
+          .limit(250)
+          .snapshots();
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> memberSubscription(
+    String gymId,
+    String uid,
+  ) => firestore.doc('gyms/$gymId/subscriptions/$uid').snapshots();
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> memberPayments(
+    String gymId,
+    String uid,
+  ) => firestore
+      .collection('gyms/$gymId/payments')
+      .where('memberUid', isEqualTo: uid)
+      .orderBy('paidAt', descending: true)
+      .limit(50)
+      .snapshots();
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> notifications(
+    String gymId,
+    String uid,
+  ) => firestore
+      .collection('gyms/$gymId/notifications')
+      .where('recipientUid', isEqualTo: uid)
+      .limit(50)
+      .snapshots();
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> renewalRequest(
+    String gymId,
+    String uid,
+  ) => firestore.doc('gyms/$gymId/renewal_requests/$uid').snapshots();
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> renewalRequests(String gymId) =>
+      firestore
+          .collection('gyms/$gymId/renewal_requests')
+          .orderBy('createdAt', descending: true)
+          .limit(50)
+          .snapshots();
+
+  Future<void> markNotificationRead({
+    required String gymId,
+    required String notificationId,
+  }) => firestore.doc('gyms/$gymId/notifications/$notificationId').update({
+    'read': true,
+    'readAt': FieldValue.serverTimestamp(),
+  });
+
+  Future<void> requestMembershipRenewal({
+    required String gymId,
+    required String planId,
+  }) => functions.httpsCallable('requestMembershipRenewal').call<void>({
+    'gymId': gymId,
+    'planId': planId,
+  });
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> activeMembers(
+    String gymId,
+  ) async =>
+      (await firestore
+              .collection('gyms/$gymId/members')
+              .where('status', isEqualTo: 'active')
+              .limit(250)
+              .get())
+          .docs;
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> activePlans(
+    String gymId,
+  ) async =>
+      (await firestore
+              .collection('gyms/$gymId/membership_plans')
+              .where('status', isEqualTo: 'active')
+              .limit(100)
+              .get())
+          .docs;
+
   Stream<QuerySnapshot<Map<String, dynamic>>> recent(
     String gymId,
     String collection, {
@@ -92,24 +185,51 @@ class GymRepository {
     'features': features,
   });
 
-  Future<void> recordPayment({
+  Future<Map<String, dynamic>> upsertMembershipPlan({
+    required String gymId,
+    String? planId,
+    required String name,
+    required String description,
+    required int durationDays,
+    required int priceMinor,
+    required String status,
+  }) async => Map<String, dynamic>.from(
+    (await functions.httpsCallable('upsertMembershipPlan').call({
+          'gymId': gymId,
+          if (planId != null) 'planId': planId,
+          'name': name,
+          'description': description,
+          'durationDays': durationDays,
+          'priceMinor': priceMinor,
+          'status': status,
+        })).data
+        as Map,
+  );
+
+  Future<Map<String, dynamic>> recordPayment({
     required String gymId,
     required String memberUid,
     required String planId,
     required int amountMinor,
     required String method,
     required DateTime startsAt,
-    required DateTime endsAt,
-  }) => functions.httpsCallable('recordPayment').call<void>({
-    'gymId': gymId,
-    'memberUid': memberUid,
-    'planId': planId,
-    'amountMinor': amountMinor,
-    'method': method,
-    'paidAtMillis': DateTime.now().millisecondsSinceEpoch,
-    'startsAtMillis': startsAt.millisecondsSinceEpoch,
-    'endsAtMillis': endsAt.millisecondsSinceEpoch,
-  });
+    String? reference,
+    String? notes,
+  }) async => Map<String, dynamic>.from(
+    (await functions.httpsCallable('recordPayment').call({
+          'gymId': gymId,
+          'memberUid': memberUid,
+          'planId': planId,
+          'amountMinor': amountMinor,
+          'method': method,
+          'paidAtMillis': DateTime.now().millisecondsSinceEpoch,
+          'requestedStartMillis': startsAt.millisecondsSinceEpoch,
+          if (reference != null && reference.trim().isNotEmpty)
+            'reference': reference.trim(),
+          if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        })).data
+        as Map,
+  );
 
   Future<String> createConversation({
     required String gymId,
@@ -210,14 +330,26 @@ class GymRepository {
       'members': ['uid', 'displayName', 'email', 'phone', 'status'],
       'attendance': ['memberUid', 'dateKey', 'source', 'checkedInAt'],
       'payments': [
+        'receiptNumber',
         'memberUid',
+        'memberName',
         'planId',
+        'planName',
         'amountMinor',
         'currency',
         'method',
+        'reference',
         'paidAt',
       ],
-      'subscriptions': ['memberUid', 'planId', 'status', 'startAt', 'endAt'],
+      'subscriptions': [
+        'memberUid',
+        'memberName',
+        'planId',
+        'planName',
+        'status',
+        'startAt',
+        'endAt',
+      ],
     };
     final fields = reportFields[collection];
     if (fields == null) throw ArgumentError('Unsupported report: $collection');

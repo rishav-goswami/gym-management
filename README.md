@@ -19,6 +19,11 @@ For a click-by-click verification of every implemented role, use
 foundation flows from later product work, so an empty seeded list is not
 mistaken for a broken feature.
 
+The owner-facing payment, membership-plan, and subscription workflow is
+documented in [`docs/BILLING.md`](docs/BILLING.md).
+The member-facing plan, receipt, renewal-request, and reminder flow is in
+[`docs/MEMBER_BILLING.md`](docs/MEMBER_BILLING.md).
+
 ## Prerequisites
 
 - FVM (Flutter is pinned by `.fvmrc`)
