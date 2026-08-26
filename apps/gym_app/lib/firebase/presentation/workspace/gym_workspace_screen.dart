@@ -1,14 +1,15 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../core/config/app_feature_flags.dart';
+import '../../../core/invitations/gym_invitation_link.dart';
 import '../../data/gym_repository.dart';
 import '../../data/gym_media_repository.dart';
 import '../../data/firebase_session_repository.dart';
@@ -608,35 +609,67 @@ class _CollectionView extends StatelessWidget {
 
   Future<void> _showInvitation(BuildContext context) async {
     final email = TextEditingController();
+    final formKey = GlobalKey<FormState>();
     var role = destination.collection == 'members' ? 'member' : 'trainer';
     final accepted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Create invitation'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: email,
-                decoration: const InputDecoration(labelText: 'Email'),
-              ),
-              if (destination.collection == 'staff')
-                DropdownButtonFormField<String>(
-                  initialValue: role,
-                  items:
-                      const ['manager', 'receptionist', 'trainer', 'accountant']
-                          .map(
-                            (value) => DropdownMenuItem(
-                              value: value,
-                              child: Text(value),
-                            ),
-                          )
-                          .toList(),
-                  onChanged: (value) => setDialogState(() => role = value!),
-                  decoration: const InputDecoration(labelText: 'Role'),
+          title: Text(
+            destination.collection == 'members'
+                ? 'Invite a member'
+                : 'Invite gym staff',
+          ),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'We will create a secure, one-time link you can share using WhatsApp, Messages, Mail, or another app.',
                 ),
-            ],
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: email,
+                  autofocus: true,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.done,
+                  decoration: const InputDecoration(
+                    labelText: 'Email address',
+                    prefixIcon: Icon(Icons.email_outlined),
+                  ),
+                  validator: (value) =>
+                      value != null &&
+                          RegExp(
+                            r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                          ).hasMatch(value.trim())
+                      ? null
+                      : 'Enter a valid email',
+                ),
+                if (destination.collection == 'staff') ...[
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: role,
+                    items:
+                        const [
+                              'manager',
+                              'receptionist',
+                              'trainer',
+                              'accountant',
+                            ]
+                            .map(
+                              (value) => DropdownMenuItem(
+                                value: value,
+                                child: Text(value),
+                              ),
+                            )
+                            .toList(),
+                    onChanged: (value) => setDialogState(() => role = value!),
+                    decoration: const InputDecoration(labelText: 'Role'),
+                  ),
+                ],
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -644,8 +677,12 @@ class _CollectionView extends StatelessWidget {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Create'),
+              onPressed: () {
+                if (formKey.currentState?.validate() == true) {
+                  Navigator.pop(dialogContext, true);
+                }
+              },
+              child: const Text('Create invitation'),
             ),
           ],
         ),
@@ -659,8 +696,21 @@ class _CollectionView extends StatelessWidget {
         email: email.text.trim(),
       );
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Invitation token: ${response['token']}')),
+        final invitation = GymInvitationLink(
+          gymId: membership.gymId,
+          token: response['token'] as String,
+          gymName: membership.gymName,
+          role: role,
+          expiresInHours: response['expiresInHours'] as int? ?? 72,
+        );
+        await showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          showDragHandle: true,
+          builder: (_) => _InvitationReadySheet(
+            invitation: invitation,
+            recipientEmail: email.text.trim(),
+          ),
         );
       }
     } catch (error) {
@@ -859,6 +909,112 @@ class _CollectionView extends StatelessWidget {
         ),
       ) ??
       false;
+}
+
+class _InvitationReadySheet extends StatelessWidget {
+  const _InvitationReadySheet({
+    required this.invitation,
+    required this.recipientEmail,
+  });
+
+  final GymInvitationLink invitation;
+  final String recipientEmail;
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    child: SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+        24,
+        8,
+        24,
+        24 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                child: const Icon(Icons.outgoing_mail, size: 30),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Invitation ready',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '$recipientEmail can join ${invitation.gymName} as a ${invitation.roleLabel}.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.verified_user_outlined),
+                  title: const Text('Secure one-time invitation'),
+                  subtitle: Text(
+                    'Expires in ${invitation.expiresInHours} hours and only works with the invited email.',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Builder(
+                builder: (buttonContext) => FilledButton.icon(
+                  onPressed: () => _share(buttonContext),
+                  icon: const Icon(Icons.share_outlined),
+                  label: const Text('Share invitation'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () => _copy(context),
+                icon: const Icon(Icons.link),
+                label: const Text('Copy invitation link'),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Done'),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'The person will appear in your member or staff list after accepting the invitation.',
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Future<void> _share(BuildContext context) async {
+    final box = context.findRenderObject() as RenderBox?;
+    await SharePlus.instance.share(
+      ShareParams(
+        text: invitation.shareMessage,
+        subject: 'Invitation to join ${invitation.gymName}',
+        title: 'Gym invitation',
+        sharePositionOrigin: box == null
+            ? null
+            : box.localToGlobal(Offset.zero) & box.size,
+      ),
+    );
+  }
+
+  Future<void> _copy(BuildContext context) async {
+    await Clipboard.setData(
+      ClipboardData(text: invitation.shareUri.toString()),
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Invitation link copied.')));
+  }
 }
 
 class _AttendancePanel extends StatefulWidget {

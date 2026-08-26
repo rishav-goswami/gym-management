@@ -126,8 +126,9 @@ Sign in as `owner@pilotgym.example.com` and select Pilot Gym.
   **Record renewal** to select the seeded member and a plan, then enter the
   received amount and method. Confirm the receipt, payment, renewed subscription,
   and audit event in Firestore. See [`BILLING.md`](BILLING.md) for renewal rules.
-- **Staff:** create an invitation using a valid email and role. Copy the private
-  token shown in the snackbar immediately; only its hash is stored.
+- **Staff:** create an invitation using a valid email and role. Confirm the
+  invitation-ready sheet offers the native share action and a copy-link
+  fallback. Only the token hash is stored by the backend.
 - **Notices:** publish a notice and confirm it appears in the bounded list.
 - **Settings:** change the gym name or primary color, save it, switch context,
   and reopen Pilot Gym to reload runtime branding.
@@ -137,12 +138,19 @@ Do not use production personal data during local testing.
 ## 6. Invitation and multi-gym flow
 
 1. As owner, create an invitation for an email address that matches the account
-   that will accept it. Save the invitation token from the snackbar.
-2. Log out. Register or sign in with the invited identity.
-3. On **Choose workspace**, expand **Accept a gym invitation**.
-4. Enter `pilot-gym` and the token.
-5. Confirm that the new gym/role context appears.
-6. Try reusing the token and confirm it is rejected.
+   that will accept it.
+2. Tap **Share invitation** and confirm the platform share sheet opens. Also
+   test **Copy invitation link** as the fallback.
+3. Log out, then open the shared link in a new browser or on another device.
+4. Register or sign in with the invited identity. Confirm the invitation gym
+   and role remain visible through authentication.
+5. Tap **Accept and join gym** without manually entering a gym ID or token.
+6. Confirm the new gym/role workspace opens and the person appears in the
+   owner's member or staff list.
+7. Try reusing the link and confirm it is rejected.
+
+The manual gym-ID/token form remains available from **Choose workspace** as a
+support fallback, but it is not the normal member onboarding path.
 
 The backend normalizes identity matching, checks expiry, and creates membership
 server-side. A user with memberships in multiple gyms can switch context without

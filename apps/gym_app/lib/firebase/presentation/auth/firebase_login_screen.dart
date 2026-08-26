@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/invitations/gym_invitation_link.dart';
 import '../../logic/session_cubit.dart';
 import '../../data/firebase_session_repository.dart';
 
 class FirebaseLoginScreen extends StatefulWidget {
-  const FirebaseLoginScreen({super.key});
+  const FirebaseLoginScreen({super.key, this.invitation});
+
+  final GymInvitationLink? invitation;
 
   @override
   State<FirebaseLoginScreen> createState() => _FirebaseLoginScreenState();
@@ -68,10 +71,27 @@ class _FirebaseLoginScreenState extends State<FirebaseLoginScreen> {
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        'Sign in once, then choose your gym and role.',
+                      Text(
+                        widget.invitation == null
+                            ? 'Sign in once, then choose your gym and role.'
+                            : 'Sign in with the email invited to ${widget.invitation!.gymName}.',
                         textAlign: TextAlign.center,
                       ),
+                      if (widget.invitation != null) ...[
+                        const SizedBox(height: 12),
+                        Card(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          child: ListTile(
+                            leading: const Icon(Icons.mark_email_read_outlined),
+                            title: Text(
+                              'Invitation to ${widget.invitation!.gymName}',
+                            ),
+                            subtitle: Text(
+                              'Role: ${widget.invitation!.roleLabel}',
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 28),
                       if (!_phoneMode)
                         TextFormField(
@@ -178,7 +198,9 @@ class _FirebaseLoginScreenState extends State<FirebaseLoginScreen> {
                       ),
                       const SizedBox(height: 10),
                       TextButton(
-                        onPressed: () => context.go('/register'),
+                        onPressed: () => context.go(
+                          widget.invitation?.registerLocation ?? '/register',
+                        ),
                         child: const Text('Create an account or start a gym'),
                       ),
                       const Text(

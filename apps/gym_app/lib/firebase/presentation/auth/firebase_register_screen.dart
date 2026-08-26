@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/invitations/gym_invitation_link.dart';
 import '../../logic/session_cubit.dart';
 
 class FirebaseRegisterScreen extends StatefulWidget {
-  const FirebaseRegisterScreen({super.key});
+  const FirebaseRegisterScreen({super.key, this.invitation});
+
+  final GymInvitationLink? invitation;
 
   @override
   State<FirebaseRegisterScreen> createState() => _FirebaseRegisterScreenState();
@@ -27,7 +30,12 @@ class _FirebaseRegisterScreenState extends State<FirebaseRegisterScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(leading: BackButton(onPressed: () => context.go('/login'))),
+    appBar: AppBar(
+      leading: BackButton(
+        onPressed: () =>
+            context.go(widget.invitation?.loginLocation ?? '/login'),
+      ),
+    ),
     body: Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -43,8 +51,10 @@ class _FirebaseRegisterScreenState extends State<FirebaseRegisterScreen> {
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Verify your email to start a gym trial, or use the identity from your invitation to join a gym.',
+                Text(
+                  widget.invitation == null
+                      ? 'Verify your email to start a gym trial, or use the identity from your invitation to join a gym.'
+                      : 'Create an account with the email invited to ${widget.invitation!.gymName}. Your invitation will be ready after sign-up.',
                 ),
                 const SizedBox(height: 24),
                 TextFormField(

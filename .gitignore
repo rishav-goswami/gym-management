@@ -58,3 +58,13 @@ firebase/functions/lib/
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+
+# Private credentials and signing material (Firebase client config is public
+# and intentionally tracked separately).
+**/firebase-adminsdk-*.json
+**/service-account*.json
+**/serviceAccount*.json
+*.pem
+*.p12
+*.keystore
+*.jks

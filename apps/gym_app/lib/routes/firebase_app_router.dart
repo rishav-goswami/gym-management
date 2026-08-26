@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/invitations/gym_invitation_link.dart';
 import '../firebase/logic/session_cubit.dart';
 import '../firebase/presentation/auth/firebase_login_screen.dart';
 import '../firebase/presentation/auth/firebase_register_screen.dart';
@@ -15,34 +16,66 @@ GoRouter createFirebaseRouter(SessionCubit session) => GoRouter(
   refreshListenable: RouterRefreshStream(session.stream),
   routes: [
     GoRoute(path: '/', builder: (_, _) => const _SessionLoadingScreen()),
-    GoRoute(path: '/login', builder: (_, _) => const FirebaseLoginScreen()),
+    GoRoute(
+      path: '/login',
+      builder: (_, state) =>
+          FirebaseLoginScreen(invitation: GymInvitationLink.fromUri(state.uri)),
+    ),
     GoRoute(
       path: '/register',
-      builder: (_, _) => const FirebaseRegisterScreen(),
+      builder: (_, state) => FirebaseRegisterScreen(
+        invitation: GymInvitationLink.fromUri(state.uri),
+      ),
     ),
     GoRoute(path: '/contexts', builder: (_, _) => const GymContextScreen()),
+    GoRoute(
+      path: '/join',
+      builder: (_, state) =>
+          GymContextScreen(invitation: GymInvitationLink.fromUri(state.uri)),
+    ),
     GoRoute(path: '/start-gym', builder: (_, _) => const StartGymTrialScreen()),
     GoRoute(path: '/workspace', builder: (_, _) => const GymWorkspaceScreen()),
   ],
   redirect: (_, routerState) {
     final state = session.state;
     final location = routerState.matchedLocation;
+    final invitation = GymInvitationLink.fromUri(routerState.uri);
     final authRoute = location == '/login' || location == '/register';
     return switch (state.status) {
-      SessionStatus.initializing => location == '/' ? null : '/',
-      SessionStatus.signedOut => authRoute ? null : '/login',
-      SessionStatus.failure => authRoute ? null : '/login',
+      SessionStatus.initializing => invitation != null || location == '/'
+          ? null
+          : '/',
+      SessionStatus.signedOut =>
+        authRoute ? null : invitation?.loginLocation ?? '/login',
+      SessionStatus.failure => authRoute
+          ? null
+          : invitation?.loginLocation ?? '/login',
       SessionStatus.selectingContext =>
-        location == '/contexts' || location == '/start-gym'
+        location == '/join'
+            ? null
+            : invitation != null && authRoute
+            ? invitation.routeLocation
+            : location == '/contexts' || location == '/start-gym'
             ? null
             : '/contexts',
-      SessionStatus.ready => _readyRedirect(state, location),
+      SessionStatus.ready => _readyRedirect(state, location, invitation),
     };
   },
 );
 
-String? _readyRedirect(SessionState state, String location) {
-  if (location == '/contexts' || location == '/start-gym') return null;
+String? _readyRedirect(
+  SessionState state,
+  String location,
+  GymInvitationLink? invitation,
+) {
+  if (location == '/join' ||
+      location == '/contexts' ||
+      location == '/start-gym') {
+    return null;
+  }
+  if (invitation != null && (location == '/login' || location == '/register')) {
+    return invitation.routeLocation;
+  }
   if (state.activeMembership != null) {
     return location == '/workspace' ? null : '/workspace';
   }
