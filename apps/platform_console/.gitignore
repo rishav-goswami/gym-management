@@ -27,11 +27,11 @@ migrate_working_dir/
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
-.flutter-plugins
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-**/build/
+/build/
+/coverage/
 
 # Symbolication related
 app.*.symbols
@@ -43,18 +43,3 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-
-
-*.env
-.env
-.env.*
-!.env.example
-node_modules/
-dist/
-firebase/functions/lib/
-.fvm/
-.firebase/
-.firebase-data/
-firebase-debug.log
-firestore-debug.log
-ui-debug.log

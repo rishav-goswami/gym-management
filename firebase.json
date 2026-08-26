@@ -16,6 +16,37 @@
   "remoteconfig": {
     "template": "firebase/remoteconfig.template.json"
   },
+  "hosting": [
+    {
+      "target": "gym-app",
+      "public": "apps/gym_app/build/web",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        }
+      ]
+    },
+    {
+      "target": "platform-console",
+      "public": "apps/platform_console/build/web",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            { "key": "Cache-Control", "value": "no-store" },
+            { "key": "X-Frame-Options", "value": "DENY" },
+            { "key": "Referrer-Policy", "value": "no-referrer" },
+            { "key": "X-Content-Type-Options", "value": "nosniff" }
+          ]
+        }
+      ]
+    }
+  ],
   "emulators": {
     "auth": {
       "host": "0.0.0.0",
@@ -46,7 +77,7 @@
         "default": {
           "projectId": "recipe-app-cdeef",
           "appId": "1:818455248956:android:2af4befd8c93277bae8339",
-          "fileOutput": "android/app/google-services.json"
+          "fileOutput": "apps/gym_app/android/app/google-services.json"
         }
       },
       "ios": {
@@ -54,7 +85,7 @@
           "projectId": "recipe-app-cdeef",
           "appId": "1:818455248956:ios:d69ec43c8948da91ae8339",
           "uploadDebugSymbols": true,
-          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+          "fileOutput": "apps/gym_app/ios/Runner/GoogleService-Info.plist"
         }
       },
       "macos": {
@@ -62,11 +93,11 @@
           "projectId": "recipe-app-cdeef",
           "appId": "1:818455248956:ios:d69ec43c8948da91ae8339",
           "uploadDebugSymbols": true,
-          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+          "fileOutput": "apps/gym_app/macos/Runner/GoogleService-Info.plist"
         }
       },
       "dart": {
-        "lib/firebase_options.dart": {
+        "apps/gym_app/lib/firebase_options.dart": {
           "projectId": "recipe-app-cdeef",
           "configurations": {
             "android": "1:818455248956:android:2af4befd8c93277bae8339",
@@ -74,6 +105,12 @@
             "macos": "1:818455248956:ios:d69ec43c8948da91ae8339",
             "web": "1:818455248956:web:3e5c0a6f6ad25621ae8339",
             "windows": "1:818455248956:web:90eb94b8b8717b87ae8339"
+          }
+        },
+        "apps/platform_console/lib/firebase_options.dart": {
+          "projectId": "recipe-app-cdeef",
+          "configurations": {
+            "web": "1:818455248956:web:2c806f83bc91e051ae8339"
           }
         }
       }

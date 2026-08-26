@@ -4,5 +4,13 @@
     "development": "recipe-app-cdeef",
     "staging": "gym-management-staging",
     "production": "gym-management-production"
+  },
+  "targets": {
+    "recipe-app-cdeef": {
+      "hosting": {
+        "gym-app": ["gym-management-app-cdeef"],
+        "platform-console": ["gym-management-admin-cdeef"]
+      }
+    }
   }
 }

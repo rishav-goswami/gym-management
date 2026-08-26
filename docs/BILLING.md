@@ -40,6 +40,7 @@ Seed data contains Monthly Unlimited, Quarterly Value, and Annual Pro plans.
 ```sh
 npm run emulators
 npm run seed
+cd apps/gym_app
 fvm flutter run -d chrome \
   --dart-define=APP_FLAVOR=development \
   --dart-define=USE_FIREBASE_EMULATORS=true

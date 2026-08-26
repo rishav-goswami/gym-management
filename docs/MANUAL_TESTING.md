@@ -10,7 +10,8 @@ Requirements: FVM, Node.js 22 or 24, and Java 21 or newer. From the repository
 root, install dependencies once:
 
 ```sh
-fvm flutter pub get
+npm run app:pubget
+npm run console:pubget
 npm install
 npm --prefix firebase/functions install
 ```
@@ -28,8 +29,18 @@ npm run emulators
 npm run seed
 
 # Terminal 3: start the web app
+cd apps/gym_app
 fvm flutter run -d chrome \
   --dart-define=APP_FLAVOR=development \
+  --dart-define=USE_FIREBASE_EMULATORS=true
+```
+
+Platform administrators no longer enter through the customer application.
+Start the console in a fourth terminal when testing platform operations:
+
+```sh
+cd apps/platform_console
+fvm flutter run -d chrome \
   --dart-define=USE_FIREBASE_EMULATORS=true
 ```
 
@@ -50,13 +61,17 @@ These accounts only exist locally. The pilot gym ID is `pilot-gym`.
 
 ## 3. Basic authentication and context checks
 
-For every account:
+For the owner, trainer, and member accounts in the customer app:
 
 1. Sign in with the seeded email and password.
 2. Confirm that **Choose workspace** appears before tenant data is shown.
 3. Select the Pilot Gym context and confirm the role chip in the top bar.
 4. Use **Switch gym or role** and confirm that the context chooser returns.
 5. Use **Log out** and confirm that the login page returns.
+
+For `platform.admin@example.com`, use the separate platform console. Confirm
+that the tenant list opens and that the customer app does not offer a platform
+administration route.
 
 Expected security behavior:
 
@@ -159,6 +174,7 @@ The phone cannot use the Mac's `127.0.0.1`. Find the Mac's LAN address, keep the
 phone and Mac on the same network, and run:
 
 ```sh
+cd apps/gym_app
 fvm flutter devices
 fvm flutter run -d YOUR_DEVICE_ID \
   --dart-define=APP_FLAVOR=development \
@@ -174,8 +190,10 @@ dedicated deployed development Firebase project rather than exposing emulators.
 Run before committing a feature:
 
 ```sh
-fvm flutter analyze
-fvm flutter test
+npm run app:analyze
+npm run app:test
+npm run console:analyze
+npm run console:test
 npm run functions:build
 npm run functions:test
 npm run emulators:test
@@ -184,7 +202,8 @@ npm run emulators:test
 `npm run emulators:test` requires Java. Also verify the platform you changed:
 
 ```sh
-fvm flutter build web --release --dart-define=APP_FLAVOR=development
+npm run build:web
+cd apps/gym_app
 fvm flutter build ios --release --no-codesign --dart-define=APP_FLAVOR=development
 ```
 
@@ -202,6 +221,6 @@ application. For the development project:
 6. Deploy rules, indexes, Functions, Storage rules, and Remote Config only after
    reviewing the selected alias with `npx firebase use`.
 7. Provision the first platform admin from a trusted CLI/server process; never
-   expose platform-admin claim assignment in the public app.
+   expose platform-admin claim assignment in either frontend.
 
 The root README documents the required Dart defines and deployment command.

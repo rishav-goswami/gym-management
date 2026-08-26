@@ -1,18 +1,24 @@
 # Gym Management multi-tenant gym platform
 
-One responsive Flutter app for gym members, trainers, staff, owners, and Gym Management platform administrators. Firebase is the system of record. A user signs in once and then selects one of their gym/role memberships.
+Two independently built Flutter clients use Firebase as their shared system of record:
+
+- `apps/gym_app`: the customer product for members, trainers, staff, and gym owners on iOS, Android, and web.
+- `apps/platform_console`: a web-only control plane for trusted Gym Management platform operators.
+
+Platform code is not imported into the customer application. A separate Firebase Web App registration and Hosting target are used for each web client. Actual authorization remains enforced by the `platformAdmin` custom claim, Cloud Functions, and Firestore rules.
 
 ## What is implemented
 
 - Firebase Auth with email/password and phone OTP, invitation-only gym roles, and platform-admin custom claims.
 - Firestore tenant data under `gyms/{gymId}` and memberships at `gym_memberships/{gymId_uid}`.
-- Runtime gym name/color branding and responsive platform, staff, trainer, and member workspaces.
+- Runtime gym name/color branding and responsive staff, trainer, and member workspaces.
+- A separately deployed platform console for tenant provisioning and status control, with no public registration or customer-app route.
 - Callable Functions for gym provisioning, invitations, recorded renewals, rotating QR attendance, atomic class booking, safe chat creation, export/deletion requests, FCM notifications, and expiry reminders.
 - Firestore and Storage rules that deny cross-gym access and stop access to suspended gyms.
 - Development/staging/production aliases, tracked rules/indexes, Emulator Suite configuration, and a repeatable pilot seed.
 - Existing Express/MongoDB code remains in `backend/` for temporary comparison only. The Flutter entrypoint no longer uses it.
 
-Feature screens currently provide the Firebase foundation and bounded operational lists. Continue product work in `lib/firebase/`; do not add new dependencies on the legacy REST repositories.
+Feature screens currently provide the Firebase foundation and bounded operational lists. Continue customer product work in `apps/gym_app/lib/firebase/` and platform operations in `apps/platform_console/lib/`; do not add new dependencies on the legacy REST repositories.
 
 For a click-by-click verification of every implemented role, use
 [`docs/MANUAL_TESTING.md`](docs/MANUAL_TESTING.md). It separates finished
@@ -23,6 +29,8 @@ The owner-facing payment, membership-plan, and subscription workflow is
 documented in [`docs/BILLING.md`](docs/BILLING.md).
 The member-facing plan, receipt, renewal-request, and reminder flow is in
 [`docs/MEMBER_BILLING.md`](docs/MEMBER_BILLING.md).
+Platform-console access, local operation, and deployment are documented in
+[`docs/PLATFORM_CONSOLE.md`](docs/PLATFORM_CONSOLE.md).
 
 ## Prerequisites
 
@@ -34,9 +42,20 @@ The member-facing plan, receipt, renewal-request, and reminder flow is in
 Install dependencies:
 
 ```sh
-fvm flutter pub get
+cd apps/gym_app && fvm flutter pub get
+cd ../platform_console && fvm flutter pub get
+cd ../../packages/gym_core && fvm dart pub get
+cd ../..
 npm install
 npm --prefix firebase/functions install
+```
+
+The repository-level npm scripts are the easiest way to check both clients:
+
+```sh
+npm run app:test
+npm run console:test
+npm run build:web
 ```
 
 On macOS, `brew install openjdk@21` is sufficient. The repository emulator
@@ -74,6 +93,7 @@ These credentials exist only in the Emulator Suite. Never reuse them in a deploy
 Run Flutter web against the emulators:
 
 ```sh
+cd apps/gym_app
 fvm flutter run -d chrome \
   --dart-define=APP_FLAVOR=development \
   --dart-define=USE_FIREBASE_EMULATORS=true
@@ -82,6 +102,7 @@ fvm flutter run -d chrome \
 Run on the iOS simulator with the same flags. For a connected iPhone, `127.0.0.1` points at the phone, so expose the emulator ports on your Mac LAN and pass its address:
 
 ```sh
+cd apps/gym_app
 fvm flutter devices
 fvm flutter run -d YOUR_DEVICE_ID \
   --dart-define=APP_FLAVOR=development \
@@ -105,6 +126,7 @@ development identifiers are:
 Run directly against the development Firebase project with:
 
 ```sh
+cd apps/gym_app
 fvm flutter run -d chrome
 # or
 fvm flutter run -d YOUR_IOS_DEVICE_ID
@@ -133,6 +155,7 @@ project dependency are available:
 ```sh
 export PATH="/opt/homebrew/opt/ruby/bin:$HOME/.pub-cache/bin:$PATH"
 /opt/homebrew/opt/ruby/bin/gem install xcodeproj --user-install
+cd apps/gym_app
 flutterfire configure \
   --project=recipe-app-cdeef \
   --platforms=android,ios,macos,web,windows \
@@ -144,6 +167,18 @@ flutterfire configure \
   --yes --overwrite-firebase-options
 ```
 
+Run the platform console locally against the development Firebase project:
+
+```sh
+cd apps/platform_console
+fvm flutter run -d chrome
+```
+
+The console uses Firebase Web App ID
+`1:818455248956:web:2c806f83bc91e051ae8339`. It intentionally supports only
+email/password sign-in and rejects every authenticated identity whose refreshed
+token does not contain `platformAdmin: true`.
+
 Create dedicated staging and production Firebase projects before release and
 replace their placeholders in `.firebaserc`. Register Android, Apple, web, and
 Windows apps in each project, then enable email/password and phone providers and
@@ -154,6 +189,7 @@ client configuration (these client values are not service-account secrets).
 Pass staging or production values as CI secrets or local `--dart-define` values:
 
 ```sh
+cd apps/gym_app
 fvm flutter run -d chrome \
   --dart-define=APP_FLAVOR=staging \
   --dart-define=FIREBASE_PROJECT_ID=your-staging-project \
@@ -169,8 +205,8 @@ Use `FIREBASE_WINDOWS_APP_ID` for Windows.
 
 Also add the downloaded native files for full iOS/Android services:
 
-- `ios/Runner/GoogleService-Info.plist`
-- `android/app/google-services.json`
+- `apps/gym_app/ios/Runner/GoogleService-Info.plist`
+- `apps/gym_app/android/app/google-services.json`
 
 Configure APNs for FCM, App Check providers, Crashlytics symbol upload, budgets, backups, and retention in each Firebase project before release. Do not commit production secrets or service-account keys.
 
@@ -187,8 +223,16 @@ Only a trusted server/CLI process should set `platformAdmin: true`. Gym roles ar
 
 ```sh
 # Flutter unit and widget tests
+cd apps/gym_app
 fvm flutter test
 fvm flutter analyze lib test
+
+cd ../platform_console
+fvm flutter test
+fvm flutter analyze lib test
+
+cd ../../packages/gym_core
+fvm dart test
 
 # Functions compiler and fast domain tests
 npm run functions:build
@@ -198,10 +242,40 @@ npm run functions:test
 npm run emulators:test
 
 # Release compilation
+cd ../../apps/gym_app
 fvm flutter build web --release --dart-define=APP_FLAVOR=staging ...
 fvm flutter build apk --release --dart-define=APP_FLAVOR=staging ...
 fvm flutter build ios --release --no-codesign --dart-define=APP_FLAVOR=staging ...
 ```
+
+## Web deployment
+
+The development Firebase project has two mapped Hosting targets:
+
+| Target | Application | URL |
+|---|---|---|
+| `gym-app` | Customer web app | `https://gym-management-app-cdeef.web.app` |
+| `platform-console` | Private platform console | `https://gym-management-admin-cdeef.web.app` |
+
+Build and deploy both from the repository root:
+
+```sh
+npm run deploy:web
+```
+
+Deploy one site without affecting the other:
+
+```sh
+npm run app:build:web
+firebase deploy --project recipe-app-cdeef --only hosting:gym-app
+
+npm run console:build:web
+firebase deploy --project recipe-app-cdeef --only hosting:platform-console
+```
+
+Creating a separate frontend does not make privileged operations safe by
+itself. Never place Admin SDK credentials in either web build, and keep every
+platform mutation protected by claim checks in Functions and rules.
 
 The rules suite covers own-tenant access, cross-tenant attacks, suspended tenants, fitness-record privacy, and client privilege escalation. Add role/override cases whenever a new collection or permission is introduced.
 
@@ -217,7 +291,9 @@ The rules suite covers own-tenant access, cross-tenant attacks, suspended tenant
 ## Repository map
 
 ```text
-lib/firebase/                 Firebase domain, repositories, session, and UI
+apps/gym_app/                 Customer Flutter app (mobile and web)
+apps/platform_console/        Private Flutter web platform console
+packages/gym_core/            Shared models, validation, and contracts
 firebase/functions/src/      privileged backend and seed
 firebase/firestore.rules     tenant authorization
 firebase/storage.rules       tenant media authorization
@@ -226,4 +302,4 @@ firebase.json                emulator/deploy configuration
 backend/                     temporary legacy Express comparison backend
 ```
 
-Retire `backend/`, Docker MongoDB, old REST auth models, and `.env` API configuration after Firebase auth and member-profile parity has been verified on development, staging, and all three Flutter targets.
+Retire `backend/`, Docker MongoDB, old REST auth models, and `.env` API configuration after Firebase auth and member-profile parity has been verified on development, staging, and all three customer Flutter targets.
