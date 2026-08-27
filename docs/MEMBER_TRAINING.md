@@ -13,8 +13,10 @@ app's visual design or proprietary media:
    completed workouts/sets, gym announcements, and trainer support.
 2. **Training** lets the member choose Build muscle, Get stronger, Lose weight,
    Improve fitness, or Move better.
-3. Members can search by exercise, target muscle, or equipment and open paired
-   start/end images with concise form guidance.
+3. Members can search 30+ exercises by name, target/secondary muscle, movement
+   pattern, or equipment. Every exercise includes labelled start/finish images,
+   numbered instructions, coaching cues, common mistakes, and connected
+   equipment or difficulty variations.
 4. **Start guided workout** opens a focused session. The member records an
    optional working weight, completes sets, uses the automatic rest timer, and
    moves between exercises.
@@ -29,7 +31,7 @@ records provide graceful read behavior when available.
 
 ## Exercise content and licensing
 
-The initial catalog uses selected records and paired images from
+The initial catalog uses 34 selected records and 68 paired images from
 [`yuhonas/free-exercise-db`](https://github.com/yuhonas/free-exercise-db), pinned
 to commit `b0eed061e1c832b3ed815fbaa4b45b3cdc14df49`. Its license dedicates the
 dataset to the public domain. The app still identifies the source for

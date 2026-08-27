@@ -38,6 +38,10 @@ class _MemberTrainingPanelState extends State<MemberTrainingPanel> {
               query.isEmpty ||
               exercise.name.toLowerCase().contains(query) ||
               exercise.primaryMuscle.toLowerCase().contains(query) ||
+              exercise.secondaryMuscles.any(
+                (muscle) => muscle.toLowerCase().contains(query),
+              ) ||
+              exercise.movementPattern.toLowerCase().contains(query) ||
               exercise.equipment.toLowerCase().contains(query);
           return matchesGoal && matchesQuery;
         })
@@ -160,7 +164,15 @@ class _MemberTrainingPanelState extends State<MemberTrainingPanel> {
         context: context,
         isScrollControlled: true,
         showDragHandle: true,
-        builder: (_) => _ExerciseDetails(exercise: exercise),
+        builder: (sheetContext) => _ExerciseDetails(
+          exercise: exercise,
+          onVariationTap: (variation) {
+            Navigator.pop(sheetContext);
+            Future<void>.delayed(Duration.zero, () {
+              if (context.mounted) _showExercise(context, variation);
+            });
+          },
+        ),
       );
 }
 
@@ -326,6 +338,11 @@ class _ExerciseCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text('${exercise.primaryMuscle} · ${exercise.equipment}'),
+                const SizedBox(height: 3),
+                Text(
+                  '${exercise.level} · ${exercise.movementPattern}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
                 const SizedBox(height: 8),
                 Text(
                   '${exercise.defaultSets} sets · ${exercise.defaultReps}',
@@ -343,9 +360,13 @@ class _ExerciseCard extends StatelessWidget {
 }
 
 class _ExerciseDetails extends StatelessWidget {
-  const _ExerciseDetails({required this.exercise});
+  const _ExerciseDetails({
+    required this.exercise,
+    required this.onVariationTap,
+  });
 
   final ExerciseGuide exercise;
+  final ValueChanged<ExerciseGuide> onVariationTap;
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -365,20 +386,48 @@ class _ExerciseDetails extends StatelessWidget {
           SizedBox(
             height: 230,
             child: PageView(
-              children: exercise.imageUrls
+              children: exercise.imageUrls.indexed
                   .map(
-                    (url) => Padding(
+                    (item) => Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(16),
-                        child: ColoredBox(
-                          color: Theme.of(context).colorScheme.surfaceContainer,
-                          child: CachedNetworkImage(
-                            imageUrl: url,
-                            fit: BoxFit.contain,
-                            errorWidget: (_, _, _) =>
-                                const Icon(Icons.fitness_center, size: 52),
-                          ),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            ColoredBox(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainer,
+                              child: InteractiveViewer(
+                                child: CachedNetworkImage(
+                                  imageUrl: item.$2,
+                                  fit: BoxFit.contain,
+                                  errorWidget: (_, _, _) => const Icon(
+                                    Icons.fitness_center,
+                                    size: 52,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              left: 12,
+                              bottom: 12,
+                              child: Chip(
+                                avatar: Icon(
+                                  item.$1 == 0
+                                      ? Icons.first_page
+                                      : Icons.last_page,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  item.$1 == 0
+                                      ? 'Start position'
+                                      : 'Finish position',
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -392,6 +441,7 @@ class _ExerciseDetails extends StatelessWidget {
             runSpacing: 8,
             children: [
               Chip(label: Text('Target: ${exercise.primaryMuscle}')),
+              Chip(label: Text(exercise.movementPattern)),
               Chip(label: Text('${exercise.defaultSets} sets')),
               Chip(label: Text(exercise.defaultReps)),
             ],
@@ -415,6 +465,66 @@ class _ExerciseDetails extends StatelessWidget {
               ),
             ),
           ),
+          if (exercise.coachingCues.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text('Coach cues', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            ...exercise.coachingCues.map(
+              (cue) => ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  Icons.check_circle_outline,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                title: Text(cue),
+              ),
+            ),
+          ],
+          if (exercise.commonMistakes.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Common mistakes',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            ...exercise.commonMistakes.map(
+              (mistake) => ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  Icons.warning_amber_rounded,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                title: Text(mistake),
+              ),
+            ),
+          ],
+          if (variationsFor(exercise).isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Try another variation',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Choose a version that matches your equipment and experience.',
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: variationsFor(exercise)
+                  .map(
+                    (variation) => ActionChip(
+                      avatar: const Icon(Icons.swap_horiz, size: 18),
+                      label: Text(variation.name),
+                      onPressed: () => onVariationTap(variation),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+          ],
           const SizedBox(height: 10),
           const _TrainingSafetyNote(),
         ],
@@ -504,23 +614,66 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
           ),
           Text('${exercise.primaryMuscle} · ${exercise.equipment}'),
           const SizedBox(height: 16),
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: ColoredBox(
-                color: Theme.of(context).colorScheme.surfaceContainer,
-                child: CachedNetworkImage(
-                  imageUrl: exercise.imageUrls[completed.isEven ? 0 : 1],
-                  fit: BoxFit.contain,
-                  errorWidget: (_, _, _) =>
-                      const Icon(Icons.fitness_center, size: 64),
-                ),
+          SizedBox(
+            height: 240,
+            child: PageView(
+              children: exercise.imageUrls.indexed
+                  .map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            ColoredBox(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainer,
+                              child: CachedNetworkImage(
+                                imageUrl: item.$2,
+                                fit: BoxFit.contain,
+                                errorWidget: (_, _, _) =>
+                                    const Icon(Icons.fitness_center, size: 64),
+                              ),
+                            ),
+                            Positioned(
+                              left: 12,
+                              bottom: 12,
+                              child: Chip(
+                                label: Text(item.$1 == 0 ? 'Start' : 'Finish'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'How to perform it',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  ...exercise.instructions.indexed.map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text('${item.$1 + 1}. ${item.$2}'),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          Text(exercise.instructions.first),
           const SizedBox(height: 20),
           Text(
             'Working weight',
