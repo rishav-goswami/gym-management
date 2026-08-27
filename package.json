@@ -14,6 +14,7 @@
     "catalog:manifest": "node scripts/generate-exercise-media-manifest.mjs",
     "catalog:sync": "node scripts/sync-exercise-media.mjs",
     "storage:provision": "node scripts/provision-default-storage.mjs",
+    "storage:cors": "node scripts/configure-storage-cors.mjs",
     "build:web": "npm run app:build:web && npm run console:build:web",
     "deploy:web": "npm run build:web && firebase deploy --project createmix-in --only hosting:gym-app,hosting:platform-console",
     "emulators": "sh scripts/firebase-with-java.sh emulators:start --project demo-gym-dev --import=.firebase-data --export-on-exit=.firebase-data",

@@ -65,13 +65,19 @@ that the same Terraform state might replace or retire.
    npm run storage:provision -- --project YOUR_PROJECT_ID --location YOUR_STORAGE_LOCATION --dry-run
    npm run storage:provision -- --project YOUR_PROJECT_ID --location YOUR_STORAGE_LOCATION --confirm YOUR_PROJECT_ID
    firebase deploy --project YOUR_PROJECT_ID --only storage
+   npm run storage:cors -- --project YOUR_PROJECT_ID --dry-run
+   npm run storage:cors -- --project YOUR_PROJECT_ID --confirm YOUR_PROJECT_ID
    npm run catalog:manifest
    npm run catalog:sync -- --project YOUR_PROJECT_ID --dry-run
    npm run catalog:sync -- --project YOUR_PROJECT_ID --confirm YOUR_PROJECT_ID
    ```
 
-   The command is safe to rerun: existing versioned objects are skipped and the
-   source commit/license metadata is tracked in both the manifest and project.
+   The commands are safe to rerun: Storage CORS is replaced with the tracked
+   policy, existing versioned objects are skipped, and source commit/license
+   metadata is tracked in both the manifest and project. The default wildcard
+   CORS origin supports Firebase Hosting, local Flutter web ports, and migrated
+   Hosting domains; Firebase Storage Rules still control authorization. Pass
+   `--origins URL,...` when an environment deliberately uses a fixed allowlist.
 8. Configure console-only services: App Check provider/enforcement, APNs and FCM,
    Android SHA fingerprints, authorized Auth domains, SMS region policy, custom
    domains/DNS, budget alerts, Function secrets, and store signing credentials.
@@ -163,6 +169,8 @@ rules own access.
   Terraform. Run `storage:provision` once with an explicit location before
   deploying Storage rules or syncing media. It is idempotent and refuses an
   immutable location mismatch.
+- Reapply `storage:cors` after creating or moving the bucket. Bucket CORS is not
+  carried by Firebase rules or the exercise-media manifest.
 - Recreate Function secrets; they are not present in Git or Firestore exports.
 - Regenerate Flutter Firebase options/native config files and release updated
   mobile apps. Old installed builds continue talking to the old project.

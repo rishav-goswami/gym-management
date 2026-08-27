@@ -178,12 +178,20 @@ this pass verifies.
 Sign in as `member@pilotgym.example.com`.
 
 - **Home:** confirm the tenant-branded summary and five-day expiry banner load.
+- **Exercise media:** confirm the recommended workout and Training catalog show
+  guidance images instead of dumbbell placeholders. On web, verify the Storage
+  image response includes an `Access-Control-Allow-Origin` header. Temporarily
+  blocking Storage should make the app retry its pinned catalog source.
 - **Profile:** edit the member photo and recommendation profile, then open its
   **Membership** area to inspect the current plan, payment receipt, and unread
   reminder from the header bell. Confirm the unread badge, single-message read,
   mark-all-read, and responsive notification drawer. Confirm **Settings**
   contains gym switching, export, logout, and deletion controls and that
   Membership is no longer a separate bottom tab.
+- **Home scrolling:** on a narrow mobile viewport, scroll repeatedly from top
+  to bottom and back while profile, subscription, workout summary, exercise
+  media and announcements load. The page must keep its position without
+  jumping, snapping, or fighting upward scroll gestures.
   Send a renewal request and confirm the selected plan becomes pending. Log in
   as owner and confirm it appears under **Payments → Overview**.
 - **Workout:** confirm assigned workouts appear after the trainer test.

@@ -7,21 +7,48 @@ import 'package:share_plus/share_plus.dart';
 import '../../data/gym_repository.dart';
 import 'package:gym_core/gym_core.dart';
 
-class MemberSubscriptionBanner extends StatelessWidget {
+class MemberSubscriptionBanner extends StatefulWidget {
   const MemberSubscriptionBanner({required this.membership, super.key});
 
   final GymMembership membership;
 
   @override
+  State<MemberSubscriptionBanner> createState() =>
+      _MemberSubscriptionBannerState();
+}
+
+class _MemberSubscriptionBannerState extends State<MemberSubscriptionBanner> {
+  late Stream<DocumentSnapshot<Map<String, dynamic>>> subscriptionStream;
+
+  GymMembership get membership => widget.membership;
+
+  @override
+  void initState() {
+    super.initState();
+    subscriptionStream = _stream();
+  }
+
+  @override
+  void didUpdateWidget(covariant MemberSubscriptionBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.membership.gymId != membership.gymId ||
+        oldWidget.membership.uid != membership.uid) {
+      subscriptionStream = _stream();
+    }
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> _stream() => context
+      .read<GymRepository>()
+      .memberSubscription(membership.gymId, membership.uid);
+
+  @override
   Widget build(
     BuildContext context,
   ) => StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-    stream: context.read<GymRepository>().memberSubscription(
-      membership.gymId,
-      membership.uid,
-    ),
+    stream: subscriptionStream,
     builder: (context, snapshot) {
-      if (!snapshot.hasData || !snapshot.data!.exists) {
+      if (!snapshot.hasData) return const SizedBox.shrink();
+      if (!snapshot.data!.exists) {
         return const Card(
           child: ListTile(
             leading: Icon(Icons.warning_amber_rounded),

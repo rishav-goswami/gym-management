@@ -33,6 +33,10 @@ app's visual design or proprietary media:
 Writes require connectivity. Firebase Storage is the primary origin for core
 guidance media and `cached_network_image` keeps viewed images on-device. Resolved
 URLs are stored per Firebase project so cached workouts survive app restarts.
+Flutter Web also requires the tracked bucket CORS policy installed by
+`npm run storage:cors`; without it, the browser can receive the object but cannot
+decode it for the app. If Storage URL resolution or delivery fails, the image
+widget retries the pinned source before showing its final dumbbell placeholder.
 Firestore uses a bounded 100 MB persistent cache.
 
 ## Exercise content and licensing

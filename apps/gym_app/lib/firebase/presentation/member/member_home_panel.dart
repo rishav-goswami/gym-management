@@ -9,71 +9,105 @@ import '../workspace/member_billing_panel.dart';
 import 'exercise_media_image.dart';
 import 'member_training_panel.dart';
 
-class MemberHomePanel extends StatelessWidget {
+class MemberHomePanel extends StatefulWidget {
   const MemberHomePanel({required this.membership, super.key});
 
   final GymMembership membership;
 
   @override
-  Widget build(
-    BuildContext context,
-  ) => StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-    stream: context.read<GymRepository>().memberProfile(
-      membership.gymId,
-      membership.uid,
-    ),
-    builder: (context, snapshot) {
-      final profile = snapshot.data?.data() ?? const <String, dynamic>{};
-      final goal = _recommendedGoal(profile);
-      final plan = exercisesForGoal(goal, limit: 5);
-      return ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Text(
-            'Ready to move?',
-            style: Theme.of(context).textTheme.headlineMedium,
+  State<MemberHomePanel> createState() => _MemberHomePanelState();
+}
+
+class _MemberHomePanelState extends State<MemberHomePanel>
+    with AutomaticKeepAliveClientMixin {
+  late Stream<DocumentSnapshot<Map<String, dynamic>>> profileStream;
+
+  GymMembership get membership => widget.membership;
+
+  @override
+  void initState() {
+    super.initState();
+    profileStream = _profileStream();
+  }
+
+  @override
+  void didUpdateWidget(covariant MemberHomePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.membership.gymId != membership.gymId ||
+        oldWidget.membership.uid != membership.uid) {
+      profileStream = _profileStream();
+    }
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> _profileStream() => context
+      .read<GymRepository>()
+      .memberProfile(membership.gymId, membership.uid);
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: profileStream,
+      builder: (context, snapshot) {
+        final profile = snapshot.data?.data() ?? const <String, dynamic>{};
+        final profileLoaded = snapshot.hasData;
+        final goal = _recommendedGoal(profile);
+        final plan = exercisesForGoal(goal, limit: 5);
+        return ListView(
+          key: PageStorageKey(
+            'member-home-${membership.gymId}-${membership.uid}',
           ),
-          Text(membership.tagline),
-          if (profile['onboardingCompletedAt'] == null)
-            const Card(
+          padding: const EdgeInsets.all(20),
+          children: [
+            Text(
+              'Ready to move?',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            Text(membership.tagline),
+            if (profileLoaded && profile['onboardingCompletedAt'] == null)
+              const Card(
+                child: ListTile(
+                  leading: Icon(Icons.auto_awesome),
+                  title: Text('Personalize your recommendations'),
+                  subtitle: Text(
+                    'Open Profile and complete your goals, experience and available equipment.',
+                  ),
+                ),
+              ),
+            const SizedBox(height: 16),
+            MemberSubscriptionBanner(membership: membership),
+            const SizedBox(height: 20),
+            _TodayWorkoutCard(
+              exercises: plan,
+              onStart: () => openGuidedWorkout(
+                context,
+                membership: membership,
+                goal: goal,
+                exercises: plan,
+              ),
+            ),
+            const SizedBox(height: 20),
+            _MemberTrainingSummary(membership: membership),
+            const SizedBox(height: 20),
+            _GymAnnouncements(membership: membership),
+            const SizedBox(height: 20),
+            Card(
               child: ListTile(
-                leading: Icon(Icons.auto_awesome),
-                title: Text('Personalize your recommendations'),
-                subtitle: Text(
-                  'Open Profile and complete your goals, experience and available equipment.',
+                leading: const CircleAvatar(child: Icon(Icons.support_agent)),
+                title: const Text('Need help with your plan?'),
+                subtitle: const Text(
+                  'Open Support to message your trainer or gym team before changing a prescribed routine.',
                 ),
               ),
             ),
-          const SizedBox(height: 16),
-          MemberSubscriptionBanner(membership: membership),
-          const SizedBox(height: 20),
-          _TodayWorkoutCard(
-            exercises: plan,
-            onStart: () => openGuidedWorkout(
-              context,
-              membership: membership,
-              goal: goal,
-              exercises: plan,
-            ),
-          ),
-          const SizedBox(height: 20),
-          _MemberTrainingSummary(membership: membership),
-          const SizedBox(height: 20),
-          _GymAnnouncements(membership: membership),
-          const SizedBox(height: 20),
-          Card(
-            child: ListTile(
-              leading: const CircleAvatar(child: Icon(Icons.support_agent)),
-              title: const Text('Need help with your plan?'),
-              subtitle: const Text(
-                'Open Support to message your trainer or gym team before changing a prescribed routine.',
-              ),
-            ),
-          ),
-        ],
-      );
-    },
-  );
+          ],
+        );
+      },
+    );
+  }
 
   TrainingGoal _recommendedGoal(Map<String, dynamic> profile) {
     final goals = Set<String>.from(
@@ -163,21 +197,48 @@ class _TodayWorkoutCard extends StatelessWidget {
   );
 }
 
-class _MemberTrainingSummary extends StatelessWidget {
+class _MemberTrainingSummary extends StatefulWidget {
   const _MemberTrainingSummary({required this.membership});
 
   final GymMembership membership;
 
   @override
+  State<_MemberTrainingSummary> createState() => _MemberTrainingSummaryState();
+}
+
+class _MemberTrainingSummaryState extends State<_MemberTrainingSummary> {
+  late Stream<QuerySnapshot<Map<String, dynamic>>> workoutLogsStream;
+
+  GymMembership get membership => widget.membership;
+
+  @override
+  void initState() {
+    super.initState();
+    workoutLogsStream = _stream();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MemberTrainingSummary oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.membership.gymId != membership.gymId ||
+        oldWidget.membership.uid != membership.uid) {
+      workoutLogsStream = _stream();
+    }
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _stream() =>
+      context.read<GymRepository>().recentForMember(
+        membership.gymId,
+        'workout_logs',
+        membership.uid,
+        limit: 30,
+      );
+
+  @override
   Widget build(
     BuildContext context,
   ) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-    stream: context.read<GymRepository>().recentForMember(
-      membership.gymId,
-      'workout_logs',
-      membership.uid,
-      limit: 30,
-    ),
+    stream: workoutLogsStream,
     builder: (context, snapshot) {
       final now = DateTime.now();
       final documents = snapshot.data?.docs ?? const [];
@@ -264,19 +325,42 @@ class _MetricCard extends StatelessWidget {
   );
 }
 
-class _GymAnnouncements extends StatelessWidget {
+class _GymAnnouncements extends StatefulWidget {
   const _GymAnnouncements({required this.membership});
 
   final GymMembership membership;
 
   @override
+  State<_GymAnnouncements> createState() => _GymAnnouncementsState();
+}
+
+class _GymAnnouncementsState extends State<_GymAnnouncements> {
+  late Stream<QuerySnapshot<Map<String, dynamic>>> announcementsStream;
+
+  GymMembership get membership => widget.membership;
+
+  @override
+  void initState() {
+    super.initState();
+    announcementsStream = _stream();
+  }
+
+  @override
+  void didUpdateWidget(covariant _GymAnnouncements oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.membership.gymId != membership.gymId) {
+      announcementsStream = _stream();
+    }
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _stream() => context
+      .read<GymRepository>()
+      .recent(membership.gymId, 'announcements', limit: 3);
+
+  @override
   Widget build(BuildContext context) =>
       StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: context.read<GymRepository>().recent(
-          membership.gymId,
-          'announcements',
-          limit: 3,
-        ),
+        stream: announcementsStream,
         builder: (context, snapshot) {
           final announcements = snapshot.data?.docs ?? const [];
           if (announcements.isEmpty) return const SizedBox.shrink();

@@ -34,6 +34,11 @@ class ExerciseMediaImage extends StatefulWidget {
 class _ExerciseMediaImageState extends State<ExerciseMediaImage> {
   static final Map<String, Future<String>> _resolvedUrls = {};
   late Future<String> _url;
+  bool _usingSourceFallback = false;
+
+  String get _storagePath => widget.exercise.storagePaths[widget.imageIndex];
+  String get _cacheKey => '${Firebase.app().options.projectId}::$_storagePath';
+  String get _preferenceKey => 'exercise_media_url::$_cacheKey';
 
   @override
   void initState() {
@@ -46,28 +51,42 @@ class _ExerciseMediaImageState extends State<ExerciseMediaImage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.exercise.id != widget.exercise.id ||
         oldWidget.imageIndex != widget.imageIndex) {
+      _usingSourceFallback = false;
       _url = _resolve();
     }
   }
 
   Future<String> _resolve() {
-    final storagePath = widget.exercise.storagePaths[widget.imageIndex];
-    final projectId = Firebase.app().options.projectId;
-    final cacheKey = '$projectId::$storagePath';
+    final cacheKey = _cacheKey;
     return _resolvedUrls.putIfAbsent(cacheKey, () async {
       final preferences = await SharedPreferences.getInstance();
-      final preferenceKey = 'exercise_media_url::$cacheKey';
-      final cachedUrl = preferences.getString(preferenceKey);
+      final cachedUrl = preferences.getString(_preferenceKey);
       if (cachedUrl != null && cachedUrl.isNotEmpty) return cachedUrl;
       try {
         final url = await FirebaseStorage.instance
-            .ref(storagePath)
+            .ref(_storagePath)
             .getDownloadURL();
-        await preferences.setString(preferenceKey, url);
+        await preferences.setString(_preferenceKey, url);
         return url;
       } catch (_) {
+        _usingSourceFallback = true;
         return widget.exercise.imageUrls[widget.imageIndex];
       }
+    });
+  }
+
+  void _retryFromSource() {
+    if (_usingSourceFallback) return;
+    _usingSourceFallback = true;
+    _resolvedUrls.remove(_cacheKey);
+    SharedPreferences.getInstance().then(
+      (preferences) => preferences.remove(_preferenceKey),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _url = Future.value(widget.exercise.imageUrls[widget.imageIndex]);
+      });
     });
   }
 
@@ -86,12 +105,20 @@ class _ExerciseMediaImageState extends State<ExerciseMediaImage> {
         colorBlendMode: widget.colorBlendMode,
         placeholder: (_, _) =>
             const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-        errorWidget: (_, _, _) => ColoredBox(
-          color: const Color(0x11000000),
-          child: Center(
-            child: Icon(Icons.fitness_center, size: widget.errorIconSize),
-          ),
-        ),
+        errorWidget: (_, _, _) {
+          if (!_usingSourceFallback) {
+            _retryFromSource();
+            return const Center(
+              child: CircularProgressIndicator(strokeWidth: 2),
+            );
+          }
+          return ColoredBox(
+            color: const Color(0x11000000),
+            child: Center(
+              child: Icon(Icons.fitness_center, size: widget.errorIconSize),
+            ),
+          );
+        },
       );
     },
   );
