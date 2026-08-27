@@ -12,6 +12,13 @@ void main() {
       expect(exercise.id, isNotEmpty);
       expect(exercise.instructions.length, greaterThanOrEqualTo(3));
       expect(exercise.imageUrls.length, 2);
+      expect(exercise.storagePaths.length, 2);
+      expect(
+        exercise.storagePaths.every(
+          (path) => path.startsWith('platform/exercise-media/v1/'),
+        ),
+        isTrue,
+      );
       expect(
         exercise.imageUrls.every(
           (url) => url.contains('b0eed061e1c832b3ed815fbaa4b45b3cdc14df49'),

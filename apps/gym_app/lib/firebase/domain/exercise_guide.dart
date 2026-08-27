@@ -54,6 +54,10 @@ class ExerciseGuide {
 
   List<String> get imageUrls =>
       imagePaths.map((path) => '$_sourceRoot/$path').toList(growable: false);
+
+  List<String> get storagePaths => imagePaths
+      .map((path) => 'platform/exercise-media/v1/$path')
+      .toList(growable: false);
 }
 
 const exerciseGuides = <ExerciseGuide>[

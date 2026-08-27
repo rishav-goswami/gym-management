@@ -26,6 +26,8 @@ class FirebaseSessionRepository {
   ConfirmationResult? _webConfirmation;
 
   Stream<User?> get authChanges => auth.authStateChanges();
+  Stream<String> get pushTokenChanges =>
+      FirebaseMessaging.instance.onTokenRefresh;
 
   Future<UserCredential> signIn(String email, String password) async {
     final credential = await auth.signInWithEmailAndPassword(
@@ -61,7 +63,11 @@ class FirebaseSessionRepository {
     return credential;
   }
 
-  Future<void> signOut() => auth.signOut();
+  Future<void> signOut() async {
+    final user = auth.currentUser;
+    if (user != null) await removePushToken(user);
+    await auth.signOut();
+  }
 
   Future<void> sendEmailVerification() async {
     final user = auth.currentUser;
@@ -119,12 +125,28 @@ class FirebaseSessionRepository {
       if (permission.authorizationStatus == AuthorizationStatus.denied) return;
       final token = await messaging.getToken();
       if (token == null) return;
-      await firestore.doc('users/${user.uid}/device_tokens/$token').set({
+      await savePushToken(user.uid, token);
+    } catch (_) {
+      // Push setup is best-effort; it must never prevent a valid login.
+    }
+  }
+
+  Future<void> savePushToken(String uid, String token) =>
+      firestore.doc('users/$uid/device_tokens/$token').set({
         'platform': defaultTargetPlatform.name,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+  Future<void> removePushToken(User user) async {
+    try {
+      final messaging = FirebaseMessaging.instance;
+      final token = await messaging.getToken();
+      if (token != null) {
+        await firestore.doc('users/${user.uid}/device_tokens/$token').delete();
+      }
+      await messaging.deleteToken();
     } catch (_) {
-      // Push setup is best-effort; it must never prevent a valid login.
+      // Logout must still succeed if notification cleanup is unavailable.
     }
   }
 

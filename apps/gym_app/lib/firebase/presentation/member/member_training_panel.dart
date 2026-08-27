@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -8,6 +7,64 @@ import 'package:gym_core/gym_core.dart';
 
 import '../../data/gym_repository.dart';
 import '../../domain/exercise_guide.dart';
+import '../../domain/workout_draft.dart';
+import 'exercise_media_image.dart';
+
+Future<void> openGuidedWorkout(
+  BuildContext context, {
+  required GymMembership membership,
+  required TrainingGoal goal,
+  required List<ExerciseGuide> exercises,
+}) async {
+  final draft = await WorkoutDraftStore.load(membership.uid, membership.gymId);
+  final canResume =
+      draft?.matches(
+        expectedGymId: membership.gymId,
+        expectedUid: membership.uid,
+        expectedGoal: goal.name,
+        expectedExerciseIds: exercises.map((exercise) => exercise.id).toList(),
+      ) ??
+      false;
+  WorkoutDraft? selectedDraft;
+  if (canResume && context.mounted) {
+    final resume = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.restore),
+        title: const Text('Resume your workout?'),
+        content: const Text(
+          'Your completed sets and working weights were saved on this device.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Start over'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Resume'),
+          ),
+        ],
+      ),
+    );
+    if (resume == true) {
+      selectedDraft = draft;
+    } else {
+      await WorkoutDraftStore.clear(membership.uid, membership.gymId);
+    }
+  }
+  if (!context.mounted) return;
+  await Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => GuidedWorkoutScreen(
+        membership: membership,
+        goal: goal,
+        exercises: exercises,
+        initialDraft: selectedDraft,
+      ),
+    ),
+  );
+}
 
 class MemberTrainingPanel extends StatefulWidget {
   const MemberTrainingPanel({required this.membership, super.key});
@@ -148,16 +205,12 @@ class _MemberTrainingPanelState extends State<MemberTrainingPanel> {
     );
   }
 
-  Future<void> _startWorkout(BuildContext context) =>
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => GuidedWorkoutScreen(
-            membership: widget.membership,
-            goal: _goal,
-            exercises: exercisesForGoal(_goal, limit: 5),
-          ),
-        ),
-      );
+  Future<void> _startWorkout(BuildContext context) => openGuidedWorkout(
+    context,
+    membership: widget.membership,
+    goal: _goal,
+    exercises: exercisesForGoal(_goal, limit: 5),
+  );
 
   Future<void> _showExercise(BuildContext context, ExerciseGuide exercise) =>
       showModalBottomSheet<void>(
@@ -315,17 +368,7 @@ class _ExerciseCard extends StatelessWidget {
           SizedBox(
             height: 150,
             width: double.infinity,
-            child: CachedNetworkImage(
-              imageUrl: exercise.imageUrls.first,
-              fit: BoxFit.contain,
-              placeholder: (_, _) => const Center(
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              errorWidget: (_, _, _) => const ColoredBox(
-                color: Color(0x11000000),
-                child: Center(child: Icon(Icons.fitness_center, size: 42)),
-              ),
-            ),
+            child: ExerciseMediaImage(exercise: exercise, errorIconSize: 42),
           ),
           Padding(
             padding: const EdgeInsets.all(14),
@@ -400,13 +443,9 @@ class _ExerciseDetails extends StatelessWidget {
                                 context,
                               ).colorScheme.surfaceContainer,
                               child: InteractiveViewer(
-                                child: CachedNetworkImage(
-                                  imageUrl: item.$2,
-                                  fit: BoxFit.contain,
-                                  errorWidget: (_, _, _) => const Icon(
-                                    Icons.fitness_center,
-                                    size: 52,
-                                  ),
+                                child: ExerciseMediaImage(
+                                  exercise: exercise,
+                                  imageIndex: item.$1,
                                 ),
                               ),
                             ),
@@ -538,12 +577,14 @@ class GuidedWorkoutScreen extends StatefulWidget {
     required this.membership,
     required this.goal,
     required this.exercises,
+    this.initialDraft,
     super.key,
   });
 
   final GymMembership membership;
   final TrainingGoal goal;
   final List<ExerciseGuide> exercises;
+  final WorkoutDraft? initialDraft;
 
   @override
   State<GuidedWorkoutScreen> createState() => _GuidedWorkoutScreenState();
@@ -556,22 +597,28 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
   int _exerciseIndex = 0;
   int _restRemaining = 0;
   Timer? _restTimer;
+  Timer? _draftTimer;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    _startedAt = DateTime.now();
-    _completedSets = List.filled(widget.exercises.length, 0);
+    _startedAt = widget.initialDraft?.startedAt ?? DateTime.now();
+    _completedSets =
+        widget.initialDraft?.completedSets.toList() ??
+        List.filled(widget.exercises.length, 0);
     _weights = List.generate(
       widget.exercises.length,
-      (_) => TextEditingController(),
+      (index) => TextEditingController(
+        text: widget.initialDraft?.weights[index] ?? '',
+      ),
     );
   }
 
   @override
   void dispose() {
     _restTimer?.cancel();
+    _draftTimer?.cancel();
     for (final controller in _weights) {
       controller.dispose();
     }
@@ -630,11 +677,10 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
                               color: Theme.of(
                                 context,
                               ).colorScheme.surfaceContainer,
-                              child: CachedNetworkImage(
-                                imageUrl: item.$2,
-                                fit: BoxFit.contain,
-                                errorWidget: (_, _, _) =>
-                                    const Icon(Icons.fitness_center, size: 64),
+                              child: ExerciseMediaImage(
+                                exercise: exercise,
+                                imageIndex: item.$1,
+                                errorIconSize: 64,
                               ),
                             ),
                             Positioned(
@@ -682,6 +728,7 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
           const SizedBox(height: 8),
           TextField(
             controller: _weights[_exerciseIndex],
+            onChanged: (_) => _scheduleDraftSave(),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(
               labelText: 'Weight in kg (optional)',
@@ -772,6 +819,7 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
         setState(() => _restRemaining--);
       }
     });
+    _scheduleDraftSave();
   }
 
   void _stopRest() {
@@ -809,6 +857,10 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
           ],
         },
       );
+      await WorkoutDraftStore.clear(
+        widget.membership.uid,
+        widget.membership.gymId,
+      );
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -838,6 +890,27 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  void _scheduleDraftSave() {
+    _draftTimer?.cancel();
+    _draftTimer = Timer(const Duration(milliseconds: 250), () {
+      WorkoutDraftStore.save(
+        WorkoutDraft(
+          gymId: widget.membership.gymId,
+          uid: widget.membership.uid,
+          goal: widget.goal.name,
+          exerciseIds: widget.exercises
+              .map((exercise) => exercise.id)
+              .toList(growable: false),
+          completedSets: _completedSets.toList(growable: false),
+          weights: _weights
+              .map((controller) => controller.text)
+              .toList(growable: false),
+          startedAt: _startedAt,
+        ),
+      );
+    });
   }
 }
 

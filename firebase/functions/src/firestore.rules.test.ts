@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { assertFails, assertSucceeds, initializeTestEnvironment, RulesTestEnvironment } from "@firebase/rules-unit-testing";
 import { doc, getDoc, setDoc, Timestamp, updateDoc } from "firebase/firestore";
-import { ref, uploadBytes } from "firebase/storage";
+import { getBytes, ref, uploadBytes } from "firebase/storage";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
 let environment: RulesTestEnvironment;
@@ -16,6 +16,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await environment.clearFirestore();
+  await environment.clearStorage();
   await environment.withSecurityRulesDisabled(async (context) => {
     const store = context.firestore();
     await setDoc(doc(store, "gyms/gym-a"), { name: "Gym A", status: "active" });
@@ -151,6 +152,24 @@ describe("Firestore tenant isolation", () => {
 });
 
 describe("Storage tenant isolation", () => {
+  it("allows signed-in reads but no client writes for platform exercise media", async () => {
+    const path = "platform/exercise-media/v1/Pushups/0.jpg";
+    await environment.withSecurityRulesDisabled(async (context) => {
+      await uploadBytes(ref(context.storage(), path), new Uint8Array([1, 2, 3]), {
+        contentType: "image/jpeg"
+      });
+    });
+    const memberStorage = environment.authenticatedContext("member-a").storage();
+    const publicStorage = environment.unauthenticatedContext().storage();
+    await assertSucceeds(getBytes(ref(memberStorage, path)));
+    await assertFails(getBytes(ref(publicStorage, path)));
+    await assertFails(uploadBytes(
+      ref(memberStorage, "platform/exercise-media/v1/Pushups/1.jpg"),
+      new Uint8Array([1]),
+      { contentType: "image/jpeg" }
+    ));
+  });
+
   it("allows a member to upload a small image only to their own progress path", async () => {
     const storage = environment.authenticatedContext("member-a").storage();
     const image = new Uint8Array([137, 80, 78, 71]);

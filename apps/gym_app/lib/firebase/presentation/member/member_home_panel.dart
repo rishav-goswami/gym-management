@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,6 +6,7 @@ import 'package:gym_core/gym_core.dart';
 import '../../data/gym_repository.dart';
 import '../../domain/exercise_guide.dart';
 import '../workspace/member_billing_panel.dart';
+import 'exercise_media_image.dart';
 import 'member_training_panel.dart';
 
 class MemberHomePanel extends StatelessWidget {
@@ -31,14 +31,11 @@ class MemberHomePanel extends StatelessWidget {
         const SizedBox(height: 20),
         _TodayWorkoutCard(
           exercises: plan,
-          onStart: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => GuidedWorkoutScreen(
-                membership: membership,
-                goal: goal,
-                exercises: plan,
-              ),
-            ),
+          onStart: () => openGuidedWorkout(
+            context,
+            membership: membership,
+            goal: goal,
+            exercises: plan,
           ),
         ),
         const SizedBox(height: 20),
@@ -78,15 +75,12 @@ class _TodayWorkoutCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              CachedNetworkImage(
-                imageUrl: exercises.first.imageUrls.first,
+              ExerciseMediaImage(
+                exercise: exercises.first,
                 fit: BoxFit.cover,
                 color: Colors.black.withValues(alpha: 0.35),
                 colorBlendMode: BlendMode.darken,
-                errorWidget: (_, _, _) => const ColoredBox(
-                  color: Color(0xFF273044),
-                  child: Icon(Icons.fitness_center, size: 64),
-                ),
+                errorIconSize: 64,
               ),
               Padding(
                 padding: const EdgeInsets.all(20),

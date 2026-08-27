@@ -19,15 +19,18 @@ app's visual design or proprietary media:
    equipment or difficulty variations.
 4. **Start guided workout** opens a focused session. The member records an
    optional working weight, completes sets, uses the automatic rest timer, and
-   moves between exercises.
+   moves between exercises. An in-progress draft is stored per member and gym so
+   it can be resumed after an interruption or mobile process termination.
 5. Finishing writes a member-owned `workout_logs` document containing timing,
    goal, exercises, target/completed sets, repetitions, and weight.
 6. Trainer-authored `workout_assignments` remain visible above self-guided
    workouts. The next trainer iteration should replace free-text routines with
    structured exercises and revisions.
 
-Writes require connectivity. Previously cached catalog images and Firestore
-records provide graceful read behavior when available.
+Writes require connectivity. Firebase Storage is the primary origin for core
+guidance media and `cached_network_image` keeps viewed images on-device. Resolved
+URLs are stored per Firebase project so cached workouts survive app restarts.
+Firestore uses a bounded 100 MB persistent cache.
 
 ## Exercise content and licensing
 
@@ -40,10 +43,11 @@ traceability.
 Commercial exercise apps and design galleries are research references only.
 Do not copy their code, screenshots, videos, branding, text, or layouts.
 
-For production scale, import reviewed catalog records and compressed images
-into platform-managed Firebase data/storage instead of depending indefinitely
-on GitHub raw-content URLs. Each item should keep source, license, source
-revision, reviewer, and safety-review metadata.
+The versioned `firebase/data/exercise-media.v1.json` manifest and
+`npm run catalog:sync` command provision identical paths and source/license
+metadata into any Firebase project. The pinned GitHub URLs remain a temporary
+bootstrap fallback, not the preferred production origin. This keeps the app
+binary small while making the initial catalog account-portable.
 
 ## Safety boundary
 
@@ -67,7 +71,6 @@ health conditions without validated inputs and an explicit safety design.
    injuries/limitations, and preferred session length.
 4. Workout calendar, exercise charts, volume by muscle group, streaks, records,
    adherence, and trainer timeline.
-5. Platform-managed exercise import, media compression, Hindi localization, and
-   accessibility review.
+5. Media compression, Hindi localization, and accessibility review.
 6. Health Connect and HealthKit only after the core manual workout flow is
    reliable and privacy controls are complete.

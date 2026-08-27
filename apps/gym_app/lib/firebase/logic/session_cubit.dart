@@ -40,12 +40,16 @@ class SessionCubit extends Cubit<SessionState> {
     _subscription = _repository.authChanges.listen(_onAuthChanged);
   }
 
-  static const _selectedMembershipKey = 'selected_firebase_membership';
+  static String _selectedMembershipKey(String uid) =>
+      'selected_firebase_membership::$uid';
   final FirebaseSessionRepository _repository;
   late final StreamSubscription<User?> _subscription;
+  StreamSubscription<String>? _pushTokenSubscription;
 
   Future<void> _onAuthChanged(User? user) async {
     if (user == null) {
+      await _pushTokenSubscription?.cancel();
+      _pushTokenSubscription = null;
       emit(const SessionState(status: SessionStatus.signedOut));
       return;
     }
@@ -57,8 +61,14 @@ class SessionCubit extends Cubit<SessionState> {
       ]);
       final memberships = results[0] as List<GymMembership>;
       final preferences = results[1] as SharedPreferences;
-      final selectedId = preferences.getString(_selectedMembershipKey);
+      final selectedId = preferences.getString(
+        _selectedMembershipKey(user.uid),
+      );
       unawaited(_repository.registerPushToken(user));
+      await _pushTokenSubscription?.cancel();
+      _pushTokenSubscription = _repository.pushTokenChanges.listen(
+        (token) => _repository.savePushToken(user.uid, token),
+      );
       GymMembership? selected;
       for (final membership in memberships) {
         if (membership.id == selectedId) selected = membership;
@@ -119,7 +129,10 @@ class SessionCubit extends Cubit<SessionState> {
 
   Future<void> selectMembership(GymMembership membership) async {
     final preferences = await SharedPreferences.getInstance();
-    await preferences.setString(_selectedMembershipKey, membership.id);
+    final uid = state.user?.uid;
+    if (uid != null) {
+      await preferences.setString(_selectedMembershipKey(uid), membership.id);
+    }
     emit(
       SessionState(
         status: SessionStatus.ready,
@@ -132,7 +145,8 @@ class SessionCubit extends Cubit<SessionState> {
 
   Future<void> chooseAnotherContext() async {
     final preferences = await SharedPreferences.getInstance();
-    await preferences.remove(_selectedMembershipKey);
+    final uid = state.user?.uid;
+    if (uid != null) await preferences.remove(_selectedMembershipKey(uid));
     emit(
       SessionState(
         status: SessionStatus.selectingContext,
@@ -150,6 +164,7 @@ class SessionCubit extends Cubit<SessionState> {
   @override
   Future<void> close() async {
     await _subscription.cancel();
+    await _pushTokenSubscription?.cancel();
     return super.close();
   }
 }

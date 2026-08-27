@@ -47,12 +47,27 @@ that the same Terraform state might replace or retire.
 4. Run FlutterFire separately for `apps/gym_app` and the web-only
    `apps/platform_console`. Keep their Firebase Web Apps and Hosting sites
    separate.
-5. Deploy rules and indexes before importing data, then Storage rules, Functions,
-   and Remote Config.
+5. Deploy Firestore rules and indexes before importing data, then Functions and
+   Remote Config. Provision the default Storage bucket in step 7 before
+   deploying Storage rules.
 6. Run the Firestore migrations with `--dry-run`, followed by the exact-project
    confirmation. Bootstrap a platform administrator with
    `scripts/bootstrap-cloud.mjs`.
-7. Configure console-only services: App Check provider/enforcement, APNs and FCM,
+7. Create Firebase Storage, deploy its rules, and then provision the versioned
+   core exercise media without adding it to the app binary:
+
+   ```sh
+   npm run storage:provision -- --project YOUR_PROJECT_ID --location YOUR_STORAGE_LOCATION --dry-run
+   npm run storage:provision -- --project YOUR_PROJECT_ID --location YOUR_STORAGE_LOCATION --confirm YOUR_PROJECT_ID
+   firebase deploy --project YOUR_PROJECT_ID --only storage
+   npm run catalog:manifest
+   npm run catalog:sync -- --project YOUR_PROJECT_ID --dry-run
+   npm run catalog:sync -- --project YOUR_PROJECT_ID --confirm YOUR_PROJECT_ID
+   ```
+
+   The command is safe to rerun: existing versioned objects are skipped and the
+   source commit/license metadata is tracked in both the manifest and project.
+8. Configure console-only services: App Check provider/enforcement, APNs and FCM,
    Android SHA fingerprints, authorized Auth domains, SMS region policy, custom
    domains/DNS, budget alerts, Function secrets, and store signing credentials.
    These contain external trust relationships and are intentionally not guessed
@@ -136,6 +151,13 @@ rules own access.
 ### 5. Reconfigure and cut over
 
 - Deploy Remote Config, Functions, rules, indexes, and both web builds.
+- Run `catalog:sync` for the destination. Core media can also be copied with the
+  remaining bucket, but rerunning the manifest is deterministic and avoids
+  coupling it to customer-uploaded objects.
+- A new Firebase project does not receive a default Storage bucket from
+  Terraform. Run `storage:provision` once with an explicit location before
+  deploying Storage rules or syncing media. It is idempotent and refuses an
+  immutable location mismatch.
 - Recreate Function secrets; they are not present in Git or Firestore exports.
 - Regenerate Flutter Firebase options/native config files and release updated
   mobile apps. Old installed builds continue talking to the old project.
