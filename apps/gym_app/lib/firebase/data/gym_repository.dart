@@ -241,6 +241,13 @@ class GymRepository {
         as Map,
   );
 
+  Future<int> hydrateMemberProfiles(String gymId) async {
+    final result = await functions.httpsCallable('hydrateMemberProfiles').call({
+      'gymId': gymId,
+    });
+    return ((result.data as Map)['updated'] as num?)?.toInt() ?? 0;
+  }
+
   Future<Map<String, dynamic>> createAttendanceQr(String gymId) async =>
       Map<String, dynamic>.from(
         (await functions.httpsCallable('createAttendanceQr').call({

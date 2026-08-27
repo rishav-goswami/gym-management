@@ -2,14 +2,18 @@
 
 ## What members can do
 
-Open **Membership** from the member workspace.
+Open **Profile → Membership** from the member workspace. Membership is grouped
+with the member's profile and settings instead of taking a separate primary
+bottom-navigation slot.
 
 - **Membership:** view the current plan, start date, valid-until date, remaining
   days, expiry state, and all active plans offered by the gym.
 - **Payments:** view personal payment history, open a receipt, see its payment
   method/reference, and share a text receipt.
-- **Notifications:** view expiry and renewal messages. Opening an unread message
-  marks only that member's notification as read.
+- **Notification drawer:** use the bell in the member header to view expiry,
+  renewal and gym messages without leaving the current screen. The unread badge
+  updates in realtime; a member can open one message or mark all visible
+  messages as read.
 - **Request renewal:** choose a plan and send one pending request to the gym. The
   member is explicitly told that this action does not charge money.
 
@@ -52,5 +56,6 @@ Relevant implementation references:
 ## Emulator check
 
 Sign in as `member@pilotgym.example.com` with `PilotMember!2026`, select Pilot
-Gym, then open **Home** and **Membership**. After sending a renewal request, sign
+Gym, then open **Home**, the notification bell, and **Profile → Membership**.
+After sending a renewal request, sign
 in as the owner and confirm it appears on **Payments → Overview**.

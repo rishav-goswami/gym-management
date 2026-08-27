@@ -117,7 +117,9 @@ experimental tenant from the Emulator UI if it is no longer needed.
 Sign in as `owner@pilotgym.example.com` and select Pilot Gym.
 
 - **Dashboard:** confirm the live Firebase connection card and seeded metrics.
-- **Members:** confirm the member list; open a row and change only an intended
+- **Members:** confirm each row shows a name or verified contact rather than a
+  raw Firebase UID, search by name/email/phone, inspect plan and profile status,
+  then open a row and change only an intended
   role/status value. Test CSV export.
 - **Attendance:** generate a 60-second QR and confirm it renders. Attendance CSV
   export should complete even when the list is small.
@@ -176,7 +178,12 @@ this pass verifies.
 Sign in as `member@pilotgym.example.com`.
 
 - **Home:** confirm the tenant-branded summary and five-day expiry banner load.
-- **Membership:** inspect the current plan, payment receipt, and unread reminder.
+- **Profile:** edit the member photo and recommendation profile, then open its
+  **Membership** area to inspect the current plan, payment receipt, and unread
+  reminder from the header bell. Confirm the unread badge, single-message read,
+  mark-all-read, and responsive notification drawer. Confirm **Settings**
+  contains gym switching, export, logout, and deletion controls and that
+  Membership is no longer a separate bottom tab.
   Send a renewal request and confirm the selected plan becomes pending. Log in
   as owner and confirm it appears under **Payments → Overview**.
 - **Workout:** confirm assigned workouts appear after the trainer test.

@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
@@ -32,6 +33,7 @@ class GymWorkspaceScreen extends StatefulWidget {
 }
 
 class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   int _index = 0;
 
   @override
@@ -43,9 +45,15 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
     final content = _WorkspaceContent(
       destination: destinations[_index],
       membership: membership,
+      onSwitchContext: () =>
+          context.read<SessionCubit>().chooseAnotherContext(),
+      onExportData: () => _accountAction('export'),
+      onDeleteAccount: () => _accountAction('delete'),
+      onSignOut: () => context.read<SessionCubit>().signOut(),
     );
 
     return Scaffold(
+      key: _scaffoldKey,
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
@@ -58,28 +66,41 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
           ],
         ),
         actions: [
-          Chip(label: Text(membership.role.name)),
-          IconButton(
-            tooltip: 'Switch gym or role',
-            onPressed: () =>
-                context.read<SessionCubit>().chooseAnotherContext(),
-            icon: const Icon(Icons.swap_horiz),
-          ),
-          IconButton(
-            tooltip: 'Log out',
-            onPressed: context.read<SessionCubit>().signOut,
-            icon: const Icon(Icons.logout),
-          ),
-          PopupMenuButton<String>(
-            tooltip: 'Privacy and account',
-            onSelected: _accountAction,
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'export', child: Text('Export my data')),
-              PopupMenuItem(value: 'delete', child: Text('Delete my account')),
-            ],
-          ),
+          if (membership.role == GymRole.member)
+            _MemberNotificationButton(
+              membership: membership,
+              onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
+            )
+          else ...[
+            Chip(label: Text(membership.role.name)),
+            IconButton(
+              tooltip: 'Switch gym or role',
+              onPressed: () =>
+                  context.read<SessionCubit>().chooseAnotherContext(),
+              icon: const Icon(Icons.swap_horiz),
+            ),
+            IconButton(
+              tooltip: 'Log out',
+              onPressed: context.read<SessionCubit>().signOut,
+              icon: const Icon(Icons.logout),
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'Privacy and account',
+              onSelected: _accountAction,
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'export', child: Text('Export my data')),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Text('Delete my account'),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
+      endDrawer: membership.role == GymRole.member
+          ? _MemberNotificationDrawer(membership: membership)
+          : null,
       body: Row(
         children: [
           if (wide)
@@ -135,11 +156,7 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
           'workout_assignments',
         ),
         const _Destination('Progress', Icons.insights, 'measurements'),
-        const _Destination(
-          'Membership',
-          Icons.card_membership_outlined,
-          'billing',
-        ),
+        const _Destination('Profile', Icons.person_outline, 'profile'),
         if (AppFeatureFlags.attendanceQr && membership.feature('attendanceQr'))
           const _Destination('Check in', Icons.qr_code_scanner, 'attendance'),
         if (membership.feature('classes'))
@@ -154,7 +171,6 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
             Icons.chat_bubble_outline,
             'conversations',
           ),
-        const _Destination('Profile', Icons.person_outline, 'profile'),
       ];
     }
     if (role == GymRole.trainer) {
@@ -302,13 +318,239 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
   }
 }
 
+class _MemberNotificationButton extends StatelessWidget {
+  const _MemberNotificationButton({
+    required this.membership,
+    required this.onPressed,
+  });
+
+  final GymMembership membership;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) =>
+      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: context.read<GymRepository>().notifications(
+          membership.gymId,
+          membership.uid,
+        ),
+        builder: (context, snapshot) {
+          final unread =
+              snapshot.data?.docs
+                  .where((document) => document.data()['read'] != true)
+                  .length ??
+              0;
+          return Badge(
+            isLabelVisible: unread > 0,
+            label: Text(unread > 99 ? '99+' : '$unread'),
+            offset: const Offset(-5, 5),
+            child: IconButton(
+              tooltip: unread == 0
+                  ? 'Notifications'
+                  : '$unread unread notifications',
+              onPressed: onPressed,
+              icon: Icon(
+                unread == 0
+                    ? Icons.notifications_outlined
+                    : Icons.notifications,
+              ),
+            ),
+          );
+        },
+      );
+}
+
+class _MemberNotificationDrawer extends StatelessWidget {
+  const _MemberNotificationDrawer({required this.membership});
+  final GymMembership membership;
+
+  @override
+  Widget build(BuildContext context) => Drawer(
+    width: MediaQuery.sizeOf(context).width < 480
+        ? MediaQuery.sizeOf(context).width * .92
+        : 420,
+    child: SafeArea(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 8, 12),
+            child: Row(
+              children: [
+                const CircleAvatar(child: Icon(Icons.notifications_outlined)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Notifications',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      Text(membership.gymName, overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Close notifications',
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: context.read<GymRepository>().notifications(
+                membership.gymId,
+                membership.uid,
+              ),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'Unable to load notifications: ${snapshot.error}',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final notifications = [...snapshot.data!.docs]
+                  ..sort((a, b) {
+                    final aTime =
+                        (a.data()['createdAt'] as Timestamp?)
+                            ?.millisecondsSinceEpoch ??
+                        0;
+                    final bTime =
+                        (b.data()['createdAt'] as Timestamp?)
+                            ?.millisecondsSinceEpoch ??
+                        0;
+                    return bTime.compareTo(aTime);
+                  });
+                if (notifications.isEmpty) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.notifications_none, size: 48),
+                          SizedBox(height: 12),
+                          Text('You are all caught up'),
+                          Text(
+                            'Membership reminders and gym updates will appear here.',
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                final unread = notifications
+                    .where((document) => document.data()['read'] != true)
+                    .toList();
+                return Column(
+                  children: [
+                    if (unread.isNotEmpty)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: () => Future.wait(
+                            unread.map(
+                              (document) => context
+                                  .read<GymRepository>()
+                                  .markNotificationRead(
+                                    gymId: membership.gymId,
+                                    notificationId: document.id,
+                                  ),
+                            ),
+                          ),
+                          icon: const Icon(Icons.done_all),
+                          label: const Text('Mark all read'),
+                        ),
+                      ),
+                    Expanded(
+                      child: ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+                        itemCount: notifications.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 6),
+                        itemBuilder: (context, index) {
+                          final document = notifications[index];
+                          final data = document.data();
+                          final isUnread = data['read'] != true;
+                          final createdAt = (data['createdAt'] as Timestamp?)
+                              ?.toDate();
+                          return Card(
+                            color: isUnread
+                                ? Theme.of(context).colorScheme.primaryContainer
+                                      .withValues(alpha: .35)
+                                : null,
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                child: Icon(
+                                  data['type'] == 'subscription_expiry'
+                                      ? Icons.schedule
+                                      : Icons.notifications_outlined,
+                                ),
+                              ),
+                              title: Text('${data['title'] ?? 'Notification'}'),
+                              subtitle: Text(
+                                [
+                                  '${data['body'] ?? ''}',
+                                  if (createdAt != null)
+                                    DateFormat(
+                                      'dd MMM, hh:mm a',
+                                    ).format(createdAt),
+                                ].where((value) => value.isNotEmpty).join('\n'),
+                              ),
+                              isThreeLine: createdAt != null,
+                              trailing: isUnread
+                                  ? const Icon(Icons.circle, size: 10)
+                                  : const Icon(Icons.done, size: 18),
+                              onTap: isUnread
+                                  ? () => context
+                                        .read<GymRepository>()
+                                        .markNotificationRead(
+                                          gymId: membership.gymId,
+                                          notificationId: document.id,
+                                        )
+                                  : null,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class _WorkspaceContent extends StatelessWidget {
   const _WorkspaceContent({
     required this.destination,
     required this.membership,
+    required this.onSwitchContext,
+    required this.onExportData,
+    required this.onDeleteAccount,
+    required this.onSignOut,
   });
   final _Destination destination;
   final GymMembership membership;
+  final Future<void> Function() onSwitchContext;
+  final Future<void> Function() onExportData;
+  final Future<void> Function() onDeleteAccount;
+  final Future<void> Function() onSignOut;
 
   @override
   Widget build(BuildContext context) {
@@ -341,7 +583,13 @@ class _WorkspaceContent extends StatelessWidget {
       return _ConversationsPanel(membership: membership);
     }
     if (destination.collection == 'profile') {
-      return MemberProfilePanel(membership: membership);
+      return MemberProfilePanel(
+        membership: membership,
+        onSwitchContext: onSwitchContext,
+        onExportData: onExportData,
+        onDeleteAccount: onDeleteAccount,
+        onSignOut: onSignOut,
+      );
     }
     return _CollectionView(destination: destination, membership: membership);
   }
@@ -516,46 +764,56 @@ class _CollectionView extends StatelessWidget {
           'Showing the 30 newest records. Additional pages load on demand in full workflows.',
         ),
         const SizedBox(height: 16),
-        Expanded(
-          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: _stream(context),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(child: Text('Unable to load: ${snapshot.error}'));
-              }
-              if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.data!.docs.isEmpty) {
-                return const Center(child: Text('No records yet'));
-              }
-              return ListView.separated(
-                itemCount: snapshot.data!.docs.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final document = snapshot.data!.docs[index];
-                  final data = document.data();
-                  final title =
-                      data['name'] ??
-                      data['title'] ??
-                      data['displayName'] ??
-                      data['memberName'] ??
-                      document.id;
-                  final status =
-                      data['status'] ?? data['role'] ?? data['method'] ?? '';
-                  return ListTile(
-                    title: Text('$title'),
-                    subtitle: status == '' ? null : Text('$status'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: _canEditMembership
-                        ? () => _editMembership(context, document.id, data)
-                        : null,
+        if (destination.collection == 'members')
+          Expanded(
+            child: _MemberDirectory(
+              membership: membership,
+              onEdit: (uid, data) => _editMembership(context, uid, data),
+            ),
+          )
+        else
+          Expanded(
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _stream(context),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Unable to load: ${snapshot.error}'),
                   );
-                },
-              );
-            },
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text('No records yet'));
+                }
+                return ListView.separated(
+                  itemCount: snapshot.data!.docs.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final document = snapshot.data!.docs[index];
+                    final data = document.data();
+                    final title =
+                        data['name'] ??
+                        data['title'] ??
+                        data['displayName'] ??
+                        data['memberName'] ??
+                        document.id;
+                    final status =
+                        data['status'] ?? data['role'] ?? data['method'] ?? '';
+                    return ListTile(
+                      title: Text('$title'),
+                      subtitle: status == '' ? null : Text('$status'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: _canEditMembership
+                          ? () => _editMembership(context, document.id, data)
+                          : null,
+                    );
+                  },
+                );
+              },
+            ),
           ),
-        ),
       ],
     ),
   );
@@ -600,10 +858,32 @@ class _CollectionView extends StatelessWidget {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text('Update ${data['displayName'] ?? uid}'),
+          title: Text(
+            'Member · ${data['displayName'] ?? data['email'] ?? data['phone'] ?? 'profile incomplete'}',
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (data['email'] != null)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.email_outlined),
+                  title: Text('${data['email']}'),
+                ),
+              if (data['phone'] != null)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.phone_outlined),
+                  title: Text('${data['phone']}'),
+                ),
+              if (data['onboardingCompletedAt'] == null)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    'The member has not completed their fitness profile yet.',
+                  ),
+                ),
               if (destination.collection == 'staff')
                 DropdownButtonFormField<String>(
                   initialValue: role,
@@ -1070,6 +1350,296 @@ class _InvitationReadySheet extends StatelessWidget {
       context,
     ).showSnackBar(const SnackBar(content: Text('Invitation link copied.')));
   }
+}
+
+class _MemberDirectory extends StatefulWidget {
+  const _MemberDirectory({required this.membership, required this.onEdit});
+
+  final GymMembership membership;
+  final Future<void> Function(String uid, Map<String, dynamic> data) onEdit;
+
+  @override
+  State<_MemberDirectory> createState() => _MemberDirectoryState();
+}
+
+class _MemberDirectoryState extends State<_MemberDirectory> {
+  final search = TextEditingController();
+  bool identityRepairRequested = false;
+
+  @override
+  void initState() {
+    super.initState();
+    search.addListener(_refresh);
+  }
+
+  @override
+  void dispose() {
+    search
+      ..removeListener(_refresh)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _refresh() => setState(() {});
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+    stream: context.read<GymRepository>().recent(
+      widget.membership.gymId,
+      'members',
+    ),
+    builder: (context, memberSnapshot) {
+      if (memberSnapshot.hasError) {
+        return Center(
+          child: Text('Unable to load members: ${memberSnapshot.error}'),
+        );
+      }
+      if (!memberSnapshot.hasData) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      final allMembers = memberSnapshot.data!.docs;
+      if (!identityRepairRequested &&
+          allMembers.any((member) {
+            final data = member.data();
+            return data['displayName'] == null || data['email'] == null;
+          })) {
+        identityRepairRequested = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          context
+              .read<GymRepository>()
+              .hydrateMemberProfiles(widget.membership.gymId)
+              .catchError((_) => 0);
+        });
+      }
+      return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: context.read<GymRepository>().subscriptions(
+          widget.membership.gymId,
+        ),
+        builder: (context, subscriptionSnapshot) {
+          final subscriptions = <String, Map<String, dynamic>>{
+            for (final document
+                in subscriptionSnapshot.data?.docs ??
+                    const <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+              (document.data()['memberUid'] as String? ?? document.id): document
+                  .data(),
+          };
+          final query = search.text.trim().toLowerCase();
+          final members = allMembers.where((member) {
+            if (query.isEmpty) return true;
+            final data = member.data();
+            return [data['displayName'], data['email'], data['phone']]
+                .whereType<Object>()
+                .any((value) => value.toString().toLowerCase().contains(query));
+          }).toList();
+          final active = allMembers
+              .where((member) => member.data()['status'] == 'active')
+              .length;
+          final incomplete = allMembers
+              .where((member) => member.data()['onboardingCompletedAt'] == null)
+              .length;
+          return Column(
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 320,
+                    child: TextField(
+                      controller: search,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        labelText: 'Search name, email or phone',
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  Chip(label: Text('${allMembers.length} members')),
+                  Chip(label: Text('$active active')),
+                  if (incomplete > 0)
+                    Chip(label: Text('$incomplete profiles incomplete')),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: members.isEmpty
+                    ? Center(
+                        child: Text(
+                          allMembers.isEmpty
+                              ? 'No members yet. Invite your first member.'
+                              : 'No members match this search.',
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: members.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final member = members[index];
+                          return _MemberDirectoryCard(
+                            uid: member.id,
+                            data: member.data(),
+                            subscription: subscriptions[member.id],
+                            canEdit: widget.membership.can('members.write'),
+                            onEdit: widget.onEdit,
+                          );
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
+
+class _MemberDirectoryCard extends StatelessWidget {
+  const _MemberDirectoryCard({
+    required this.uid,
+    required this.data,
+    required this.subscription,
+    required this.canEdit,
+    required this.onEdit,
+  });
+
+  final String uid;
+  final Map<String, dynamic> data;
+  final Map<String, dynamic>? subscription;
+  final bool canEdit;
+  final Future<void> Function(String uid, Map<String, dynamic> data) onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = (data['displayName'] as String?)?.trim();
+    final email = (data['email'] as String?)?.trim();
+    final phone = (data['phone'] as String?)?.trim();
+    final title = displayName?.isNotEmpty == true
+        ? displayName!
+        : email?.isNotEmpty == true
+        ? email!
+        : phone?.isNotEmpty == true
+        ? phone!
+        : 'Member profile incomplete';
+    final endAt = (subscription?['endAt'] as Timestamp?)?.toDate();
+    final planName = subscription?['planName'] ?? subscription?['planId'];
+    final memberStatus = data['status'] as String? ?? 'active';
+    final subscriptionStatus = subscription?['status'] as String?;
+    final contact = [email, phone]
+        .whereType<String>()
+        .where((value) => value.isNotEmpty && value != title)
+        .join('  •  ');
+    return Card(
+      margin: EdgeInsets.zero,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: canEdit ? () => onEdit(uid, data) : null,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              _MemberDirectoryAvatar(data: data),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Theme.of(context).textTheme.titleMedium),
+                    if (contact.isNotEmpty) Text(contact),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        _DirectoryStatusChip(
+                          label: memberStatus,
+                          positive: memberStatus == 'active',
+                        ),
+                        if (planName != null)
+                          Chip(
+                            avatar: const Icon(Icons.card_membership, size: 16),
+                            label: Text(
+                              '$planName${endAt == null ? '' : ' · until ${DateFormat('dd MMM yyyy').format(endAt)}'}',
+                            ),
+                          )
+                        else
+                          const Chip(label: Text('No membership plan')),
+                        if (subscriptionStatus != null &&
+                            subscriptionStatus != 'active')
+                          _DirectoryStatusChip(
+                            label: subscriptionStatus,
+                            positive: false,
+                          ),
+                        if (data['onboardingCompletedAt'] == null)
+                          const Chip(label: Text('Profile incomplete')),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (canEdit) const Icon(Icons.chevron_right),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MemberDirectoryAvatar extends StatelessWidget {
+  const _MemberDirectoryAvatar({required this.data});
+  final Map<String, dynamic> data;
+
+  @override
+  Widget build(BuildContext context) {
+    final path = data['photoPath'] as String?;
+    final name = (data['displayName'] as String?)?.trim();
+    final fallback = name?.isNotEmpty == true
+        ? name!.substring(0, 1).toUpperCase()
+        : null;
+    if (path == null || path.isEmpty) {
+      return CircleAvatar(
+        radius: 26,
+        child: fallback == null
+            ? const Icon(Icons.person_outline)
+            : Text(fallback),
+      );
+    }
+    return FutureBuilder<Uint8List?>(
+      future: GymMediaRepository().readPrivatePhoto(path),
+      builder: (context, snapshot) => CircleAvatar(
+        radius: 26,
+        backgroundImage: snapshot.data == null
+            ? null
+            : MemoryImage(snapshot.data!),
+        child: snapshot.data == null
+            ? (fallback == null
+                  ? const Icon(Icons.person_outline)
+                  : Text(fallback))
+            : null,
+      ),
+    );
+  }
+}
+
+class _DirectoryStatusChip extends StatelessWidget {
+  const _DirectoryStatusChip({required this.label, required this.positive});
+  final String label;
+  final bool positive;
+
+  @override
+  Widget build(BuildContext context) => Chip(
+    avatar: Icon(
+      positive ? Icons.check_circle_outline : Icons.info_outline,
+      size: 16,
+    ),
+    label: Text(label),
+    backgroundColor: positive
+        ? Colors.green.withValues(alpha: .12)
+        : Theme.of(context).colorScheme.errorContainer.withValues(alpha: .55),
+  );
 }
 
 class _AttendancePanel extends StatefulWidget {

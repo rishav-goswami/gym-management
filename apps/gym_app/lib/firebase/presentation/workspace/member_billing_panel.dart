@@ -89,7 +89,7 @@ class MemberBillingPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
-    length: 3,
+    length: 2,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -113,7 +113,6 @@ class MemberBillingPanel extends StatelessWidget {
           tabs: [
             Tab(text: 'Membership'),
             Tab(text: 'Payments'),
-            Tab(text: 'Notifications'),
           ],
         ),
         Expanded(
@@ -121,7 +120,6 @@ class MemberBillingPanel extends StatelessWidget {
             children: [
               _MembershipTab(membership: membership),
               _MemberPaymentsTab(membership: membership),
-              _NotificationsTab(membership: membership),
             ],
           ),
         ),
@@ -488,78 +486,6 @@ class _MemberPaymentsTab extends StatelessWidget {
       ),
     );
   }
-}
-
-class _NotificationsTab extends StatelessWidget {
-  const _NotificationsTab({required this.membership});
-  final GymMembership membership;
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-    stream: context.read<GymRepository>().notifications(
-      membership.gymId,
-      membership.uid,
-    ),
-    builder: (context, snapshot) {
-      if (snapshot.hasError) return Center(child: _ErrorText(snapshot.error));
-      if (!snapshot.hasData) {
-        return const Center(child: CircularProgressIndicator());
-      }
-      final notifications = [...snapshot.data!.docs]
-        ..sort((a, b) {
-          final aTime =
-              (a.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ??
-              0;
-          final bTime =
-              (b.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ??
-              0;
-          return bTime.compareTo(aTime);
-        });
-      if (notifications.isEmpty) {
-        return const _EmptyMemberState(
-          icon: Icons.notifications_none,
-          message: 'No notifications yet',
-        );
-      }
-      return ListView.separated(
-        padding: const EdgeInsets.all(24),
-        itemCount: notifications.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 8),
-        itemBuilder: (context, index) {
-          final document = notifications[index];
-          final data = document.data();
-          final unread = data['read'] != true;
-          return Card(
-            color: unread
-                ? Theme.of(
-                    context,
-                  ).colorScheme.primaryContainer.withValues(alpha: .25)
-                : null,
-            child: ListTile(
-              leading: Icon(
-                data['type'] == 'subscription_expiry'
-                    ? Icons.schedule
-                    : Icons.notifications_outlined,
-              ),
-              title: Text('${data['title'] ?? 'Notification'}'),
-              subtitle: Text('${data['body'] ?? ''}'),
-              trailing: unread
-                  ? const Badge(label: Text('New'))
-                  : const Icon(Icons.done),
-              onTap: unread
-                  ? () => context.read<GymRepository>().markNotificationRead(
-                      gymId: membership.gymId,
-                      notificationId: document.id,
-                    )
-                  : null,
-            ),
-          );
-        },
-      );
-    },
-  );
 }
 
 class _HealthChip extends StatelessWidget {

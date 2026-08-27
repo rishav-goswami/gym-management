@@ -52,6 +52,17 @@ Profile images use `gyms/{gymId}/profiles/{uid}/...` in Firebase Storage. Only
 the member can write their path; active tenant users can read it so authorized
 staff and trainers can identify the member.
 
+The member's primary navigation keeps **Profile** in the fourth mobile slot.
+Inside it, **Profile**, **Membership**, and **Settings** group personal details,
+billing/reminders, gym switching, export, logout, and account deletion. Owners
+see a searchable member directory with the member's name, contact, onboarding
+state, account state, plan, and expiry instead of raw Firebase user IDs.
+
+Invitation acceptance snapshots the verified Firebase Auth name, email and
+phone into the tenant member profile. `hydrateMemberProfiles` is a bounded,
+permission-checked compatibility repair for profiles created before that
+contract existed; the numbered data migration provides the portable bulk path.
+
 ## Platform subscription controls
 
 Plan documents define base limits and features. `setGymSubscription` applies an

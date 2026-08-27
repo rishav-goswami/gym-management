@@ -33,6 +33,31 @@ initializeApp();
 const db = getFirestore();
 const ENFORCE_APP_CHECK = process.env.FUNCTIONS_EMULATOR !== "true";
 
+type IdentitySnapshot = {
+  displayName: string | null;
+  email: string | null;
+  phone: string | null;
+};
+
+async function userIdentity(
+  uid: string,
+  token: Record<string, unknown> = {}
+): Promise<IdentitySnapshot> {
+  const [profile, authUser] = await Promise.all([
+    db.doc(`users/${uid}`).get(),
+    getAuth().getUser(uid).catch(() => null)
+  ]);
+  const profileData = profile.data() ?? {};
+  const rawEmail = authUser?.email ?? token.email ?? profileData.email;
+  const rawPhone = authUser?.phoneNumber ?? token.phone_number ?? profileData.phone;
+  const rawName = authUser?.displayName ?? token.name ?? profileData.displayName ?? profileData.name;
+  return {
+    displayName: typeof rawName === "string" && rawName.trim() ? rawName.trim() : null,
+    email: typeof rawEmail === "string" && rawEmail.trim() ? normalizeEmail(rawEmail) : null,
+    phone: typeof rawPhone === "string" && rawPhone.trim() ? normalizePhone(rawPhone) : null
+  };
+}
+
 const gymSchema = z.object({
   name: z.string().trim().min(2).max(100),
   ownerUid: z.string().min(1).optional(),
@@ -417,6 +442,10 @@ export const acceptInvitation = onCall(
     const memberRef = db.doc(
       `gym_memberships/${membershipDocumentId(gymId, request.auth.uid)}`
     );
+    const identity = await userIdentity(
+      request.auth.uid,
+      request.auth.token as Record<string, unknown>
+    );
     const entitlementRef = db.doc(`gyms/${gymId}/entitlements/current`);
     const usageRef = db.doc(`gyms/${gymId}/usage/current`);
     try {
@@ -430,8 +459,8 @@ export const acceptInvitation = onCall(
       if (invite.get("expiresAt").toMillis() <= Date.now()) {
         throw new HttpsError("deadline-exceeded", "Invitation has expired.");
       }
-      const tokenEmail = request.auth!.token.email ? normalizeEmail(String(request.auth!.token.email)) : null;
-      const tokenPhone = request.auth!.token.phone_number ? normalizePhone(String(request.auth!.token.phone_number)) : null;
+      const tokenEmail = identity.email;
+      const tokenPhone = identity.phone;
       if ((invite.get("email") && invite.get("email") !== tokenEmail) ||
           (invite.get("phone") && invite.get("phone") !== tokenPhone)) {
         throw new HttpsError("permission-denied", "Invitation does not match this account.");
@@ -465,6 +494,7 @@ export const acceptInvitation = onCall(
         uid: request.auth!.uid,
         role,
         status: "active",
+        displayName: identity.displayName,
         email: tokenEmail,
         phone: tokenPhone,
         createdAt: FieldValue.serverTimestamp(),
@@ -482,6 +512,7 @@ export const acceptInvitation = onCall(
         acceptedAt: FieldValue.serverTimestamp()
       });
       tx.set(db.doc(`users/${request.auth!.uid}`), {
+        displayName: identity.displayName,
         email: tokenEmail,
         phone: tokenPhone,
         updatedAt: FieldValue.serverTimestamp()
@@ -491,6 +522,42 @@ export const acceptInvitation = onCall(
       quotaError(error);
     }
     return { gymId };
+  }
+);
+
+export const hydrateMemberProfiles = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    const input = z.object({ gymId: z.string().min(1) }).parse(request.data);
+    await requireGymPermission(request, input.gymId, "members.read");
+    const snapshot = await db.collection(`gyms/${input.gymId}/members`).limit(100).get();
+    const incomplete = snapshot.docs.filter((document) => {
+      const data = document.data();
+      return !data.displayName || !data.email;
+    });
+    if (incomplete.length === 0) return { updated: 0 };
+
+    const identities = await Promise.all(
+      incomplete.map((document) => userIdentity(String(document.get("uid") ?? document.id)))
+    );
+    const batch = db.batch();
+    let updated = 0;
+    incomplete.forEach((document, index) => {
+      const existing = document.data();
+      const identity = identities[index];
+      const update: Record<string, unknown> = {
+        updatedAt: FieldValue.serverTimestamp()
+      };
+      if (!existing.displayName && identity.displayName) update.displayName = identity.displayName;
+      if (!existing.email && identity.email) update.email = identity.email;
+      if (!existing.phone && identity.phone) update.phone = identity.phone;
+      if (Object.keys(update).length > 1) {
+        batch.set(document.ref, update, { merge: true });
+        updated += 1;
+      }
+    });
+    if (updated > 0) await batch.commit();
+    return { updated };
   }
 );
 
@@ -931,6 +998,7 @@ export const updateGymMembership = onCall(
     if (actor.role !== "owner" && ownerOnly.some((key) => permissionOverrides[key] === true)) {
       throw new HttpsError("permission-denied", "Only the owner can grant sensitive permissions.");
     }
+    const identity = await userIdentity(input.uid);
     const permissions = {
       ...ROLE_PERMISSIONS[input.role],
       ...permissionOverrides
@@ -972,6 +1040,9 @@ export const updateGymMembership = onCall(
         });
         tx.set(db.doc(`gyms/${input.gymId}/${profileCollection}/${input.uid}`), {
           gymId: input.gymId, uid: input.uid, role: input.role, status: input.status,
+          ...(identity.displayName ? { displayName: identity.displayName } : {}),
+          ...(identity.email ? { email: identity.email } : {}),
+          ...(identity.phone ? { phone: identity.phone } : {}),
           updatedAt: FieldValue.serverTimestamp()
         }, { merge: true });
         if (oldProfileCollection !== profileCollection) {

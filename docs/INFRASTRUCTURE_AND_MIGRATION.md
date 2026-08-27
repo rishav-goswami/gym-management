@@ -15,6 +15,11 @@ Firebase product:
    migrations. `firebase/functions/src/seed.ts` remains disposable emulator demo
    data and is not a production migration.
 
+Current forward migrations include foundation metadata and member identity
+backfill. The identity migration reads Firebase Auth through Application Default
+Credentials and fills only missing tenant-profile name/contact fields; it does
+not overwrite member-edited profile data.
+
 Run the local consistency check after infrastructure changes:
 
 ```sh

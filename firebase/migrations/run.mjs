@@ -1,12 +1,14 @@
 import { createRequire } from "node:module";
 
 import * as foundationMetadata from "./001_foundation_metadata.mjs";
+import * as memberIdentity from "./002_backfill_member_identity.mjs";
 
 const require = createRequire(new URL("../functions/package.json", import.meta.url));
 const { applicationDefault, getApps, initializeApp } = require("firebase-admin/app");
-const { FieldValue, getFirestore } = require("firebase-admin/firestore");
+const { getAuth } = require("firebase-admin/auth");
+const { FieldPath, FieldValue, getFirestore } = require("firebase-admin/firestore");
 
-const migrations = [foundationMetadata];
+const migrations = [foundationMetadata, memberIdentity];
 const args = new Map();
 for (let index = 2; index < process.argv.length; index += 1) {
   const value = process.argv[index];
@@ -38,7 +40,7 @@ for (const migration of migrations) {
     console.log(`pending ${migration.id}: ${migration.description}`);
     continue;
   }
-  await migration.apply({ db, FieldValue });
+  await migration.apply({ db, auth: getAuth(), FieldPath, FieldValue });
   await record.create({
     id: migration.id,
     description: migration.description,

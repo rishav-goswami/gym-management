@@ -7,10 +7,104 @@ import 'package:gym_core/gym_core.dart';
 
 import '../../data/gym_media_repository.dart';
 import '../../data/gym_repository.dart';
+import '../workspace/member_billing_panel.dart';
 
-class MemberProfilePanel extends StatelessWidget {
-  const MemberProfilePanel({required this.membership, super.key});
+enum _ProfileSection { profile, membership, settings }
 
+class MemberProfilePanel extends StatefulWidget {
+  const MemberProfilePanel({
+    required this.membership,
+    required this.onSwitchContext,
+    required this.onExportData,
+    required this.onDeleteAccount,
+    required this.onSignOut,
+    super.key,
+  });
+
+  final GymMembership membership;
+  final Future<void> Function() onSwitchContext;
+  final Future<void> Function() onExportData;
+  final Future<void> Function() onDeleteAccount;
+  final Future<void> Function() onSignOut;
+
+  @override
+  State<MemberProfilePanel> createState() => _MemberProfilePanelState();
+}
+
+class _MemberProfilePanelState extends State<MemberProfilePanel> {
+  _ProfileSection section = _ProfileSection.profile;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Profile', style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: 560,
+              child: SegmentedButton<_ProfileSection>(
+                segments: const [
+                  ButtonSegment(
+                    value: _ProfileSection.profile,
+                    label: Text('Profile'),
+                  ),
+                  ButtonSegment(
+                    value: _ProfileSection.membership,
+                    label: Text('Membership'),
+                  ),
+                  ButtonSegment(
+                    value: _ProfileSection.settings,
+                    label: Text('Settings'),
+                  ),
+                ],
+                selected: {section},
+                onSelectionChanged: (value) {
+                  final selected = value.first;
+                  setState(() => section = selected);
+                  final feature = selected == _ProfileSection.membership
+                      ? 'billing'
+                      : 'profile';
+                  context
+                      .read<GymRepository>()
+                      .trackFeatureUsage(
+                        gymId: widget.membership.gymId,
+                        featureId: feature,
+                      )
+                      .catchError((_) {});
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      Expanded(
+        child: switch (section) {
+          _ProfileSection.profile => _ProfileDetails(
+            membership: widget.membership,
+          ),
+          _ProfileSection.membership => MemberBillingPanel(
+            membership: widget.membership,
+          ),
+          _ProfileSection.settings => _MemberSettings(
+            membership: widget.membership,
+            onSwitchContext: widget.onSwitchContext,
+            onExportData: widget.onExportData,
+            onDeleteAccount: widget.onDeleteAccount,
+            onSignOut: widget.onSignOut,
+          ),
+        },
+      ),
+    ],
+  );
+}
+
+class _ProfileDetails extends StatelessWidget {
+  const _ProfileDetails({required this.membership});
   final GymMembership membership;
 
   @override
@@ -27,10 +121,6 @@ class MemberProfilePanel extends StatelessWidget {
       return ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Text(
-            'Your profile',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
           const Text(
             'These details improve general workout suggestions. A trainer should review medical or rehabilitation needs.',
           ),
@@ -89,6 +179,88 @@ class MemberProfilePanel extends StatelessWidget {
         ],
       );
     },
+  );
+}
+
+class _MemberSettings extends StatelessWidget {
+  const _MemberSettings({
+    required this.membership,
+    required this.onSwitchContext,
+    required this.onExportData,
+    required this.onDeleteAccount,
+    required this.onSignOut,
+  });
+
+  final GymMembership membership;
+  final Future<void> Function() onSwitchContext;
+  final Future<void> Function() onExportData;
+  final Future<void> Function() onDeleteAccount;
+  final Future<void> Function() onSignOut;
+
+  @override
+  Widget build(BuildContext context) => ListView(
+    padding: const EdgeInsets.all(20),
+    children: [
+      Text('Account', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8),
+      Card(
+        child: Column(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.storefront_outlined),
+              title: Text(membership.gymName),
+              subtitle: const Text('Current gym and member context'),
+              trailing: const Icon(Icons.swap_horiz),
+              onTap: onSwitchContext,
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.download_outlined),
+              title: const Text('Export my data'),
+              subtitle: const Text('Download a portable copy of your account'),
+              onTap: onExportData,
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('Log out'),
+              onTap: onSignOut,
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 20),
+      Text('Privacy', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8),
+      Card(
+        child: Column(
+          children: [
+            const ListTile(
+              leading: Icon(Icons.shield_outlined),
+              title: Text('Private fitness data'),
+              subtitle: Text(
+                'Progress photos and health-related profile details stay scoped to your gym account.',
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: Icon(
+                Icons.delete_outline,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              title: Text(
+                'Delete my account',
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              subtitle: const Text(
+                'Request deletion after the recovery period',
+              ),
+              onTap: onDeleteAccount,
+            ),
+          ],
+        ),
+      ),
+    ],
   );
 }
 
