@@ -15,6 +15,8 @@ import '../../data/gym_media_repository.dart';
 import '../../data/firebase_session_repository.dart';
 import 'package:gym_core/gym_core.dart';
 import '../../logic/session_cubit.dart';
+import '../member/member_home_panel.dart';
+import '../member/member_training_panel.dart';
 import 'billing_management_panel.dart';
 import 'member_billing_panel.dart';
 import 'platform_plan_banner.dart';
@@ -115,7 +117,7 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
       return [
         const _Destination('Home', Icons.home_outlined, 'dashboard'),
         const _Destination(
-          'Workout',
+          'Training',
           Icons.fitness_center,
           'workout_assignments',
         ),
@@ -268,7 +270,14 @@ class _WorkspaceContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (destination.collection == 'dashboard') {
+      if (membership.role == GymRole.member) {
+        return MemberHomePanel(membership: membership);
+      }
       return _Dashboard(membership: membership);
+    }
+    if (destination.collection == 'workout_assignments' &&
+        membership.role == GymRole.member) {
+      return MemberTrainingPanel(membership: membership);
     }
     if (destination.collection == 'attendance') {
       return _AttendancePanel(membership: membership);
