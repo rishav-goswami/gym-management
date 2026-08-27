@@ -16,11 +16,16 @@ Firebase Web App registration and Hosting target.
 
 ## Operator workflows
 
+- The responsive console shell uses a persistent navigation rail on desktop and
+  a drawer on smaller screens. Overview, Gyms, Plans & upgrades, Feature
+  analytics, and Feedback are separate workspaces.
 - **Platform overview** shows gym, user, member and trainer totals calculated by
   a privileged Function.
 - **Feature relevance** compares bounded feature-open counters across member,
-  trainer, owner and staff audiences and shows average submitted ratings.
-- **Latest product feedback** is visible only to platform administrators.
+  trainer, owner and staff audiences, with normalized horizontal bars and
+  average submitted ratings.
+- **Product feedback** has response/rating summaries plus audience and feature
+  filters. It is visible only to platform administrators.
 - **SaaS plans** define versioned quotas and included feature bundles.
 - The subscription action on each tenant applies a plan, access duration,
   status and optional per-gym feature overrides atomically.

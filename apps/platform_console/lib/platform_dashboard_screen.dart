@@ -3,65 +3,240 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'platform_insights_panel.dart';
 import 'tenant_branding_dialog.dart';
 import 'tenant_subscription_dialog.dart';
-import 'platform_insights_panel.dart';
 
-class PlatformDashboardScreen extends StatelessWidget {
+enum _ConsoleSection {
+  overview('Overview', Icons.space_dashboard_outlined),
+  gyms('Gyms', Icons.business_outlined),
+  plans('Plans & upgrades', Icons.workspace_premium_outlined),
+  analytics('Feature analytics', Icons.query_stats_outlined),
+  feedback('Feedback', Icons.forum_outlined);
+
+  const _ConsoleSection(this.label, this.icon);
+  final String label;
+  final IconData icon;
+}
+
+class PlatformDashboardScreen extends StatefulWidget {
   const PlatformDashboardScreen({required this.onSignOut, super.key});
 
   final Future<void> Function() onSignOut;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Gym Management Platform'),
-      actions: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Center(
-            child: Text(FirebaseAuth.instance.currentUser?.email ?? ''),
-          ),
+  State<PlatformDashboardScreen> createState() =>
+      _PlatformDashboardScreenState();
+}
+
+class _PlatformDashboardScreenState extends State<PlatformDashboardScreen> {
+  _ConsoleSection section = _ConsoleSection.overview;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final desktop = constraints.maxWidth >= 980;
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(section.label),
+          actions: [
+            if (constraints.maxWidth >= 700)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Center(
+                  child: Chip(
+                    avatar: const Icon(Icons.admin_panel_settings_outlined),
+                    label: Text(
+                      FirebaseAuth.instance.currentUser?.email ?? 'Operator',
+                    ),
+                  ),
+                ),
+              ),
+            IconButton(
+              tooltip: 'Sign out',
+              onPressed: widget.onSignOut,
+              icon: const Icon(Icons.logout),
+            ),
+          ],
         ),
-        IconButton(
-          tooltip: 'Sign out',
-          onPressed: onSignOut,
-          icon: const Icon(Icons.logout),
+        drawer: desktop ? null : Drawer(child: _drawerNavigation()),
+        body: Row(
+          children: [
+            if (desktop) ...[
+              NavigationRail(
+                extended: true,
+                minExtendedWidth: 250,
+                selectedIndex: section.index,
+                onDestinationSelected: (index) =>
+                    setState(() => section = _ConsoleSection.values[index]),
+                leading: const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 20, 16, 28),
+                  child: _ConsoleBrand(),
+                ),
+                destinations: [
+                  for (final item in _ConsoleSection.values)
+                    NavigationRailDestination(
+                      icon: Icon(item.icon),
+                      selectedIcon: Icon(item.icon, fill: 1),
+                      label: Text(item.label),
+                    ),
+                ],
+              ),
+              const VerticalDivider(width: 1),
+            ],
+            Expanded(child: _sectionContent()),
+          ],
+        ),
+      );
+    },
+  );
+
+  Widget _drawerNavigation() => SafeArea(
+    child: Column(
+      children: [
+        const Padding(
+          padding: EdgeInsets.all(24),
+          child: Align(alignment: Alignment.centerLeft, child: _ConsoleBrand()),
+        ),
+        const Divider(),
+        for (final item in _ConsoleSection.values)
+          ListTile(
+            leading: Icon(item.icon),
+            title: Text(item.label),
+            selected: section == item,
+            onTap: () {
+              setState(() => section = item);
+              Navigator.pop(context);
+            },
+          ),
+        const Spacer(),
+        ListTile(
+          leading: const Icon(Icons.logout),
+          title: const Text('Sign out'),
+          onTap: widget.onSignOut,
         ),
       ],
     ),
-    body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('gyms')
-          .orderBy('createdAt', descending: true)
-          .limit(50)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return _ConsoleError(message: '${snapshot.error}');
-        }
-        return ListView(
-          padding: const EdgeInsets.all(24),
+  );
+
+  Widget _sectionContent() => switch (section) {
+    _ConsoleSection.overview => const _ConsolePage(
+      title: 'Platform overview',
+      description: 'Health, scale and adoption across your gym tenants.',
+      child: PlatformInsightsPanel(view: PlatformInsightsView.overview),
+    ),
+    _ConsoleSection.gyms => const _ConsolePage(
+      title: 'Gym tenants',
+      description: 'Provision gyms and manage branding, plans and access.',
+      child: _GymTenantsSection(),
+    ),
+    _ConsoleSection.plans => const _ConsolePage(
+      title: 'Plans & upgrades',
+      description:
+          'Version quotas, feature bundles and review upgrade requests.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _SaasPlansSection(),
+          SizedBox(height: 32),
+          _UpgradeRequestsSection(),
+        ],
+      ),
+    ),
+    _ConsoleSection.analytics => const _ConsolePage(
+      title: 'Feature analytics',
+      description: 'Compare feature adoption and relevance by audience role.',
+      child: PlatformInsightsPanel(view: PlatformInsightsView.analytics),
+    ),
+    _ConsoleSection.feedback => const _ConsolePage(
+      title: 'Product feedback',
+      description: 'Review member, trainer and owner ratings and comments.',
+      child: PlatformInsightsPanel(view: PlatformInsightsView.feedback),
+    ),
+  };
+}
+
+class _ConsoleBrand extends StatelessWidget {
+  const _ConsoleBrand();
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(Icons.fitness_center),
+      ),
+      const SizedBox(width: 12),
+      const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Gym Management', style: TextStyle(fontWeight: FontWeight.bold)),
+          Text('Platform console', style: TextStyle(fontSize: 12)),
+        ],
+      ),
+    ],
+  );
+}
+
+class _ConsolePage extends StatelessWidget {
+  const _ConsolePage({
+    required this.title,
+    required this.description,
+    required this.child,
+  });
+  final String title;
+  final String description;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 16 : 28),
+    child: Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1360),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const PlatformInsightsPanel(),
-            const SizedBox(height: 32),
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 16,
-              runSpacing: 12,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Gym tenants',
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                    const Text('Platform control plane · latest 50 tenants'),
-                  ],
-                ),
-                FilledButton.icon(
+            Text(title, style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: 4),
+            Text(description, style: Theme.of(context).textTheme.bodyLarge),
+            const SizedBox(height: 24),
+            child,
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _GymTenantsSection extends StatelessWidget {
+  const _GymTenantsSection();
+
+  @override
+  Widget build(BuildContext context) =>
+      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
+            .collection('gyms')
+            .orderBy('createdAt', descending: true)
+            .limit(50)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return _ConsoleError(message: '${snapshot.error}');
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
                   onPressed: () => showDialog<void>(
                     context: context,
                     builder: (_) => const _ProvisionGymDialog(),
@@ -69,33 +244,27 @@ class PlatformDashboardScreen extends StatelessWidget {
                   icon: const Icon(Icons.add_business),
                   label: const Text('Provision gym'),
                 ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            if (snapshot.connectionState == ConnectionState.waiting)
-              const LinearProgressIndicator(),
-            if (snapshot.hasData && snapshot.data!.docs.isEmpty)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Text(
-                    'No gyms have been provisioned yet.',
-                    textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              if (snapshot.connectionState == ConnectionState.waiting)
+                const LinearProgressIndicator(),
+              if (snapshot.hasData && snapshot.data!.docs.isEmpty)
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Text(
+                      'No gyms have been provisioned yet.',
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 ),
+              ...?snapshot.data?.docs.map(
+                (document) => _GymTenantCard(document: document),
               ),
-            ...?snapshot.data?.docs.map(
-              (document) => _GymTenantCard(document: document),
-            ),
-            const SizedBox(height: 32),
-            const _SaasPlansSection(),
-            const SizedBox(height: 32),
-            const _UpgradeRequestsSection(),
-          ],
-        );
-      },
-    ),
-  );
+            ],
+          );
+        },
+      );
 }
 
 class _SaasPlansSection extends StatelessWidget {
@@ -396,68 +565,108 @@ class _GymTenantCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final gym = document.data();
-    return Card(
-      child: ListTile(
-        leading: _TenantLogo(gym: gym),
-        title: Text(gym['name'] as String? ?? document.id),
-        subtitle: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-              .doc('gyms/${document.id}/usage/current')
-              .snapshots(),
-          builder: (context, snapshot) {
-            final usage = snapshot.data?.data() ?? const {};
-            final users =
-                (usage['activeMembers'] as num? ?? 0) +
-                (usage['activeTrainers'] as num? ?? 0) +
-                (usage['activeStaff'] as num? ?? 0) +
-                1;
-            return Text(
-              '${gym['status'] ?? 'unknown'} · ${gym['platformPlan'] ?? 'manual'} · '
-              '$users users · '
-              '${usage['activeMembers'] ?? 0} members · '
-              '${usage['activeTrainers'] ?? 0} trainers · '
-              '${usage['activeStaff'] ?? 0} staff',
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .doc('gyms/${document.id}/usage/current')
+          .snapshots(),
+      builder: (context, snapshot) {
+        final usage = snapshot.data?.data() ?? const {};
+        final users =
+            (usage['activeMembers'] as num? ?? 0) +
+            (usage['activeTrainers'] as num? ?? 0) +
+            (usage['activeStaff'] as num? ?? 0) +
+            1;
+        final summary =
+            '$users users · ${usage['activeMembers'] ?? 0} members · '
+            '${usage['activeTrainers'] ?? 0} trainers · ${usage['activeStaff'] ?? 0} staff';
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 760;
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: compact
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              _TenantLogo(gym: gym),
+                              const SizedBox(width: 12),
+                              Expanded(child: _identity(gym)),
+                            ],
+                          ),
+                          const Divider(height: 24),
+                          Text(summary),
+                          const SizedBox(height: 12),
+                          Wrap(spacing: 8, children: _actions(context, gym)),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          _TenantLogo(gym: gym),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [_identity(gym), Text(summary)],
+                            ),
+                          ),
+                          Wrap(spacing: 6, children: _actions(context, gym)),
+                        ],
+                      ),
+              ),
             );
           },
-        ),
-        trailing: Wrap(
-          spacing: 4,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            TextButton.icon(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => TenantBrandingDialog(document: document),
-              ),
-              icon: const Icon(Icons.palette_outlined),
-              label: const Text('Manage'),
-            ),
-            TextButton.icon(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => TenantSubscriptionDialog(document: document),
-              ),
-              icon: const Icon(Icons.workspace_premium_outlined),
-              label: const Text('Plan'),
-            ),
-            PopupMenuButton<String>(
-              tooltip: 'Change tenant status',
-              initialValue: gym['status'] as String?,
-              onSelected: (status) => _call(context, 'updateGymStatus', {
-                'gymId': document.id,
-                'status': status,
-              }),
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'trial', child: Text('Trial')),
-                PopupMenuItem(value: 'active', child: Text('Active')),
-                PopupMenuItem(value: 'suspended', child: Text('Suspended')),
-              ],
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
+
+  Widget _identity(Map<String, dynamic> gym) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        gym['name'] as String? ?? document.id,
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+      ),
+      Text(
+        '${gym['status'] ?? 'unknown'} · ${gym['platformPlan'] ?? 'manual'}',
+      ),
+    ],
+  );
+
+  List<Widget> _actions(BuildContext context, Map<String, dynamic> gym) => [
+    TextButton.icon(
+      onPressed: () => showDialog<void>(
+        context: context,
+        builder: (_) => TenantBrandingDialog(document: document),
+      ),
+      icon: const Icon(Icons.palette_outlined),
+      label: const Text('Branding'),
+    ),
+    TextButton.icon(
+      onPressed: () => showDialog<void>(
+        context: context,
+        builder: (_) => TenantSubscriptionDialog(document: document),
+      ),
+      icon: const Icon(Icons.workspace_premium_outlined),
+      label: const Text('Plan'),
+    ),
+    PopupMenuButton<String>(
+      tooltip: 'Change tenant status',
+      initialValue: gym['status'] as String?,
+      onSelected: (status) => _call(context, 'updateGymStatus', {
+        'gymId': document.id,
+        'status': status,
+      }),
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: 'trial', child: Text('Trial')),
+        PopupMenuItem(value: 'active', child: Text('Active')),
+        PopupMenuItem(value: 'suspended', child: Text('Suspended')),
+      ],
+    ),
+  ];
 }
 
 class _ProvisionGymDialog extends StatefulWidget {

@@ -72,17 +72,8 @@ class _PlatformConsoleAppState extends State<PlatformConsoleApp> {
   Widget build(BuildContext context) => MaterialApp(
     title: 'Gym Management Platform Console',
     debugShowCheckedModeBanner: false,
-    theme: ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4338CA)),
-      useMaterial3: true,
-    ),
-    darkTheme: ThemeData(
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF818CF8),
-        brightness: Brightness.dark,
-      ),
-      useMaterial3: true,
-    ),
+    theme: _consoleTheme(Brightness.light),
+    darkTheme: _consoleTheme(Brightness.dark),
     themeMode: ThemeMode.system,
     home: ListenableBuilder(
       listenable: session,
@@ -107,6 +98,40 @@ class _PlatformConsoleAppState extends State<PlatformConsoleApp> {
           onSignOut: session.signOut,
         ),
       },
+    ),
+  );
+}
+
+ThemeData _consoleTheme(Brightness brightness) {
+  final dark = brightness == Brightness.dark;
+  final scheme = ColorScheme.fromSeed(
+    seedColor: dark ? const Color(0xFF818CF8) : const Color(0xFF4338CA),
+    brightness: brightness,
+  );
+  return ThemeData(
+    colorScheme: scheme,
+    useMaterial3: true,
+    scaffoldBackgroundColor: dark
+        ? const Color(0xFF0B1020)
+        : const Color(0xFFF6F7FB),
+    cardTheme: CardThemeData(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.7)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+    ),
+    navigationRailTheme: NavigationRailThemeData(
+      backgroundColor: dark ? const Color(0xFF111827) : Colors.white,
+      indicatorShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+    ),
+    appBarTheme: AppBarTheme(
+      elevation: 0,
+      backgroundColor: dark ? const Color(0xFF111827) : Colors.white,
+      surfaceTintColor: Colors.transparent,
     ),
   );
 }
