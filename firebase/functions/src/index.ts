@@ -112,6 +112,22 @@ const planFeaturesSchema = z.object({
   progressPhotos: z.boolean()
 });
 
+const featureIdSchema = z.enum([
+  "dashboard",
+  "training",
+  "progress",
+  "billing",
+  "attendance",
+  "classes",
+  "chat",
+  "members",
+  "payments",
+  "staff",
+  "announcements",
+  "branding",
+  "profile"
+]);
+
 const saasPlanSchema = z.object({
   planId: z.string().regex(/^[a-z0-9-]{2,40}$/),
   name: z.string().trim().min(2).max(80),
@@ -639,6 +655,237 @@ export const updateGymAsPlatformAdmin = onCall(
     await gymRef.set(configurationUpdate(input), { merge: true });
     await writeAudit(db, input.gymId, request.auth!.uid, "gym.platform_configuration_updated", {});
     return { updated: true };
+  }
+);
+
+export const setGymSubscription = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requirePlatformAdmin(request);
+    const input = z.object({
+      gymId: z.string().min(1),
+      planId: z.string().regex(/^[a-z0-9-]{2,40}$/),
+      status: z.enum(["trial", "active", "suspended"]),
+      durationDays: z.number().int().min(1).max(3660),
+      featureOverrides: planFeaturesSchema.partial().default({})
+    }).parse(request.data);
+    const gymRef = db.doc(`gyms/${input.gymId}`);
+    const planRef = db.doc(`saas_plans/${input.planId}`);
+    const subscriptionRef = db.doc(`gyms/${input.gymId}/platform_subscription/current`);
+    const entitlementRef = db.doc(`gyms/${input.gymId}/entitlements/current`);
+    const endsAt = Timestamp.fromMillis(Date.now() + input.durationDays * 86400000);
+
+    await db.runTransaction(async (tx) => {
+      const [gym, plan] = await Promise.all([tx.get(gymRef), tx.get(planRef)]);
+      if (!gym.exists) throw new HttpsError("not-found", "Gym tenant was not found.");
+      if (!plan.exists || plan.get("status") !== "active") {
+        throw new HttpsError("failed-precondition", "Select an active SaaS plan.");
+      }
+      const snapshot = planSnapshot(plan.id, plan.data()!);
+      const effectiveFeatures = {
+        ...(snapshot.features as Record<string, boolean>),
+        ...input.featureOverrides
+      };
+      const now = FieldValue.serverTimestamp();
+      tx.set(gymRef, {
+        status: input.status,
+        platformPlan: plan.id,
+        platformPlanEndsAt: endsAt,
+        features: effectiveFeatures,
+        featureOverrides: input.featureOverrides,
+        updatedAt: now
+      }, { merge: true });
+      tx.set(subscriptionRef, {
+        ...snapshot,
+        features: effectiveFeatures,
+        featureOverrides: input.featureOverrides,
+        status: input.status,
+        startsAt: now,
+        endsAt,
+        updatedAt: now,
+        updatedBy: request.auth!.uid
+      }, { merge: true });
+      tx.set(entitlementRef, {
+        ...snapshot,
+        features: effectiveFeatures,
+        featureOverrides: input.featureOverrides,
+        status: input.status === "suspended" ? "suspended" : "active",
+        endsAt,
+        updatedAt: now
+      }, { merge: true });
+    });
+    await writeAudit(db, input.gymId, request.auth!.uid, "gym.subscription_updated", {
+      planId: input.planId,
+      status: input.status,
+      durationDays: input.durationDays,
+      featureOverrides: input.featureOverrides
+    });
+    return { updated: true };
+  }
+);
+
+export const getPlatformDashboard = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requirePlatformAdmin(request);
+    const gyms = await db.collection("gyms").orderBy("createdAt", "desc").limit(200).get();
+    const usageSnapshots = gyms.empty
+      ? []
+      : await db.getAll(...gyms.docs.map((gym) => db.doc(`gyms/${gym.id}/usage/current`)));
+    let members = 0;
+    let trainers = 0;
+    let staff = 0;
+    const tenants = gyms.docs.map((gym, index) => {
+      const usage = usageSnapshots[index]?.data() ?? {};
+      const activeMembers = Number(usage.activeMembers ?? 0);
+      const activeTrainers = Number(usage.activeTrainers ?? 0);
+      const activeStaff = Number(usage.activeStaff ?? 0);
+      members += activeMembers;
+      trainers += activeTrainers;
+      staff += activeStaff;
+      return {
+        gymId: gym.id,
+        name: String(gym.get("name") ?? "Gym"),
+        status: String(gym.get("status") ?? "unknown"),
+        planId: String(gym.get("platformPlan") ?? "manual"),
+        activeMembers,
+        activeTrainers,
+        activeStaff,
+        totalUsers: activeMembers + activeTrainers + activeStaff + 1
+      };
+    });
+    const featureMetrics = await db.collection("platform_feature_metrics")
+      .orderBy("totalEvents", "desc").limit(20).get();
+    return {
+      totals: {
+        gyms: gyms.size,
+        activeGyms: gyms.docs.filter((gym) => gym.get("status") === "active").length,
+        trialGyms: gyms.docs.filter((gym) => gym.get("status") === "trial").length,
+        members,
+        trainers,
+        staff,
+        users: members + trainers + staff + gyms.size
+      },
+      tenants,
+      features: featureMetrics.docs.map((metric) => ({ id: metric.id, ...metric.data() }))
+    };
+  }
+);
+
+export const trackFeatureUsage = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requireAuth(request);
+    const input = z.object({
+      gymId: z.string().min(1),
+      featureId: featureIdSchema
+    }).parse(request.data);
+    const [membership, gym] = await Promise.all([
+      db.doc(`gym_memberships/${input.gymId}_${request.auth.uid}`).get(),
+      db.doc(`gyms/${input.gymId}`).get()
+    ]);
+    if (!membership.exists || membership.get("status") !== "active") {
+      throw new HttpsError("permission-denied", "Active gym membership is required.");
+    }
+    if (!gym.exists) throw new HttpsError("failed-precondition", "This gym is not currently active.");
+    const planEndsAt = gym.get("platformPlanEndsAt") as Timestamp | undefined;
+    if (!["trial", "active"].includes(String(gym.get("status"))) ||
+        (planEndsAt && planEndsAt.toMillis() <= Date.now())) {
+      throw new HttpsError("failed-precondition", "This gym is not currently active.");
+    }
+    const role = String(membership.get("role") ?? "member");
+    const throttleRef = db.doc(
+      `users/${request.auth.uid}/feature_usage_state/${input.gymId}_${input.featureId}`
+    );
+    const tracked = await db.runTransaction(async (tx) => {
+      const state = await tx.get(throttleRef);
+      const lastTrackedAt = state.get("lastTrackedAt") as Timestamp | undefined;
+      if (lastTrackedAt && lastTrackedAt.toMillis() > Date.now() - 15 * 60 * 1000) {
+        return false;
+      }
+      const now = FieldValue.serverTimestamp();
+      tx.set(throttleRef, {
+        gymId: input.gymId,
+        featureId: input.featureId,
+        lastTrackedAt: now
+      });
+      tx.set(db.doc(`platform_feature_metrics/${input.featureId}`), {
+        featureId: input.featureId,
+        totalEvents: FieldValue.increment(1),
+        [`audience_${role}`]: FieldValue.increment(1),
+        updatedAt: now
+      }, { merge: true });
+      tx.set(db.doc(`gyms/${input.gymId}/feature_metrics/${input.featureId}`), {
+        gymId: input.gymId,
+        featureId: input.featureId,
+        totalEvents: FieldValue.increment(1),
+        [`audience_${role}`]: FieldValue.increment(1),
+        updatedAt: now
+      }, { merge: true });
+      return true;
+    });
+    return { tracked };
+  }
+);
+
+export const submitFeatureFeedback = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requireAuth(request);
+    const input = z.object({
+      gymId: z.string().min(1),
+      featureId: featureIdSchema,
+      rating: z.number().int().min(1).max(5),
+      message: z.string().trim().min(3).max(1000)
+    }).parse(request.data);
+    const [membership, gym] = await Promise.all([
+      db.doc(`gym_memberships/${input.gymId}_${request.auth.uid}`).get(),
+      db.doc(`gyms/${input.gymId}`).get()
+    ]);
+    if (!membership.exists || membership.get("status") !== "active") {
+      throw new HttpsError("permission-denied", "Active gym membership is required.");
+    }
+    if (!gym.exists) throw new HttpsError("failed-precondition", "This gym is not currently active.");
+    const planEndsAt = gym.get("platformPlanEndsAt") as Timestamp | undefined;
+    if (!["trial", "active"].includes(String(gym.get("status"))) ||
+        (planEndsAt && planEndsAt.toMillis() <= Date.now())) {
+      throw new HttpsError("failed-precondition", "This gym is not currently active.");
+    }
+    const role = String(membership.get("role") ?? "member");
+    const feedback = db.collection("platform_feedback").doc();
+    const throttleRef = db.doc(
+      `users/${request.auth.uid}/feedback_state/${input.gymId}_${input.featureId}`
+    );
+    await db.runTransaction(async (tx) => {
+      const state = await tx.get(throttleRef);
+      const lastSubmittedAt = state.get("lastSubmittedAt") as Timestamp | undefined;
+      if (lastSubmittedAt && lastSubmittedAt.toMillis() > Date.now() - 5 * 60 * 1000) {
+        throw new HttpsError("resource-exhausted", "Please wait before submitting more feedback.");
+      }
+      const now = FieldValue.serverTimestamp();
+      tx.set(throttleRef, {
+        gymId: input.gymId,
+        featureId: input.featureId,
+        lastSubmittedAt: now
+      });
+      tx.create(feedback, {
+        gymId: input.gymId,
+        uid: request.auth.uid,
+        role,
+        featureId: input.featureId,
+        rating: input.rating,
+        message: input.message,
+        status: "new",
+        createdAt: now
+      });
+      tx.set(db.doc(`platform_feature_metrics/${input.featureId}`), {
+        featureId: input.featureId,
+        feedbackCount: FieldValue.increment(1),
+        ratingTotal: FieldValue.increment(input.rating),
+        updatedAt: now
+      }, { merge: true });
+    });
+    return { submitted: true };
   }
 );
 

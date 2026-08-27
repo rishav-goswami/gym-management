@@ -14,6 +14,22 @@ App Store.
 Both use the owned Firebase project `createmix-in`, but each has its own
 Firebase Web App registration and Hosting target.
 
+## Operator workflows
+
+- **Platform overview** shows gym, user, member and trainer totals calculated by
+  a privileged Function.
+- **Feature relevance** compares bounded feature-open counters across member,
+  trainer, owner and staff audiences and shows average submitted ratings.
+- **Latest product feedback** is visible only to platform administrators.
+- **SaaS plans** define versioned quotas and included feature bundles.
+- The subscription action on each tenant applies a plan, access duration,
+  status and optional per-gym feature overrides atomically.
+- The branding action manages the public tenant identity independently from
+  subscription entitlements.
+
+Feature counters are directional product signals, not financial or compliance
+records. See `docs/PRODUCT_ANALYTICS_AND_ONBOARDING.md` for the data boundary.
+
 ## Access model
 
 - The console has email/password login only and no registration page.

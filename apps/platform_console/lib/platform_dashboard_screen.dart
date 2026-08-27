@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'tenant_branding_dialog.dart';
+import 'tenant_subscription_dialog.dart';
+import 'platform_insights_panel.dart';
 
 class PlatformDashboardScreen extends StatelessWidget {
   const PlatformDashboardScreen({required this.onSignOut, super.key});
@@ -41,6 +43,8 @@ class PlatformDashboardScreen extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.all(24),
           children: [
+            const PlatformInsightsPanel(),
+            const SizedBox(height: 32),
             Wrap(
               alignment: WrapAlignment.spaceBetween,
               crossAxisAlignment: WrapCrossAlignment.center,
@@ -189,6 +193,16 @@ class _PlanDialogState extends State<_PlanDialog> {
   Map<String, dynamic> get _limits =>
       Map<String, dynamic>.from(widget.data?['limits'] as Map? ?? const {});
   bool saving = false;
+  late final Map<String, bool> features = Map<String, bool>.from(
+    widget.data?['features'] as Map? ??
+        const {
+          'classes': true,
+          'chat': true,
+          'attendanceQr': true,
+          'dietPlans': true,
+          'progressPhotos': false,
+        },
+  );
 
   @override
   void dispose() {
@@ -250,6 +264,25 @@ class _PlanDialogState extends State<_PlanDialog> {
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Scheduled classes'),
             ),
+            const SizedBox(height: 16),
+            Text(
+              'Included features',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            for (final entry in const <String, String>{
+              'classes': 'Classes and bookings',
+              'chat': 'Member–trainer chat',
+              'attendanceQr': 'QR attendance',
+              'dietPlans': 'Diet plans',
+              'progressPhotos': 'Progress photos',
+            }.entries)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(entry.value),
+                value: features[entry.key] == true,
+                onChanged: (value) =>
+                    setState(() => features[entry.key] = value),
+              ),
           ],
         ),
       ),
@@ -286,13 +319,7 @@ class _PlanDialogState extends State<_PlanDialog> {
         'activeStaff': int.parse(staff.text),
         'scheduledClasses': int.parse(classes.text),
       },
-      'features': {
-        'classes': true,
-        'chat': true,
-        'attendanceQr': true,
-        'dietPlans': true,
-        'progressPhotos': !isTrial,
-      },
+      'features': features,
     });
     if (mounted && ok) Navigator.pop(context);
     if (mounted && !ok) setState(() => saving = false);
@@ -373,8 +400,25 @@ class _GymTenantCard extends StatelessWidget {
       child: ListTile(
         leading: _TenantLogo(gym: gym),
         title: Text(gym['name'] as String? ?? document.id),
-        subtitle: Text(
-          '${gym['status'] ?? 'unknown'} · ${gym['platformPlan'] ?? 'manual'}',
+        subtitle: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .doc('gyms/${document.id}/usage/current')
+              .snapshots(),
+          builder: (context, snapshot) {
+            final usage = snapshot.data?.data() ?? const {};
+            final users =
+                (usage['activeMembers'] as num? ?? 0) +
+                (usage['activeTrainers'] as num? ?? 0) +
+                (usage['activeStaff'] as num? ?? 0) +
+                1;
+            return Text(
+              '${gym['status'] ?? 'unknown'} · ${gym['platformPlan'] ?? 'manual'} · '
+              '$users users · '
+              '${usage['activeMembers'] ?? 0} members · '
+              '${usage['activeTrainers'] ?? 0} trainers · '
+              '${usage['activeStaff'] ?? 0} staff',
+            );
+          },
         ),
         trailing: Wrap(
           spacing: 4,
@@ -387,6 +431,14 @@ class _GymTenantCard extends StatelessWidget {
               ),
               icon: const Icon(Icons.palette_outlined),
               label: const Text('Manage'),
+            ),
+            TextButton.icon(
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (_) => TenantSubscriptionDialog(document: document),
+              ),
+              icon: const Icon(Icons.workspace_premium_outlined),
+              label: const Text('Plan'),
             ),
             PopupMenuButton<String>(
               tooltip: 'Change tenant status',

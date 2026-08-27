@@ -70,6 +70,12 @@ beforeEach(async () => {
     await setDoc(doc(store, "gyms/gym-a/notifications/reminder-a"), {
       gymId: "gym-a", recipientUid: "member-a", read: false
     });
+    await setDoc(doc(store, "platform_feature_metrics/training"), {
+      featureId: "training", totalEvents: 12
+    });
+    await setDoc(doc(store, "platform_feedback/feedback-a"), {
+      gymId: "gym-a", uid: "member-a", rating: 5, message: "Useful"
+    });
   });
 });
 
@@ -153,6 +159,33 @@ describe("Firestore tenant isolation", () => {
       gymId: "gym-a", memberUid: "member-a", status: "paid"
     }));
   });
+
+  it("allows a member to complete only their own recommendation profile", async () => {
+    const store = environment.authenticatedContext("member-a").firestore();
+    await assertSucceeds(updateDoc(doc(store, "gyms/gym-a/members/member-a"), {
+      displayName: "Member A",
+      experienceLevel: "beginner",
+      fitnessGoals: ["improveFitness"],
+      workoutDaysPerWeek: 3,
+      equipmentAccess: ["fullGym"],
+      photoPath: "gyms/gym-a/profiles/member-a/avatar.jpg",
+      updatedAt: Timestamp.now()
+    }));
+    await assertFails(updateDoc(doc(store, "gyms/gym-a/members/member-a"), {
+      role: "owner"
+    }));
+  });
+
+  it("keeps product analytics and feedback private to platform administrators", async () => {
+    const member = environment.authenticatedContext("member-a").firestore();
+    const admin = environment.authenticatedContext(
+      "platform-admin", { platformAdmin: true }
+    ).firestore();
+    await assertFails(getDoc(doc(member, "platform_feature_metrics/training")));
+    await assertFails(getDoc(doc(member, "platform_feedback/feedback-a")));
+    await assertSucceeds(getDoc(doc(admin, "platform_feature_metrics/training")));
+    await assertSucceeds(getDoc(doc(admin, "platform_feedback/feedback-a")));
+  });
 });
 
 describe("Storage tenant isolation", () => {
@@ -216,6 +249,19 @@ describe("Storage tenant isolation", () => {
     await assertFails(uploadBytes(
       ref(storage, "gyms/gym-b/progress/member-a/photo.png"),
       image,
+      { contentType: "image/png" }
+    ));
+  });
+
+  it("allows profile images only in the member's own tenant path", async () => {
+    const storage = environment.authenticatedContext("member-a").storage();
+    const image = new Uint8Array([137, 80, 78, 71]);
+    await assertSucceeds(uploadBytes(
+      ref(storage, "gyms/gym-a/profiles/member-a/avatar.png"), image,
+      { contentType: "image/png" }
+    ));
+    await assertFails(uploadBytes(
+      ref(storage, "gyms/gym-a/profiles/member-b/avatar.png"), image,
       { contentType: "image/png" }
     ));
   });

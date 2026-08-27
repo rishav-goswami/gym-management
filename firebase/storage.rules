@@ -51,6 +51,11 @@ service firebase.storage {
       allow write: if activeGym(gymId) && request.auth.uid == uid && safeImage();
     }
 
+    match /gyms/{gymId}/profiles/{uid}/{fileName} {
+      allow read: if activeGym(gymId);
+      allow write: if activeGym(gymId) && request.auth.uid == uid && safeImage();
+    }
+
     match /gyms/{gymId}/chat/{conversationId}/{fileName} {
       allow read: if conversationParticipant(gymId, conversationId);
       allow write: if conversationParticipant(gymId, conversationId) && safeMedia();

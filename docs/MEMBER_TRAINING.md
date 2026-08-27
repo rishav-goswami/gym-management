@@ -13,17 +13,20 @@ app's visual design or proprietary media:
    completed workouts/sets, gym announcements, and trainer support.
 2. **Training** lets the member choose Build muscle, Get stronger, Lose weight,
    Improve fitness, or Move better.
-3. Members can search 30+ exercises by name, target/secondary muscle, movement
+3. **Profile** collects goal, experience, weekly schedule, available equipment,
+   optional limitations and a private tenant-scoped profile image. Home uses
+   the first selected goal for its general recommended session.
+4. Members can search 30+ exercises by name, target/secondary muscle, movement
    pattern, or equipment. Every exercise includes labelled start/finish images,
    numbered instructions, coaching cues, common mistakes, and connected
    equipment or difficulty variations.
-4. **Start guided workout** opens a focused session. The member records an
+5. **Start guided workout** opens a focused session. The member records an
    optional working weight, completes sets, uses the automatic rest timer, and
    moves between exercises. An in-progress draft is stored per member and gym so
    it can be resumed after an interruption or mobile process termination.
-5. Finishing writes a member-owned `workout_logs` document containing timing,
+6. Finishing writes a member-owned `workout_logs` document containing timing,
    goal, exercises, target/completed sets, repetitions, and weight.
-6. Trainer-authored `workout_assignments` remain visible above self-guided
+7. Trainer-authored `workout_assignments` remain visible above self-guided
    workouts. The next trainer iteration should replace free-text routines with
    structured exercises and revisions.
 

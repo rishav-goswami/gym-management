@@ -31,6 +31,40 @@ service cloud.firestore {
     function identityValid(uid) {
       return !('uid' in request.resource.data) || request.resource.data.uid == uid;
     }
+    function validMemberProfile(gymId, uid) {
+      return (!('displayName' in request.resource.data) ||
+          (request.resource.data.displayName is string &&
+           request.resource.data.displayName.size() >= 2 &&
+           request.resource.data.displayName.size() <= 100)) &&
+        (!('phone' in request.resource.data) || request.resource.data.phone == null ||
+          (request.resource.data.phone is string && request.resource.data.phone.size() <= 20)) &&
+        (!('heightCm' in request.resource.data) || request.resource.data.heightCm == null ||
+          (request.resource.data.heightCm is number && request.resource.data.heightCm >= 80 &&
+           request.resource.data.heightCm <= 260)) &&
+        (!('weightKg' in request.resource.data) || request.resource.data.weightKg == null ||
+          (request.resource.data.weightKg is number && request.resource.data.weightKg >= 20 &&
+           request.resource.data.weightKg <= 500)) &&
+        (!('experienceLevel' in request.resource.data) ||
+          request.resource.data.experienceLevel in ['beginner', 'intermediate', 'advanced']) &&
+        (!('fitnessGoals' in request.resource.data) ||
+          (request.resource.data.fitnessGoals is list &&
+           request.resource.data.fitnessGoals.size() >= 1 &&
+           request.resource.data.fitnessGoals.size() <= 5)) &&
+        (!('equipmentAccess' in request.resource.data) ||
+          (request.resource.data.equipmentAccess is list &&
+           request.resource.data.equipmentAccess.size() >= 1 &&
+           request.resource.data.equipmentAccess.size() <= 4)) &&
+        (!('workoutDaysPerWeek' in request.resource.data) ||
+          (request.resource.data.workoutDaysPerWeek is int &&
+           request.resource.data.workoutDaysPerWeek >= 1 &&
+           request.resource.data.workoutDaysPerWeek <= 7)) &&
+        (!('limitations' in request.resource.data) || request.resource.data.limitations == null ||
+          (request.resource.data.limitations is string &&
+           request.resource.data.limitations.size() <= 1000)) &&
+        (!('photoPath' in request.resource.data) ||
+          (request.resource.data.photoPath is string &&
+           request.resource.data.photoPath.matches('gyms/' + gymId + '/profiles/' + uid + '/.*')));
+    }
 
     match /users/{uid} {
       allow read, update, delete: if signedIn() && request.auth.uid == uid || platformAdmin();
@@ -57,6 +91,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /platform_feature_metrics/{featureId} {
+      allow read: if platformAdmin();
+      allow write: if false;
+    }
+
+    match /platform_feedback/{feedbackId} {
+      allow read: if platformAdmin();
+      allow write: if false;
+    }
+
     match /trial_claims/{uid} {
       allow read, write: if false;
     }
@@ -76,8 +120,12 @@ service cloud.firestore {
         allow create: if false;
         allow update: if tenantValid(gymId) && identityValid(uid) &&
           activeGym(gymId) && request.auth.uid == uid &&
+          validMemberProfile(gymId, uid) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'displayName', 'phone', 'photoUrl', 'dateOfBirth', 'gender', 'updatedAt'
+            'displayName', 'phone', 'photoUrl', 'photoPath', 'dateOfBirth', 'gender',
+            'heightCm', 'weightKg', 'experienceLevel', 'fitnessGoals',
+            'workoutDaysPerWeek', 'equipmentAccess', 'limitations',
+            'onboardingCompletedAt', 'updatedAt'
           ]);
         allow delete: if permission(gymId, 'members.delete');
       }
@@ -216,6 +264,11 @@ service cloud.firestore {
 
       match /dashboard_metrics/{metricId} {
         allow read: if permission(gymId, 'dashboard.read');
+        allow write: if false;
+      }
+
+      match /feature_metrics/{featureId} {
+        allow read: if platformAdmin() || role(gymId, ['owner', 'manager']);
         allow write: if false;
       }
     }

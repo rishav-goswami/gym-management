@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -16,6 +17,7 @@ import '../../data/firebase_session_repository.dart';
 import 'package:gym_core/gym_core.dart';
 import '../../logic/session_cubit.dart';
 import '../member/member_home_panel.dart';
+import '../member/member_profile_panel.dart';
 import '../member/member_training_panel.dart';
 import '../shared/gym_brand_mark.dart';
 import 'billing_management_panel.dart';
@@ -84,7 +86,8 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
             NavigationRail(
               extended: MediaQuery.sizeOf(context).width >= 1180,
               selectedIndex: _index,
-              onDestinationSelected: (value) => setState(() => _index = value),
+              onDestinationSelected: (value) =>
+                  _selectDestination(value, destinations, membership),
               destinations: destinations
                   .map(
                     (item) => NavigationRailDestination(
@@ -151,6 +154,7 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
             Icons.chat_bubble_outline,
             'conversations',
           ),
+        const _Destination('Profile', Icons.person_outline, 'profile'),
       ];
     }
     if (role == GymRole.trainer) {
@@ -193,7 +197,8 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
 
   Future<void> _selectMobile(int value, List<_Destination> destinations) async {
     if (value < 4) {
-      setState(() => _index = value);
+      final membership = context.read<SessionCubit>().state.activeMembership!;
+      _selectDestination(value, destinations, membership);
       return;
     }
     final selected = await showModalBottomSheet<int>(
@@ -213,7 +218,34 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
         ),
       ),
     );
-    if (selected != null) setState(() => _index = selected);
+    if (!mounted) return;
+    if (selected != null) {
+      final membership = context.read<SessionCubit>().state.activeMembership!;
+      _selectDestination(selected, destinations, membership);
+    }
+  }
+
+  void _selectDestination(
+    int value,
+    List<_Destination> destinations,
+    GymMembership membership,
+  ) {
+    setState(() => _index = value);
+    final featureId = switch (destinations[value].collection) {
+      'workout_assignments' => 'training',
+      'measurements' => 'progress',
+      'billing' || 'payments' => 'billing',
+      'class_sessions' => 'classes',
+      'conversations' => 'chat',
+      'configuration' => 'branding',
+      final value => value,
+    };
+    unawaited(
+      context
+          .read<GymRepository>()
+          .trackFeatureUsage(gymId: membership.gymId, featureId: featureId)
+          .catchError((_) {}),
+    );
   }
 
   Future<void> _accountAction(String action) async {
@@ -307,6 +339,9 @@ class _WorkspaceContent extends StatelessWidget {
     }
     if (destination.collection == 'conversations') {
       return _ConversationsPanel(membership: membership);
+    }
+    if (destination.collection == 'profile') {
+      return MemberProfilePanel(membership: membership);
     }
     return _CollectionView(destination: destination, membership: membership);
   }

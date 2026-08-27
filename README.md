@@ -7,6 +7,9 @@ Two independently built Flutter clients use Firebase as their shared system of r
 
 Platform code is not imported into the customer application. A separate Firebase Web App registration and Hosting target are used for each web client. Actual authorization remains enforced by the `platformAdmin` custom claim, Cloud Functions, and Firestore rules.
 
+AI agents and contributors should start with [`AGENTS.md`](AGENTS.md). It maps
+the product boundaries, verification baseline, and canonical project documents.
+
 ## What is implemented
 
 - Firebase Auth with email/password and phone OTP, invitation-only gym roles, and platform-admin custom claims.
@@ -40,6 +43,9 @@ migration are documented in
 [`docs/INFRASTRUCTURE_AND_MIGRATION.md`](docs/INFRASTRUCTURE_AND_MIGRATION.md).
 Platform and owner branding workflows are documented in
 [`docs/TENANT_BRANDING.md`](docs/TENANT_BRANDING.md).
+Feature analytics, product feedback, and member recommendation onboarding are
+documented in
+[`docs/PRODUCT_ANALYTICS_AND_ONBOARDING.md`](docs/PRODUCT_ANALYTICS_AND_ONBOARDING.md).
 
 ## Prerequisites
 

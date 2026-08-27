@@ -15,45 +15,74 @@ class MemberHomePanel extends StatelessWidget {
   final GymMembership membership;
 
   @override
-  Widget build(BuildContext context) {
-    const goal = TrainingGoal.improveFitness;
-    final plan = exercisesForGoal(goal, limit: 5);
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        Text(
-          'Ready to move?',
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
-        Text(membership.tagline),
-        const SizedBox(height: 16),
-        MemberSubscriptionBanner(membership: membership),
-        const SizedBox(height: 20),
-        _TodayWorkoutCard(
-          exercises: plan,
-          onStart: () => openGuidedWorkout(
-            context,
-            membership: membership,
-            goal: goal,
-            exercises: plan,
+  Widget build(
+    BuildContext context,
+  ) => StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+    stream: context.read<GymRepository>().memberProfile(
+      membership.gymId,
+      membership.uid,
+    ),
+    builder: (context, snapshot) {
+      final profile = snapshot.data?.data() ?? const <String, dynamic>{};
+      final goal = _recommendedGoal(profile);
+      final plan = exercisesForGoal(goal, limit: 5);
+      return ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Text(
+            'Ready to move?',
+            style: Theme.of(context).textTheme.headlineMedium,
           ),
-        ),
-        const SizedBox(height: 20),
-        _MemberTrainingSummary(membership: membership),
-        const SizedBox(height: 20),
-        _GymAnnouncements(membership: membership),
-        const SizedBox(height: 20),
-        Card(
-          child: ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.support_agent)),
-            title: const Text('Need help with your plan?'),
-            subtitle: const Text(
-              'Open Support to message your trainer or gym team before changing a prescribed routine.',
+          Text(membership.tagline),
+          if (profile['onboardingCompletedAt'] == null)
+            const Card(
+              child: ListTile(
+                leading: Icon(Icons.auto_awesome),
+                title: Text('Personalize your recommendations'),
+                subtitle: Text(
+                  'Open Profile and complete your goals, experience and available equipment.',
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          MemberSubscriptionBanner(membership: membership),
+          const SizedBox(height: 20),
+          _TodayWorkoutCard(
+            exercises: plan,
+            onStart: () => openGuidedWorkout(
+              context,
+              membership: membership,
+              goal: goal,
+              exercises: plan,
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 20),
+          _MemberTrainingSummary(membership: membership),
+          const SizedBox(height: 20),
+          _GymAnnouncements(membership: membership),
+          const SizedBox(height: 20),
+          Card(
+            child: ListTile(
+              leading: const CircleAvatar(child: Icon(Icons.support_agent)),
+              title: const Text('Need help with your plan?'),
+              subtitle: const Text(
+                'Open Support to message your trainer or gym team before changing a prescribed routine.',
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+
+  TrainingGoal _recommendedGoal(Map<String, dynamic> profile) {
+    final goals = Set<String>.from(
+      profile['fitnessGoals'] as List? ?? const [],
     );
+    for (final goal in TrainingGoal.values) {
+      if (goals.contains(goal.name)) return goal;
+    }
+    return TrainingGoal.improveFitness;
   }
 }
 

@@ -19,6 +19,61 @@ class GymRepository {
   Stream<DocumentSnapshot<Map<String, dynamic>>> usage(String gymId) =>
       firestore.doc('gyms/$gymId/usage/current').snapshots();
 
+  Stream<DocumentSnapshot<Map<String, dynamic>>> memberProfile(
+    String gymId,
+    String uid,
+  ) => firestore.doc('gyms/$gymId/members/$uid').snapshots();
+
+  Future<void> updateMemberProfile({
+    required String gymId,
+    required String uid,
+    required String displayName,
+    required String experienceLevel,
+    required List<String> fitnessGoals,
+    required int workoutDaysPerWeek,
+    required List<String> equipmentAccess,
+    double? heightCm,
+    double? weightKg,
+    String? phone,
+    String? gender,
+    String? limitations,
+    String? photoPath,
+  }) => firestore.doc('gyms/$gymId/members/$uid').update({
+    'displayName': displayName.trim(),
+    'experienceLevel': experienceLevel,
+    'fitnessGoals': fitnessGoals,
+    'workoutDaysPerWeek': workoutDaysPerWeek,
+    'equipmentAccess': equipmentAccess,
+    'heightCm': heightCm,
+    'weightKg': weightKg,
+    'phone': _nullable(phone),
+    'gender': _nullable(gender),
+    'limitations': _nullable(limitations),
+    if (photoPath != null) 'photoPath': photoPath,
+    'onboardingCompletedAt': FieldValue.serverTimestamp(),
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+
+  Future<void> trackFeatureUsage({
+    required String gymId,
+    required String featureId,
+  }) => functions.httpsCallable('trackFeatureUsage').call<void>({
+    'gymId': gymId,
+    'featureId': featureId,
+  });
+
+  Future<void> submitFeatureFeedback({
+    required String gymId,
+    required String featureId,
+    required int rating,
+    required String message,
+  }) => functions.httpsCallable('submitFeatureFeedback').call<void>({
+    'gymId': gymId,
+    'featureId': featureId,
+    'rating': rating,
+    'message': message.trim(),
+  });
+
   Stream<QuerySnapshot<Map<String, dynamic>>> publicSaasPlans() => firestore
       .collection('saas_plans')
       .where('status', isEqualTo: 'active')

@@ -16,6 +16,26 @@ class PlatformGymRepository {
   final FirebaseStorage storage;
   final ImagePicker picker;
 
+  Future<Map<String, dynamic>> loadDashboard() async =>
+      Map<String, dynamic>.from(
+        (await functions.httpsCallable('getPlatformDashboard').call()).data
+            as Map,
+      );
+
+  Future<void> setSubscription({
+    required String gymId,
+    required String planId,
+    required String status,
+    required int durationDays,
+    required Map<String, bool> featureOverrides,
+  }) => functions.httpsCallable('setGymSubscription').call<void>({
+    'gymId': gymId,
+    'planId': planId,
+    'status': status,
+    'durationDays': durationDays,
+    'featureOverrides': featureOverrides,
+  });
+
   Future<String?> pickAndUploadLogo(String gymId) async {
     final image = await picker.pickImage(
       source: ImageSource.gallery,

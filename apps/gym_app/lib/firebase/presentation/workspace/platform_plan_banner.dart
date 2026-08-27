@@ -28,6 +28,9 @@ class PlatformPlanBanner extends StatelessWidget {
             final limits = Map<String, dynamic>.from(
               subscription['limits'] as Map? ?? const {},
             );
+            final features = Map<String, bool>.from(
+              subscription['features'] as Map? ?? const {},
+            );
             final end = subscription['endsAt'] as Timestamp?;
             final days = end == null
                 ? null
@@ -83,6 +86,13 @@ class PlatformPlanBanner extends StatelessWidget {
                       used: usage['scheduledClasses'],
                       limit: limits['scheduledClasses'],
                     ),
+                    for (final feature in features.entries.where(
+                      (entry) => entry.value,
+                    ))
+                      Chip(
+                        avatar: const Icon(Icons.check, size: 16),
+                        label: Text(_featureLabel(feature.key)),
+                      ),
                     if (membership.role == GymRole.owner)
                       FilledButton.tonal(
                         onPressed: () => _showUpgrade(context),
@@ -95,6 +105,15 @@ class PlatformPlanBanner extends StatelessWidget {
           },
         ),
   );
+
+  String _featureLabel(String key) => switch (key) {
+    'attendanceQr' => 'QR attendance',
+    'dietPlans' => 'Diet plans',
+    'progressPhotos' => 'Progress photos',
+    'chat' => 'Chat',
+    'classes' => 'Classes',
+    _ => key,
+  };
 
   Future<void> _showUpgrade(BuildContext context) async {
     await showDialog<void>(

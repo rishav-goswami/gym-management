@@ -75,6 +75,43 @@ class GymMediaRepository {
     return path;
   }
 
+  Future<String?> pickAndUploadProfilePhoto({
+    required String gymId,
+    required String uid,
+  }) async {
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 1000,
+      maxHeight: 1000,
+    );
+    if (image == null) return null;
+    final bytes = await image.readAsBytes();
+    if (bytes.length > 10 * 1024 * 1024) {
+      throw StateError('Profile image must be smaller than 10 MB.');
+    }
+    final contentType = image.mimeType?.startsWith('image/') == true
+        ? image.mimeType!
+        : 'image/jpeg';
+    final extension = switch (contentType) {
+      'image/png' => 'png',
+      'image/webp' => 'webp',
+      _ => 'jpg',
+    };
+    final path =
+        'gyms/$gymId/profiles/$uid/avatar-${DateTime.now().millisecondsSinceEpoch}.$extension';
+    await storage
+        .ref(path)
+        .putData(
+          bytes,
+          SettableMetadata(
+            contentType: contentType,
+            cacheControl: 'private,max-age=3600',
+          ),
+        );
+    return path;
+  }
+
   /// Reads through the authenticated SDK; no permanent public download URL is created.
   Future<Uint8List?> readPrivatePhoto(
     String storagePath, {
