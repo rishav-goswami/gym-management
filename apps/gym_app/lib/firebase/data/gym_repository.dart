@@ -226,6 +226,26 @@ class GymRepository {
       .limit(limit)
       .snapshots();
 
+  Stream<QuerySnapshot<Map<String, dynamic>>> memberProgressPhotos(
+    String gymId,
+    String uid, {
+    int limit = 24,
+  }) => firestore
+      .collection('gyms/$gymId/progress_photos')
+      .where('memberUid', isEqualTo: uid)
+      .limit(limit)
+      .snapshots();
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> memberRoutines(
+    String gymId,
+    String uid, {
+    int limit = 30,
+  }) => firestore
+      .collection('gyms/$gymId/member_routines')
+      .where('memberUid', isEqualTo: uid)
+      .limit(limit)
+      .snapshots();
+
   Future<Map<String, dynamic>> createInvitation({
     required String gymId,
     required String role,
@@ -438,6 +458,44 @@ class GymRepository {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  Future<void> saveMemberRoutine({
+    required String gymId,
+    required String uid,
+    String? routineId,
+    required String name,
+    required List<int> scheduledWeekdays,
+    required List<Map<String, dynamic>> movements,
+  }) async {
+    await _requireOnline();
+    final data = <String, dynamic>{
+      'gymId': gymId,
+      'memberUid': uid,
+      'name': name.trim(),
+      'scheduledWeekdays': scheduledWeekdays,
+      'movements': movements,
+      'status': 'active',
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (routineId == null) {
+      await firestore.collection('gyms/$gymId/member_routines').add({
+        ...data,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      await firestore
+          .doc('gyms/$gymId/member_routines/$routineId')
+          .update(data);
+    }
+  }
+
+  Future<void> deleteMemberRoutine({
+    required String gymId,
+    required String routineId,
+  }) async {
+    await _requireOnline();
+    await firestore.doc('gyms/$gymId/member_routines/$routineId').delete();
   }
 
   Future<void> createManagedRecord({

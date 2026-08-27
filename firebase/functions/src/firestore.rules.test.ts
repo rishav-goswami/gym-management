@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { assertFails, assertSucceeds, initializeTestEnvironment, RulesTestEnvironment } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, Timestamp, updateDoc } from "firebase/firestore";
+import { deleteDoc, doc, getDoc, setDoc, Timestamp, updateDoc } from "firebase/firestore";
 import { getBytes, ref, uploadBytes } from "firebase/storage";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
@@ -52,6 +52,9 @@ beforeEach(async () => {
     await setDoc(doc(store, "gyms/gym-b/members/member-b"), { memberUid: "member-b", name: "B" });
     await setDoc(doc(store, "gyms/gym-a/workout_assignments/assignment-a"), { memberUid: "member-a" });
     await setDoc(doc(store, "gyms/gym-a/workout_assignments/assignment-other"), { memberUid: "member-b" });
+    await setDoc(doc(store, "gyms/gym-a/member_routines/member-b-routine"), {
+      gymId: "gym-a", memberUid: "member-b", name: "Private routine", movements: []
+    });
     await setDoc(doc(store, "gyms/gym-a/subscriptions/member-a"), {
       gymId: "gym-a", memberUid: "member-a", status: "active"
     });
@@ -174,6 +177,20 @@ describe("Firestore tenant isolation", () => {
     await assertFails(updateDoc(doc(store, "gyms/gym-a/members/member-a"), {
       role: "owner"
     }));
+  });
+
+  it("allows member routines without permitting ownership takeover", async () => {
+    const store = environment.authenticatedContext("member-a").firestore();
+    const own = doc(store, "gyms/gym-a/member_routines/member-a-routine");
+    await assertSucceeds(setDoc(own, {
+      gymId: "gym-a", memberUid: "member-a", name: "Push day", movements: []
+    }));
+    await assertSucceeds(updateDoc(own, { name: "Updated push day" }));
+    await assertFails(updateDoc(
+      doc(store, "gyms/gym-a/member_routines/member-b-routine"),
+      { memberUid: "member-a", name: "Taken over" }
+    ));
+    await assertSucceeds(deleteDoc(own));
   });
 
   it("keeps product analytics and feedback private to platform administrators", async () => {

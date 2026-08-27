@@ -25,10 +25,57 @@ app's visual design or proprietary media:
    moves between exercises. An in-progress draft is stored per member and gym so
    it can be resumed after an interruption or mobile process termination.
 6. Finishing writes a member-owned `workout_logs` document containing timing,
-   goal, exercises, target/completed sets, repetitions, and weight.
+   goal, exercises, target/completed sets, completed reps per set, and working
+   weight. That log is the source for the member's training progress.
 7. Trainer-authored `workout_assignments` remain visible above self-guided
    workouts. The next trainer iteration should replace free-text routines with
    structured exercises and revisions.
+
+### Member-created routines and free logging
+
+Members can create reusable `member_routines` for any combination of weekdays,
+edit or delete them, and start a new log from a routine. **Log today's workout**
+also supports an unplanned session without creating a template first.
+
+Each movement chooses a tracking contract:
+
+- strength: independent weight and reps for every set;
+- bodyweight: reps and optional added load for every set;
+- cardio: one or more intervals with duration, speed, incline, distance, and
+  optional added load;
+- timed movement: duration and optional added load.
+
+Catalog exercises retain their stable exercise ID. Custom movements receive a
+stable ID when added to a routine, allowing later sessions to stay grouped in
+Progress. Version-two workout logs retain the detailed `sets` array while also
+writing compatibility summary fields for older clients.
+
+## Connected progress
+
+The member **Progress** area follows established strength-tracker information
+patterns without copying another product's visual design:
+
+- **Overview** summarizes the latest 28 days, eight-week workout consistency,
+  training time, completed sets, estimated lifted volume, recent sessions, and
+  the latest body snapshot.
+- **Exercises** groups workout-log entries by stable exercise ID. Each exercise
+  exposes its guidance image, history, best working weight, estimated one-rep
+  maximum, best session volume, bodyweight rep records, or cardio time/speed/
+  incline/distance. This is the primary link between exercise guidance and
+  progress.
+- **Body** charts weight and optional body-fat history and reads private progress
+  photos through authenticated Firebase Storage rather than public URLs.
+
+Estimated volume is `sets × completed reps × working weight`. Estimated 1RM uses
+the Epley formula as a trend indicator; the UI explicitly avoids presenting it
+as an instruction to attempt a maximal lift. Older workout logs that contain
+only a textual target rep range remain readable, while new logs record the
+member-entered completed reps.
+
+Product references: Strong's official exercise detail model connects guidance,
+history, charts, and records; Hevy's official documentation differentiates
+weighted, bodyweight, duration, and cardio performance metrics. We adopt the
+information architecture, not their branding, copy, screenshots, or layouts.
 
 Writes require connectivity. Firebase Storage is the primary origin for core
 guidance media and `cached_network_image` keeps viewed images on-device. Resolved
@@ -76,8 +123,8 @@ health conditions without validated inputs and an explicit safety design.
    plate calculator, and personal-record detection.
 3. Goal onboarding using experience, weekly schedule, available gym equipment,
    injuries/limitations, and preferred session length.
-4. Workout calendar, exercise charts, volume by muscle group, streaks, records,
-   adherence, and trainer timeline.
+4. Workout calendar, volume by muscle group, richer set-level logging, streaks,
+   and trainer-visible adherence/timeline views.
 5. Media compression, Hindi localization, and accessibility review.
 6. Health Connect and HealthKit only after the core manual workout flow is
    reliable and privacy controls are complete.

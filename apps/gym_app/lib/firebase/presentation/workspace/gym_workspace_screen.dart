@@ -18,6 +18,7 @@ import '../../data/firebase_session_repository.dart';
 import 'package:gym_core/gym_core.dart';
 import '../../logic/session_cubit.dart';
 import '../member/member_home_panel.dart';
+import '../member/member_progress_panel.dart';
 import '../member/member_profile_panel.dart';
 import '../member/member_training_panel.dart';
 import '../shared/gym_brand_mark.dart';
@@ -563,6 +564,10 @@ class _WorkspaceContent extends StatelessWidget {
     if (destination.collection == 'workout_assignments' &&
         membership.role == GymRole.member) {
       return MemberTrainingPanel(membership: membership);
+    }
+    if (destination.collection == 'measurements' &&
+        membership.role == GymRole.member) {
+      return MemberProgressPanel(membership: membership);
     }
     if (destination.collection == 'attendance') {
       return _AttendancePanel(membership: membership);

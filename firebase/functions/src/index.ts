@@ -1662,7 +1662,7 @@ export const exportMyData = onCall(
     const memberCollections = [
       "subscriptions", "payments", "attendance", "class_bookings",
       "workout_assignments", "diet_assignments", "goals", "measurements",
-      "personal_records", "workout_logs", "progress_photos"
+      "personal_records", "workout_logs", "progress_photos", "member_routines"
     ];
     for (const membership of memberships.docs) {
       const gymId = String(membership.get("gymId"));

@@ -195,8 +195,25 @@ Sign in as `member@pilotgym.example.com`.
   Send a renewal request and confirm the selected plan becomes pending. Log in
   as owner and confirm it appears under **Payments → Overview**.
 - **Workout:** confirm assigned workouts appear after the trainer test.
-- **Progress:** log a measurement. Upload a small image and verify that the
-  private object appears under the gym/member Storage path without a public URL.
+- **Workout:** start a guided session, enter working weight and completed reps,
+  complete sets, and finish it. Open **Progress → Exercises**, select that
+  exercise, and confirm its history, chart, volume, and record values reflect the
+  saved session. A bodyweight exercise should show rep records instead of fake
+  weight records.
+- **Custom routine:** create a routine assigned to at least two weekdays. Add a
+  cardio movement, bodyweight movement, and a strength exercise. Edit the
+  routine, reopen it, and confirm schedule/movements persist. Start it and log a
+  treadmill interval of 15 minutes, 12 km/h, 6% incline, and 1 kg added load;
+  three push-up sets of 15; and bench-press sets of 40 kg × 15, 50 kg × 15, and
+  70 kg × 8. Finish the workout and verify each movement's correct metrics under
+  **Progress → Exercises**. Deleting the routine must retain completed history.
+- **Quick log:** use **Log today's workout**, add a custom movement, save it, and
+  confirm it appears in recent workouts without first creating a routine.
+- **Progress:** confirm Overview shows the workout in its recent history and
+  eight-week consistency chart. Log weight and optional body fat and confirm the
+  Body charts update. Upload a small image, verify its authenticated thumbnail,
+  and confirm the private object exists under the gym/member Storage path without
+  a permanent public URL.
 - **Check in:** scan the owner's current QR before its 60-second expiry. Confirm
   the attendance document. A second scan must not create a duplicate check-in.
 - **Classes:** book a scheduled class and confirm its booked count changes. A

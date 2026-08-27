@@ -90,6 +90,22 @@
       ]
     },
     {
+      "collectionGroup": "member_routines",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "memberUid", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "progress_photos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "memberUid", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "notifications",
       "queryScope": "COLLECTION_GROUP",
       "fields": [

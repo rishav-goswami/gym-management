@@ -8,6 +8,7 @@ import 'package:gym_core/gym_core.dart';
 import '../../data/gym_repository.dart';
 import '../../domain/exercise_guide.dart';
 import '../../domain/workout_draft.dart';
+import 'member_custom_workouts.dart';
 import 'exercise_media_image.dart';
 
 Future<void> openGuidedWorkout(
@@ -118,6 +119,8 @@ class _MemberTrainingPanelState extends State<MemberTrainingPanel> {
         const SizedBox(height: 20),
         _GoalPlanCard(goal: _goal, onStart: () => _startWorkout(context)),
         const SizedBox(height: 20),
+        MemberRoutinesSection(membership: widget.membership),
+        const SizedBox(height: 24),
         _TrainerAssignments(membership: widget.membership),
         const SizedBox(height: 24),
         Text(
@@ -594,6 +597,7 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
   late final DateTime _startedAt;
   late final List<int> _completedSets;
   late final List<TextEditingController> _weights;
+  late final List<TextEditingController> _repsPerSet;
   int _exerciseIndex = 0;
   int _restRemaining = 0;
   Timer? _restTimer;
@@ -613,6 +617,14 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
         text: widget.initialDraft?.weights[index] ?? '',
       ),
     );
+    _repsPerSet = List.generate(
+      widget.exercises.length,
+      (index) => TextEditingController(
+        text:
+            widget.initialDraft?.repsPerSet[index] ??
+            _suggestedReps(widget.exercises[index].defaultReps),
+      ),
+    );
   }
 
   @override
@@ -620,6 +632,9 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
     _restTimer?.cancel();
     _draftTimer?.cancel();
     for (final controller in _weights) {
+      controller.dispose();
+    }
+    for (final controller in _repsPerSet) {
       controller.dispose();
     }
     super.dispose();
@@ -722,19 +737,47 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
           ),
           const SizedBox(height: 20),
           Text(
-            'Working weight',
+            'Set performance',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
-          TextField(
-            controller: _weights[_exerciseIndex],
-            onChanged: (_) => _scheduleDraftSave(),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Weight in kg (optional)',
-              suffixText: 'kg',
-              border: OutlineInputBorder(),
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _weights[_exerciseIndex],
+                  onChanged: (_) => _scheduleDraftSave(),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Working weight',
+                    suffixText: 'kg',
+                    helperText: 'Optional for bodyweight',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _repsPerSet[_exerciseIndex],
+                  onChanged: (_) => _scheduleDraftSave(),
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Reps per set',
+                    helperText: 'Target: ${exercise.defaultReps}',
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'These values update your exercise history and records.',
+            style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 16),
           ...List.generate(
@@ -853,6 +896,9 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
                 if (double.tryParse(_weights[index].text.trim())
                     case final weight?)
                   'weightKg': weight,
+                if (int.tryParse(_repsPerSet[index].text.trim())
+                    case final reps?)
+                  'repsPerSet': reps,
               },
           ],
         },
@@ -907,11 +953,17 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
           weights: _weights
               .map((controller) => controller.text)
               .toList(growable: false),
+          repsPerSet: _repsPerSet
+              .map((controller) => controller.text)
+              .toList(growable: false),
           startedAt: _startedAt,
         ),
       );
     });
   }
+
+  static String _suggestedReps(String target) =>
+      RegExp(r'\d+').firstMatch(target)?.group(0) ?? '';
 }
 
 class _TrainingSafetyNote extends StatelessWidget {

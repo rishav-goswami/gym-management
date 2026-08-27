@@ -212,12 +212,17 @@ service cloud.firestore {
         allow read: if collection in [
           'workout_templates', 'diet_templates', 'workout_assignments',
           'diet_assignments', 'goals', 'measurements', 'personal_records',
-          'workout_logs', 'progress_photos'
+          'workout_logs', 'progress_photos', 'member_routines'
         ] && activeGym(gymId) &&
           (resource.data.memberUid == request.auth.uid ||
            role(gymId, ['trainer']) || permission(gymId, 'fitness.manage'));
-        allow create, update: if collection in ['goals', 'measurements', 'personal_records', 'workout_logs', 'progress_photos'] &&
+        allow create: if collection in ['goals', 'measurements', 'personal_records', 'workout_logs', 'progress_photos', 'member_routines'] &&
           activeGym(gymId) && request.resource.data.memberUid == request.auth.uid && tenantValid(gymId);
+        allow update: if collection in ['goals', 'measurements', 'personal_records', 'workout_logs', 'progress_photos', 'member_routines'] &&
+          activeGym(gymId) && resource.data.memberUid == request.auth.uid &&
+          request.resource.data.memberUid == request.auth.uid && tenantValid(gymId);
+        allow delete: if collection == 'member_routines' && activeGym(gymId) &&
+          resource.data.memberUid == request.auth.uid;
         allow create, update: if collection in [
           'workout_templates', 'diet_templates', 'workout_assignments', 'diet_assignments'
         ] && permission(gymId, 'fitness.manage') && tenantValid(gymId);

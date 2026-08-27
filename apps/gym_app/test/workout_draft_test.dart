@@ -14,6 +14,7 @@ void main() {
       exerciseIds: const ['squat', 'row'],
       completedSets: const [2, 1],
       weights: const ['40', '25'],
+      repsPerSet: const ['8', '10'],
       startedAt: startedAt,
     );
 
@@ -23,6 +24,7 @@ void main() {
     expect(restored, isNotNull);
     expect(restored!.completedSets, [2, 1]);
     expect(restored.weights, ['40', '25']);
+    expect(restored.repsPerSet, ['8', '10']);
     expect(restored.startedAt, startedAt);
     expect(
       restored.matches(
@@ -44,6 +46,7 @@ void main() {
         exerciseIds: const ['stretch'],
         completedSets: const [1],
         weights: const [''],
+        repsPerSet: const ['30'],
         startedAt: DateTime.utc(2026),
       ),
     );
