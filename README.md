@@ -11,7 +11,8 @@ Platform code is not imported into the customer application. A separate Firebase
 
 - Firebase Auth with email/password and phone OTP, invitation-only gym roles, and platform-admin custom claims.
 - Firestore tenant data under `gyms/{gymId}` and memberships at `gym_memberships/{gymId_uid}`.
-- Runtime gym name/color branding and responsive staff, trainer, and member workspaces.
+- Runtime gym logo, name, tagline and color branding with responsive staff,
+  trainer, and member workspaces.
 - A separately deployed platform console for tenant provisioning and status control, with no public registration or customer-app route.
 - Callable Functions for gym provisioning, invitations, recorded renewals, rotating QR attendance, atomic class booking, safe chat creation, export/deletion requests, FCM notifications, and expiry reminders.
 - Verified self-service owner trials with versioned SaaS plans, transactional usage limits, upgrade requests, and platform-admin approval.
@@ -37,6 +38,8 @@ Owner onboarding, quotas, and upgrades are documented in
 Project provisioning, infrastructure ownership, backups, and account-to-account
 migration are documented in
 [`docs/INFRASTRUCTURE_AND_MIGRATION.md`](docs/INFRASTRUCTURE_AND_MIGRATION.md).
+Platform and owner branding workflows are documented in
+[`docs/TENANT_BRANDING.md`](docs/TENANT_BRANDING.md).
 
 ## Prerequisites
 
@@ -143,16 +146,17 @@ The development cloud project is on Blaze. It has its Firestore database in
 released, invitation/QR TTL enabled, Remote Config published, Authentication
 configured, and the Node.js 22 Functions deployed in `asia-south1`. The
 customer and platform web applications are live on their dedicated Hosting
-sites. Firebase Storage is the only remaining one-time service setup.
+sites. Firebase Storage is provisioned in `asia-south1`, its security rules are
+deployed, and the versioned exercise catalog is synchronized.
 
-### Finish the `createmix-in` cloud setup
+### Reapply the `createmix-in` Storage setup
 
-Open [Firebase Storage](https://console.firebase.google.com/project/createmix-in/storage),
-click **Get started**, and keep the bucket in an India-appropriate location
-when Firebase offers a choice. Then deploy the checked-in Storage rules:
+Storage provisioning is idempotent and tracked as a repository command:
 
 ```sh
+npm run storage:provision -- --project createmix-in --existing-only
 npx firebase deploy --project createmix-in --only storage
+npm run catalog:sync -- --project createmix-in --confirm createmix-in
 ```
 
 For a fresh Firebase environment, run the secure bootstrap from the repository

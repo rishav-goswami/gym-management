@@ -44,4 +44,34 @@ void main() {
     expect((target.sets, target.reps, target.weightKg), (4, 8, 62.5));
     expect(goalProgress(start: 100, current: 90, target: 80), .5);
   });
+
+  test('gym branding and business profile load from tenant data', () {
+    const membership = GymMembership(
+      id: 'gym_uid',
+      gymId: 'gym',
+      uid: 'uid',
+      role: GymRole.member,
+      status: 'active',
+      permissions: {},
+    );
+    final branded = membership.withGym({
+      'name': 'Lift House',
+      'currency': 'INR',
+      'city': 'Jaipur',
+      'branding': {
+        'logoUrl': 'https://example.com/logo.png',
+        'primaryColor': '#112233',
+        'secondaryColor': '#223344',
+        'accentColor': '#FF6600',
+        'tagline': 'Train with purpose',
+      },
+    });
+    expect(branded.gymName, 'Lift House');
+    expect(branded.logoUrl, 'https://example.com/logo.png');
+    expect(branded.primaryColor, '#112233');
+    expect(branded.secondaryColor, '#223344');
+    expect(branded.accentColor, '#FF6600');
+    expect(branded.tagline, 'Train with purpose');
+    expect(branded.city, 'Jaipur');
+  });
 }

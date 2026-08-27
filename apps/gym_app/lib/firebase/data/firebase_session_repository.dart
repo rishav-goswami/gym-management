@@ -26,6 +26,10 @@ class FirebaseSessionRepository {
   ConfirmationResult? _webConfirmation;
 
   Stream<User?> get authChanges => auth.authStateChanges();
+  Stream<Map<String, dynamic>> gymChanges(String gymId) => firestore
+      .doc('gyms/$gymId')
+      .snapshots()
+      .map((snapshot) => snapshot.data() ?? const {});
   Stream<String> get pushTokenChanges =>
       FirebaseMessaging.instance.onTokenRefresh;
 

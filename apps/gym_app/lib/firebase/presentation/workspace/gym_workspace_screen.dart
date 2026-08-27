@@ -17,6 +17,7 @@ import 'package:gym_core/gym_core.dart';
 import '../../logic/session_cubit.dart';
 import '../member/member_home_panel.dart';
 import '../member/member_training_panel.dart';
+import '../shared/gym_brand_mark.dart';
 import 'billing_management_panel.dart';
 import 'member_billing_panel.dart';
 import 'platform_plan_banner.dart';
@@ -44,7 +45,16 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(membership.gymName),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GymBrandMark(membership: membership),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(membership.gymName, overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
         actions: [
           Chip(label: Text(membership.role.name)),
           IconButton(
@@ -176,7 +186,8 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
       const _Destination('Payments', Icons.payments_outlined, 'payments'),
       const _Destination('Staff', Icons.badge_outlined, 'staff'),
       const _Destination('Notices', Icons.campaign_outlined, 'announcements'),
-      const _Destination('Settings', Icons.settings_outlined, 'configuration'),
+      if (membership.can('staff.manage'))
+        const _Destination('Branding', Icons.palette_outlined, 'configuration'),
     ];
   }
 
@@ -1591,28 +1602,41 @@ class _GymSettingsPanel extends StatefulWidget {
 
 class _GymSettingsPanelState extends State<_GymSettingsPanel> {
   late final name = TextEditingController(text: widget.membership.gymName);
-  final currency = TextEditingController(text: 'INR');
-  final timezone = TextEditingController(text: 'Asia/Kolkata');
-  final locale = TextEditingController(text: 'en-IN');
+  late final tagline = TextEditingController(text: widget.membership.tagline);
+  late final currency = TextEditingController(text: widget.membership.currency);
+  late final timezone = TextEditingController(text: widget.membership.timezone);
+  late final locale = TextEditingController(text: widget.membership.locale);
+  late final phone = TextEditingController(text: widget.membership.phone ?? '');
+  late final city = TextEditingController(text: widget.membership.city ?? '');
+  late final website = TextEditingController(
+    text: widget.membership.website ?? '',
+  );
   late final primaryColor = TextEditingController(
     text: widget.membership.primaryColor,
   );
-  late final features = <String, bool>{
-    'classes': widget.membership.feature('classes'),
-    'chat': widget.membership.feature('chat'),
-    'attendanceQr': widget.membership.feature('attendanceQr'),
-    'dietPlans': widget.membership.feature('dietPlans'),
-    'progressPhotos': widget.membership.feature('progressPhotos'),
-  };
+  late final secondaryColor = TextEditingController(
+    text: widget.membership.secondaryColor,
+  );
+  late final accentColor = TextEditingController(
+    text: widget.membership.accentColor,
+  );
+  late String? logoUrl = widget.membership.logoUrl;
   bool saving = false;
+  bool uploading = false;
 
   @override
   void dispose() {
     name.dispose();
+    tagline.dispose();
     currency.dispose();
     timezone.dispose();
     locale.dispose();
     primaryColor.dispose();
+    secondaryColor.dispose();
+    accentColor.dispose();
+    phone.dispose();
+    city.dispose();
+    website.dispose();
     super.dispose();
   }
 
@@ -1622,17 +1646,120 @@ class _GymSettingsPanelState extends State<_GymSettingsPanel> {
     children: [
       Text('Gym settings', style: Theme.of(context).textTheme.headlineMedium),
       const Text(
-        'Branding and regional settings update at runtime for the shared app.',
+        'Your logo, name and colors update for members at runtime across the shared app.',
       ),
       const SizedBox(height: 20),
+      Card(
+        clipBehavior: Clip.antiAlias,
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                _hexColor(primaryColor.text, const Color(0xFF2563EB)),
+                _hexColor(accentColor.text, const Color(0xFFF97316)),
+              ],
+            ),
+          ),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: SizedBox.square(
+                  dimension: 72,
+                  child: logoUrl == null
+                      ? const ColoredBox(
+                          color: Colors.white,
+                          child: Icon(Icons.fitness_center, size: 36),
+                        )
+                      : Image.network(
+                          logoUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => const ColoredBox(
+                            color: Colors.white,
+                            child: Icon(Icons.broken_image_outlined),
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name.text,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    Text(
+                      tagline.text,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      OutlinedButton.icon(
+        onPressed: uploading ? null : _uploadLogo,
+        icon: const Icon(Icons.upload_outlined),
+        label: Text(uploading ? 'Uploading logo…' : 'Choose gym logo'),
+      ),
+      const SizedBox(height: 12),
       TextField(
         controller: name,
+        onChanged: (_) => setState(() {}),
         decoration: const InputDecoration(labelText: 'Gym name'),
       ),
       const SizedBox(height: 12),
       TextField(
-        controller: primaryColor,
-        decoration: const InputDecoration(labelText: 'Primary color (#RRGGBB)'),
+        controller: tagline,
+        onChanged: (_) => setState(() {}),
+        decoration: const InputDecoration(labelText: 'Member tagline'),
+      ),
+      const SizedBox(height: 12),
+      Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: [
+          _GymColorField(
+            label: 'Primary',
+            controller: primaryColor,
+            onChanged: (_) => setState(() {}),
+          ),
+          _GymColorField(
+            label: 'Secondary',
+            controller: secondaryColor,
+            onChanged: (_) => setState(() {}),
+          ),
+          _GymColorField(
+            label: 'Accent',
+            controller: accentColor,
+            onChanged: (_) => setState(() {}),
+          ),
+        ],
+      ),
+      const Divider(height: 32),
+      Text('Business profile', style: Theme.of(context).textTheme.titleMedium),
+      TextField(
+        controller: phone,
+        keyboardType: TextInputType.phone,
+        decoration: const InputDecoration(labelText: 'Phone'),
+      ),
+      TextField(
+        controller: city,
+        decoration: const InputDecoration(labelText: 'City'),
+      ),
+      TextField(
+        controller: website,
+        keyboardType: TextInputType.url,
+        decoration: const InputDecoration(labelText: 'Website (https://…)'),
       ),
       const SizedBox(height: 12),
       TextField(
@@ -1650,22 +1777,32 @@ class _GymSettingsPanelState extends State<_GymSettingsPanel> {
         decoration: const InputDecoration(labelText: 'Locale'),
       ),
       const SizedBox(height: 16),
-      Text('Features', style: Theme.of(context).textTheme.titleMedium),
-      ...features.entries.map(
-        (entry) => SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(entry.key),
-          value: entry.value,
-          onChanged: (value) => setState(() => features[entry.key] = value),
-        ),
-      ),
+      const Text('App features are controlled by your active platform plan.'),
       const SizedBox(height: 24),
       FilledButton(
-        onPressed: saving ? null : _save,
+        onPressed: saving || uploading ? null : _save,
         child: Text(saving ? 'Saving…' : 'Save settings'),
       ),
     ],
   );
+
+  Future<void> _uploadLogo() async {
+    setState(() => uploading = true);
+    try {
+      final uploaded = await context
+          .read<GymMediaRepository>()
+          .pickAndUploadGymLogo(gymId: widget.membership.gymId);
+      if (mounted && uploaded != null) setState(() => logoUrl = uploaded);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$error')));
+      }
+    } finally {
+      if (mounted) setState(() => uploading = false);
+    }
+  }
 
   Future<void> _save() async {
     setState(() => saving = true);
@@ -1677,12 +1814,18 @@ class _GymSettingsPanelState extends State<_GymSettingsPanel> {
         timezone: timezone.text.trim(),
         locale: locale.text.trim(),
         primaryColor: primaryColor.text.trim(),
-        features: features,
+        secondaryColor: secondaryColor.text.trim(),
+        accentColor: accentColor.text.trim(),
+        tagline: tagline.text.trim(),
+        logoUrl: logoUrl,
+        phone: phone.text,
+        city: city.text,
+        website: website.text,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Settings saved. Switch context to reload branding.'),
+            content: Text('Branding saved and updated for active members.'),
           ),
         );
       }
@@ -1696,6 +1839,45 @@ class _GymSettingsPanelState extends State<_GymSettingsPanel> {
       if (mounted) setState(() => saving = false);
     }
   }
+}
+
+class _GymColorField extends StatelessWidget {
+  const _GymColorField({
+    required this.label,
+    required this.controller,
+    required this.onChanged,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 210,
+    child: TextField(
+      controller: controller,
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        labelText: '$label #RRGGBB',
+        prefixIcon: Padding(
+          padding: const EdgeInsets.all(13),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _hexColor(controller.text, Colors.grey),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+Color _hexColor(String value, Color fallback) {
+  final hex = value.replaceFirst('#', '');
+  if (!RegExp(r'^[0-9A-Fa-f]{6}$').hasMatch(hex)) return fallback;
+  return Color(int.parse('FF$hex', radix: 16));
 }
 
 class _Destination {

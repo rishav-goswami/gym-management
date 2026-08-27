@@ -34,12 +34,68 @@ const db = getFirestore();
 const ENFORCE_APP_CHECK = process.env.FUNCTIONS_EMULATOR !== "true";
 
 const gymSchema = z.object({
-  name: z.string().min(2).max(100),
-  ownerUid: z.string().min(1),
+  name: z.string().trim().min(2).max(100),
+  ownerUid: z.string().min(1).optional(),
+  ownerEmail: z.string().email().optional(),
   currency: z.string().length(3).default("INR"),
   timezone: z.string().default("Asia/Kolkata"),
-  locale: z.string().default("en-IN")
+  locale: z.string().default("en-IN"),
+  phone: z.string().min(8).max(20).optional(),
+  city: z.string().trim().max(80).optional(),
+  primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#2563EB"),
+  secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#0F172A"),
+  accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#F97316"),
+  tagline: z.string().trim().max(120).default("Stronger every day")
+}).refine((input) => input.ownerUid || input.ownerEmail, {
+  message: "Owner email or UID is required."
 });
+
+const gymConfigurationSchema = z.object({
+  gymId: z.string().min(1),
+  name: z.string().trim().min(2).max(100).optional(),
+  currency: z.string().length(3).optional(),
+  timezone: z.string().min(1).max(80).optional(),
+  locale: z.string().min(2).max(20).optional(),
+  phone: z.string().min(8).max(20).nullable().optional(),
+  city: z.string().trim().max(80).nullable().optional(),
+  website: z.string().url().nullable().optional(),
+  primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  tagline: z.string().trim().max(120).optional(),
+  logoUrl: z.string().url().nullable().optional()
+});
+
+const platformGymConfigurationSchema = gymConfigurationSchema.extend({
+  features: z.object({
+    classes: z.boolean(),
+    chat: z.boolean(),
+    attendanceQr: z.boolean(),
+    dietPlans: z.boolean(),
+    progressPhotos: z.boolean()
+  }).optional()
+});
+
+function configurationUpdate(input: z.infer<typeof platformGymConfigurationSchema>) {
+  const branding: Record<string, string | null> = {};
+  if (input.primaryColor !== undefined) branding.primaryColor = input.primaryColor;
+  if (input.secondaryColor !== undefined) branding.secondaryColor = input.secondaryColor;
+  if (input.accentColor !== undefined) branding.accentColor = input.accentColor;
+  if (input.tagline !== undefined) branding.tagline = input.tagline;
+  if (input.logoUrl !== undefined) branding.logoUrl = input.logoUrl;
+  return {
+    ...(input.name !== undefined ? { name: input.name } : {}),
+    ...(input.currency !== undefined ? { currency: input.currency.toUpperCase() } : {}),
+    ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
+    ...(input.locale !== undefined ? { locale: input.locale } : {}),
+    ...(input.phone !== undefined ? { phone: input.phone ? normalizePhone(input.phone) : null } : {}),
+    ...(input.city !== undefined ? { city: input.city } : {}),
+    ...(input.website !== undefined ? { website: input.website } : {}),
+    ...(Object.keys(branding).length ? { branding } : {}),
+    ...(input.features !== undefined ? { features: input.features } : {}),
+    updatedAt: FieldValue.serverTimestamp()
+  };
+}
 
 const planLimitsSchema = z.object({
   activeMembers: z.number().int().min(0).max(100000),
@@ -166,7 +222,12 @@ export const startGymTrial = onCall(
         locale: input.locale,
         city: input.city ?? null,
         phone: input.phone ? normalizePhone(input.phone) : null,
-        branding: { primaryColor: "#2563EB", secondaryColor: "#0F172A" },
+        branding: {
+          primaryColor: "#2563EB",
+          secondaryColor: "#0F172A",
+          accentColor: "#F97316",
+          tagline: "Stronger every day"
+        },
         features: plan.features,
         createdBy: request.auth!.uid,
         createdAt: now,
@@ -208,9 +269,21 @@ export const provisionGym = onCall(
   async (request) => {
     requirePlatformAdmin(request);
     const input = gymSchema.parse(request.data);
+    let ownerUid: string;
+    try {
+      const owner = input.ownerUid
+        ? await getAuth().getUser(input.ownerUid)
+        : await getAuth().getUserByEmail(normalizeEmail(input.ownerEmail!));
+      ownerUid = owner.uid;
+    } catch {
+      throw new HttpsError(
+        "not-found",
+        "No Firebase identity matches this owner. Ask them to register first."
+      );
+    }
     const gymRef = db.collection("gyms").doc();
     const membershipRef = db.doc(
-      `gym_memberships/${membershipDocumentId(gymRef.id, input.ownerUid)}`
+      `gym_memberships/${membershipDocumentId(gymRef.id, ownerUid)}`
     );
     const now = FieldValue.serverTimestamp();
 
@@ -229,23 +302,31 @@ export const provisionGym = onCall(
         currency: input.currency,
         timezone: input.timezone,
         locale: input.locale,
-        branding: { primaryColor: "#2563EB", secondaryColor: "#0F172A" },
+        city: input.city ?? null,
+        phone: input.phone ? normalizePhone(input.phone) : null,
+        branding: {
+          primaryColor: input.primaryColor,
+          secondaryColor: input.secondaryColor,
+          accentColor: input.accentColor,
+          tagline: input.tagline
+        },
         features: plan.features,
+        createdBy: request.auth!.uid,
         createdAt: now,
         updatedAt: now
       });
       tx.create(membershipRef, {
         gymId: gymRef.id,
-        uid: input.ownerUid,
+        uid: ownerUid,
         role: "owner",
         status: "active",
         permissions: ROLE_PERMISSIONS.owner,
         createdAt: now,
         updatedAt: now
       });
-      tx.create(db.doc(`gyms/${gymRef.id}/staff/${input.ownerUid}`), {
+      tx.create(db.doc(`gyms/${gymRef.id}/staff/${ownerUid}`), {
         gymId: gymRef.id,
-        uid: input.ownerUid,
+        uid: ownerUid,
         role: "owner",
         status: "active",
         createdAt: now,
@@ -272,7 +353,7 @@ export const provisionGym = onCall(
 
     await writeAudit(db, gymRef.id, request.auth!.uid, "gym.provisioned", {
       gymId: gymRef.id,
-      ownerUid: input.ownerUid
+      ownerUid
     });
     return { gymId: gymRef.id };
   }
@@ -538,36 +619,25 @@ export const createClassSession = onCall(
 export const updateGymConfiguration = onCall(
   { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
-    const input = z.object({
-      gymId: z.string().min(1),
-      name: z.string().min(2).max(100).optional(),
-      currency: z.string().length(3).optional(),
-      timezone: z.string().min(1).optional(),
-      locale: z.string().min(2).optional(),
-      primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-      logoUrl: z.string().url().optional(),
-      features: z.object({
-        classes: z.boolean(),
-        chat: z.boolean(),
-        attendanceQr: z.boolean(),
-        dietPlans: z.boolean(),
-        progressPhotos: z.boolean()
-      }).optional()
-    }).parse(request.data);
+    const input = gymConfigurationSchema.parse(request.data);
     await requireGymPermission(request, input.gymId, "staff.manage");
-    const branding: Record<string, string> = {};
-    if (input.primaryColor) branding.primaryColor = input.primaryColor;
-    if (input.logoUrl) branding.logoUrl = input.logoUrl;
-    await db.doc(`gyms/${input.gymId}`).set({
-      ...(input.name ? { name: input.name } : {}),
-      ...(input.currency ? { currency: input.currency } : {}),
-      ...(input.timezone ? { timezone: input.timezone } : {}),
-      ...(input.locale ? { locale: input.locale } : {}),
-      ...(Object.keys(branding).length ? { branding } : {}),
-      ...(input.features ? { features: input.features } : {}),
-      updatedAt: FieldValue.serverTimestamp()
-    }, { merge: true });
+    await db.doc(`gyms/${input.gymId}`).set(configurationUpdate(input), { merge: true });
     await writeAudit(db, input.gymId, request.auth!.uid, "gym.configuration_updated", {});
+    return { updated: true };
+  }
+);
+
+export const updateGymAsPlatformAdmin = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requirePlatformAdmin(request);
+    const input = platformGymConfigurationSchema.parse(request.data);
+    const gymRef = db.doc(`gyms/${input.gymId}`);
+    if (!(await gymRef.get()).exists) {
+      throw new HttpsError("not-found", "Gym tenant was not found.");
+    }
+    await gymRef.set(configurationUpdate(input), { merge: true });
+    await writeAudit(db, input.gymId, request.auth!.uid, "gym.platform_configuration_updated", {});
     return { updated: true };
   }
 );

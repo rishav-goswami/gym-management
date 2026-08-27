@@ -25,7 +25,7 @@ class MemberHomePanel extends StatelessWidget {
           'Ready to move?',
           style: Theme.of(context).textTheme.headlineMedium,
         ),
-        Text('Your fitness home at ${membership.gymName}'),
+        Text(membership.tagline),
         const SizedBox(height: 16),
         MemberSubscriptionBanner(membership: membership),
         const SizedBox(height: 20),

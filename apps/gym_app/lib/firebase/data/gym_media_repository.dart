@@ -17,6 +17,39 @@ class GymMediaRepository {
   final FirebaseFirestore firestore;
   final ImagePicker picker;
 
+  Future<String?> pickAndUploadGymLogo({required String gymId}) async {
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 1200,
+      maxHeight: 1200,
+    );
+    if (image == null) return null;
+    final bytes = await image.readAsBytes();
+    if (bytes.length > 10 * 1024 * 1024) {
+      throw StateError('Logo must be smaller than 10 MB.');
+    }
+    final contentType = image.mimeType?.startsWith('image/') == true
+        ? image.mimeType!
+        : 'image/jpeg';
+    final extension = switch (contentType) {
+      'image/png' => 'png',
+      'image/webp' => 'webp',
+      _ => 'jpg',
+    };
+    final reference = storage.ref(
+      'gyms/$gymId/branding/logo-${DateTime.now().millisecondsSinceEpoch}.$extension',
+    );
+    await reference.putData(
+      bytes,
+      SettableMetadata(
+        contentType: contentType,
+        cacheControl: 'public,max-age=86400',
+      ),
+    );
+    return reference.getDownloadURL();
+  }
+
   Future<String?> pickAndUploadProgressPhoto({
     required String gymId,
     required String uid,

@@ -45,9 +45,12 @@ class SessionCubit extends Cubit<SessionState> {
   final FirebaseSessionRepository _repository;
   late final StreamSubscription<User?> _subscription;
   StreamSubscription<String>? _pushTokenSubscription;
+  StreamSubscription<Map<String, dynamic>>? _gymSubscription;
 
   Future<void> _onAuthChanged(User? user) async {
     if (user == null) {
+      await _gymSubscription?.cancel();
+      _gymSubscription = null;
       await _pushTokenSubscription?.cancel();
       _pushTokenSubscription = null;
       emit(const SessionState(status: SessionStatus.signedOut));
@@ -74,16 +77,16 @@ class SessionCubit extends Cubit<SessionState> {
         if (membership.id == selectedId) selected = membership;
       }
       if (memberships.length == 1) selected ??= memberships.first;
-      emit(
-        SessionState(
-          status: selected != null
-              ? SessionStatus.ready
-              : SessionStatus.selectingContext,
-          user: user,
-          memberships: memberships,
-          activeMembership: selected,
-        ),
+      final nextState = SessionState(
+        status: selected != null
+            ? SessionStatus.ready
+            : SessionStatus.selectingContext,
+        user: user,
+        memberships: memberships,
+        activeMembership: selected,
       );
+      emit(nextState);
+      if (selected != null) await _watchGym(selected);
     } catch (error) {
       emit(
         SessionState(
@@ -141,9 +144,12 @@ class SessionCubit extends Cubit<SessionState> {
         activeMembership: membership,
       ),
     );
+    await _watchGym(membership);
   }
 
   Future<void> chooseAnotherContext() async {
+    await _gymSubscription?.cancel();
+    _gymSubscription = null;
     final preferences = await SharedPreferences.getInstance();
     final uid = state.user?.uid;
     if (uid != null) await preferences.remove(_selectedMembershipKey(uid));
@@ -161,10 +167,31 @@ class SessionCubit extends Cubit<SessionState> {
 
   Future<void> signOut() => _repository.signOut();
 
+  Future<void> _watchGym(GymMembership membership) async {
+    await _gymSubscription?.cancel();
+    _gymSubscription = _repository.gymChanges(membership.gymId).listen((gym) {
+      final current = state.activeMembership;
+      if (current == null || current.gymId != membership.gymId) return;
+      final updated = current.withGym(gym);
+      emit(
+        SessionState(
+          status: state.status,
+          user: state.user,
+          memberships: state.memberships
+              .map((item) => item.id == updated.id ? updated : item)
+              .toList(),
+          activeMembership: updated,
+          message: state.message,
+        ),
+      );
+    });
+  }
+
   @override
   Future<void> close() async {
     await _subscription.cancel();
     await _pushTokenSubscription?.cancel();
+    await _gymSubscription?.cancel();
     return super.close();
   }
 }

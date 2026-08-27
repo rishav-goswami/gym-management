@@ -3,7 +3,8 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
     function platformAdmin() {
-      return signedIn() && request.auth.token.platformAdmin == true;
+      return signedIn() && 'platformAdmin' in request.auth.token &&
+        request.auth.token.platformAdmin == true;
     }
     function membershipId(gymId) { return gymId + '_' + request.auth.uid; }
     function membership(gymId) {

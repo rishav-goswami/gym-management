@@ -3,6 +3,8 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'tenant_branding_dialog.dart';
+
 class PlatformDashboardScreen extends StatelessWidget {
   const PlatformDashboardScreen({required this.onSignOut, super.key});
 
@@ -369,22 +371,36 @@ class _GymTenantCard extends StatelessWidget {
     final gym = document.data();
     return Card(
       child: ListTile(
-        leading: const CircleAvatar(child: Icon(Icons.fitness_center)),
+        leading: _TenantLogo(gym: gym),
         title: Text(gym['name'] as String? ?? document.id),
         subtitle: Text(
           '${gym['status'] ?? 'unknown'} · ${gym['platformPlan'] ?? 'manual'}',
         ),
-        trailing: PopupMenuButton<String>(
-          tooltip: 'Change tenant status',
-          initialValue: gym['status'] as String?,
-          onSelected: (status) => _call(context, 'updateGymStatus', {
-            'gymId': document.id,
-            'status': status,
-          }),
-          itemBuilder: (_) => const [
-            PopupMenuItem(value: 'trial', child: Text('Trial')),
-            PopupMenuItem(value: 'active', child: Text('Active')),
-            PopupMenuItem(value: 'suspended', child: Text('Suspended')),
+        trailing: Wrap(
+          spacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            TextButton.icon(
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (_) => TenantBrandingDialog(document: document),
+              ),
+              icon: const Icon(Icons.palette_outlined),
+              label: const Text('Manage'),
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'Change tenant status',
+              initialValue: gym['status'] as String?,
+              onSelected: (status) => _call(context, 'updateGymStatus', {
+                'gymId': document.id,
+                'status': status,
+              }),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'trial', child: Text('Trial')),
+                PopupMenuItem(value: 'active', child: Text('Active')),
+                PopupMenuItem(value: 'suspended', child: Text('Suspended')),
+              ],
+            ),
           ],
         ),
       ),
@@ -401,13 +417,17 @@ class _ProvisionGymDialog extends StatefulWidget {
 
 class _ProvisionGymDialogState extends State<_ProvisionGymDialog> {
   final name = TextEditingController();
-  final ownerUid = TextEditingController();
+  final ownerEmail = TextEditingController();
+  final city = TextEditingController();
+  final phone = TextEditingController();
   bool saving = false;
 
   @override
   void dispose() {
     name.dispose();
-    ownerUid.dispose();
+    ownerEmail.dispose();
+    city.dispose();
+    phone.dispose();
     super.dispose();
   }
 
@@ -425,8 +445,25 @@ class _ProvisionGymDialogState extends State<_ProvisionGymDialog> {
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: ownerUid,
-            decoration: const InputDecoration(labelText: 'Owner Firebase UID'),
+            controller: ownerEmail,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              labelText: 'Owner account email',
+              helperText: 'The owner must register this email first.',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: city,
+            decoration: const InputDecoration(labelText: 'City (optional)'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: phone,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+              labelText: 'Business phone (optional)',
+            ),
           ),
         ],
       ),
@@ -444,14 +481,38 @@ class _ProvisionGymDialogState extends State<_ProvisionGymDialog> {
   );
 
   Future<void> _save() async {
-    if (name.text.trim().isEmpty || ownerUid.text.trim().isEmpty) return;
+    if (name.text.trim().isEmpty || ownerEmail.text.trim().isEmpty) return;
     setState(() => saving = true);
     final succeeded = await _call(context, 'provisionGym', {
       'name': name.text.trim(),
-      'ownerUid': ownerUid.text.trim(),
+      'ownerEmail': ownerEmail.text.trim().toLowerCase(),
+      if (city.text.trim().isNotEmpty) 'city': city.text.trim(),
+      if (phone.text.trim().isNotEmpty) 'phone': phone.text.trim(),
     });
     if (mounted && succeeded) Navigator.pop(context);
     if (mounted && !succeeded) setState(() => saving = false);
+  }
+}
+
+class _TenantLogo extends StatelessWidget {
+  const _TenantLogo({required this.gym});
+
+  final Map<String, dynamic> gym;
+
+  @override
+  Widget build(BuildContext context) {
+    final branding = Map<String, dynamic>.from(
+      gym['branding'] as Map? ?? const {},
+    );
+    final logoUrl = branding['logoUrl'] as String?;
+    if (logoUrl == null || logoUrl.isEmpty) {
+      return const CircleAvatar(child: Icon(Icons.fitness_center));
+    }
+    return CircleAvatar(
+      backgroundImage: NetworkImage(logoUrl),
+      onBackgroundImageError: (_, _) {},
+      child: const SizedBox.shrink(),
+    );
   }
 }
 

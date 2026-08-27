@@ -57,18 +57,26 @@ class _GymAppState extends State<GymApp> {
       child: BlocBuilder<SessionCubit, SessionState>(
         builder: (context, session) {
           final seed = _brandColor(session.activeMembership?.primaryColor);
+          final secondary = _brandColor(
+            session.activeMembership?.secondaryColor,
+            fallback: const Color(0xFF0F172A),
+          );
+          final accent = _brandColor(
+            session.activeMembership?.accentColor,
+            fallback: const Color(0xFFF97316),
+          );
+          final lightScheme = ColorScheme.fromSeed(
+            seedColor: seed,
+          ).copyWith(secondary: secondary, tertiary: accent);
+          final darkScheme = ColorScheme.fromSeed(
+            seedColor: seed,
+            brightness: Brightness.dark,
+          ).copyWith(secondary: secondary, tertiary: accent);
           return MaterialApp.router(
             title: session.activeMembership?.gymName ?? 'Gym Management',
             debugShowCheckedModeBanner: false,
-            theme: lightTheme.copyWith(
-              colorScheme: ColorScheme.fromSeed(seedColor: seed),
-            ),
-            darkTheme: darkTheme.copyWith(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: seed,
-                brightness: Brightness.dark,
-              ),
-            ),
+            theme: lightTheme.copyWith(colorScheme: lightScheme),
+            darkTheme: darkTheme.copyWith(colorScheme: darkScheme),
             themeMode: ThemeMode.system,
             routerConfig: router,
           );
@@ -77,9 +85,9 @@ class _GymAppState extends State<GymApp> {
     ),
   );
 
-  Color _brandColor(String? hex) {
+  Color _brandColor(String? hex, {Color fallback = const Color(0xFF2563EB)}) {
     final value = hex?.replaceFirst('#', '');
-    if (value == null || value.length != 6) return const Color(0xFF2563EB);
-    return Color(int.parse('FF$value', radix: 16));
+    if (value == null || value.length != 6) return fallback;
+    return Color(int.tryParse('FF$value', radix: 16) ?? fallback.toARGB32());
   }
 }

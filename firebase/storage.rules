@@ -2,6 +2,10 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     function signedIn() { return request.auth != null; }
+    function platformAdmin() {
+      return signedIn() && 'platformAdmin' in request.auth.token &&
+        request.auth.token.platformAdmin == true;
+    }
     function membership(gymId) {
       return firestore.get(/databases/(default)/documents/gym_memberships/$(gymId + '_' + request.auth.uid)).data;
     }
@@ -11,6 +15,9 @@ service firebase.storage {
     }
     function staff(gymId) {
       return activeGym(gymId) && membership(gymId).role in ['owner', 'manager', 'trainer'];
+    }
+    function brandingManager(gymId) {
+      return activeGym(gymId) && membership(gymId).role in ['owner', 'manager'];
     }
     function conversationParticipant(gymId, conversationId) {
       return activeGym(gymId) && request.auth.uid in
@@ -31,7 +38,7 @@ service firebase.storage {
 
     match /gyms/{gymId}/branding/{fileName} {
       allow read: if true;
-      allow write: if staff(gymId) && safeImage();
+      allow write: if (platformAdmin() || brandingManager(gymId)) && safeImage();
     }
 
     match /gyms/{gymId}/exercise-media/{fileName} {

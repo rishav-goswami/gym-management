@@ -227,7 +227,13 @@ class GymRepository {
     required String timezone,
     required String locale,
     required String primaryColor,
-    required Map<String, bool> features,
+    required String secondaryColor,
+    required String accentColor,
+    required String tagline,
+    String? logoUrl,
+    String? phone,
+    String? city,
+    String? website,
   }) => functions.httpsCallable('updateGymConfiguration').call<void>({
     'gymId': gymId,
     'name': name,
@@ -235,8 +241,19 @@ class GymRepository {
     'timezone': timezone,
     'locale': locale,
     'primaryColor': primaryColor,
-    'features': features,
+    'secondaryColor': secondaryColor,
+    'accentColor': accentColor,
+    'tagline': tagline,
+    'logoUrl': logoUrl,
+    'phone': _nullable(phone),
+    'city': _nullable(city),
+    'website': _nullable(website),
   });
+
+  String? _nullable(String? value) {
+    final trimmed = value?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
+  }
 
   Future<Map<String, dynamic>> upsertMembershipPlan({
     required String gymId,

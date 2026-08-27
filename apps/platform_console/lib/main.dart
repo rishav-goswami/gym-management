@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
@@ -31,6 +32,7 @@ Future<void> main() async {
   if (useEmulators) {
     await FirebaseAuth.instance.useAuthEmulator(emulatorHost, 9099);
     FirebaseFirestore.instance.useFirestoreEmulator(emulatorHost, 8080);
+    await FirebaseStorage.instance.useStorageEmulator(emulatorHost, 9199);
     FirebaseFunctions.instanceFor(
       region: 'asia-south1',
     ).useFunctionsEmulator(emulatorHost, 5001);

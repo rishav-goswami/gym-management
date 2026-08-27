@@ -25,6 +25,15 @@ class GymMembership extends Equatable {
     this.gymName = 'Gym',
     this.logoUrl,
     this.primaryColor = '#2563EB',
+    this.secondaryColor = '#0F172A',
+    this.accentColor = '#F97316',
+    this.tagline = 'Stronger every day',
+    this.currency = 'INR',
+    this.timezone = 'Asia/Kolkata',
+    this.locale = 'en-IN',
+    this.phone,
+    this.city,
+    this.website,
     this.features = const {},
   });
 
@@ -37,6 +46,15 @@ class GymMembership extends Equatable {
   final String gymName;
   final String? logoUrl;
   final String primaryColor;
+  final String secondaryColor;
+  final String accentColor;
+  final String tagline;
+  final String currency;
+  final String timezone;
+  final String locale;
+  final String? phone;
+  final String? city;
+  final String? website;
   final Map<String, bool> features;
 
   bool can(String permission) => permissions[permission] == true;
@@ -54,6 +72,18 @@ class GymMembership extends Equatable {
     logoUrl: (gym?['branding'] as Map?)?['logoUrl'] as String?,
     primaryColor:
         (gym?['branding'] as Map?)?['primaryColor'] as String? ?? primaryColor,
+    secondaryColor:
+        (gym?['branding'] as Map?)?['secondaryColor'] as String? ??
+        secondaryColor,
+    accentColor:
+        (gym?['branding'] as Map?)?['accentColor'] as String? ?? accentColor,
+    tagline: (gym?['branding'] as Map?)?['tagline'] as String? ?? tagline,
+    currency: gym?['currency'] as String? ?? currency,
+    timezone: gym?['timezone'] as String? ?? timezone,
+    locale: gym?['locale'] as String? ?? locale,
+    phone: gym?['phone'] as String? ?? phone,
+    city: gym?['city'] as String? ?? city,
+    website: gym?['website'] as String? ?? website,
     features: Map<String, bool>.from(gym?['features'] as Map? ?? const {}),
   );
 
@@ -66,6 +96,17 @@ class GymMembership extends Equatable {
     status,
     permissions,
     gymName,
+    logoUrl,
+    primaryColor,
+    secondaryColor,
+    accentColor,
+    tagline,
+    currency,
+    timezone,
+    locale,
+    phone,
+    city,
+    website,
     features,
   ];
 }

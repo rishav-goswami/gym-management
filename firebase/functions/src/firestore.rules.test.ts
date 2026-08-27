@@ -44,6 +44,10 @@ beforeEach(async () => {
       gymId: "gym-a", uid: "owner-a", role: "owner", status: "active",
       permissions: { "plans.manage": true, "payments.write": true, "payments.read": true }
     });
+    await setDoc(doc(store, "gym_memberships/gym-a_trainer-a"), {
+      gymId: "gym-a", uid: "trainer-a", role: "trainer", status: "active",
+      permissions: { "fitness.manage": true }
+    });
     await setDoc(doc(store, "gyms/gym-a/members/member-a"), { memberUid: "member-a", name: "A" });
     await setDoc(doc(store, "gyms/gym-b/members/member-b"), { memberUid: "member-b", name: "B" });
     await setDoc(doc(store, "gyms/gym-a/workout_assignments/assignment-a"), { memberUid: "member-a" });
@@ -152,6 +156,32 @@ describe("Firestore tenant isolation", () => {
 });
 
 describe("Storage tenant isolation", () => {
+  it("allows only platform admins and owner/managers to upload gym branding", async () => {
+    const image = new Uint8Array([137, 80, 78, 71]);
+    const ownerStorage = environment.authenticatedContext("owner-a").storage();
+    const trainerStorage = environment.authenticatedContext("trainer-a").storage();
+    const memberStorage = environment.authenticatedContext("member-a").storage();
+    const platformStorage = environment.authenticatedContext(
+      "platform-admin", { platformAdmin: true }
+    ).storage();
+    await assertSucceeds(uploadBytes(
+      ref(ownerStorage, "gyms/gym-a/branding/owner-logo.png"), image,
+      { contentType: "image/png" }
+    ));
+    await assertSucceeds(uploadBytes(
+      ref(platformStorage, "gyms/gym-a/branding/platform-logo.png"), image,
+      { contentType: "image/png" }
+    ));
+    await assertFails(uploadBytes(
+      ref(trainerStorage, "gyms/gym-a/branding/trainer-logo.png"), image,
+      { contentType: "image/png" }
+    ));
+    await assertFails(uploadBytes(
+      ref(memberStorage, "gyms/gym-a/branding/member-logo.png"), image,
+      { contentType: "image/png" }
+    ));
+  });
+
   it("allows signed-in reads but no client writes for platform exercise media", async () => {
     const path = "platform/exercise-media/v1/Pushups/0.jpg";
     await environment.withSecurityRulesDisabled(async (context) => {
