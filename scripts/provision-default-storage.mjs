@@ -16,16 +16,17 @@ const projectId = args.get("project");
 const location = args.get("location");
 const confirmation = args.get("confirm");
 const dryRun = args.has("dry-run");
+const existingOnly = args.has("existing-only");
 
 if (
   typeof projectId !== "string" ||
   !/^[a-z][a-z0-9-]{4,29}$/.test(projectId) ||
-  typeof location !== "string" ||
-  !/^[a-z0-9-]+$/.test(location)
+  (!existingOnly &&
+    (typeof location !== "string" || !/^[a-z0-9-]+$/.test(location)))
 ) {
   throw new Error(
-    "Usage: npm run storage:provision -- --project PROJECT_ID --location LOCATION " +
-      "[--dry-run | --confirm PROJECT_ID]",
+    "Usage: npm run storage:provision -- --project PROJECT_ID " +
+      "[--existing-only | --location LOCATION [--dry-run | --confirm PROJECT_ID]]",
   );
 }
 
@@ -33,7 +34,7 @@ if (dryRun) {
   console.log(`Would provision the default Storage bucket for ${projectId} in ${location}.`);
   process.exit(0);
 }
-if (confirmation !== projectId) {
+if (!existingOnly && confirmation !== projectId) {
   throw new Error(`Refusing to provision Storage. Rerun with --confirm ${projectId}.`);
 }
 
@@ -62,13 +63,17 @@ async function jsonRequest(url, { method = "GET", body, allowNotFound = false } 
 const endpoint = `https://firebasestorage.googleapis.com/v1alpha/projects/${projectId}/defaultBucket`;
 const existing = await jsonRequest(endpoint, { allowNotFound: true });
 if (existing) {
-  if (existing.location && existing.location !== location) {
+  if (!existingOnly && existing.location && existing.location !== location) {
     throw new Error(
       `Default bucket already exists in immutable location ${existing.location}, not ${location}.`,
     );
   }
   console.log(`Default Storage bucket already exists: ${existing.bucket?.name ?? existing.name}.`);
   process.exit(0);
+}
+
+if (existingOnly) {
+  throw new Error(`No default Firebase Storage bucket is linked to ${projectId}.`);
 }
 
 const created = await jsonRequest(endpoint, {
