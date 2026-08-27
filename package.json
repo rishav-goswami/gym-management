@@ -18,6 +18,10 @@
     "emulators:seed": "sh scripts/firebase-with-java.sh emulators:exec --only auth,firestore,storage --project demo-gym-dev 'npm run seed'",
     "functions:build": "npm --prefix firebase/functions run build",
     "functions:test": "npm --prefix firebase/functions test -- src/domain.test.ts",
+    "infra:fmt": "terraform -chdir=infra/terraform fmt -check -recursive",
+    "infra:validate": "terraform -chdir=infra/terraform validate",
+    "infra:check": "npm run infra:fmt && npm run infra:validate && node scripts/verify-portability.mjs",
+    "migrate:data": "node firebase/migrations/run.mjs",
     "security:check": "node scripts/check-secrets.mjs",
     "seed": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-gym-dev npm --prefix firebase/functions run seed"
   },

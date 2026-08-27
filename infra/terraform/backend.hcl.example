@@ -1,0 +1,4 @@
+# Create this bucket once in a trusted administration project. Enable object
+# versioning and grant access only to infrastructure maintainers/CI.
+bucket = "your-company-terraform-state"
+prefix = "gym-management/production"

@@ -34,6 +34,9 @@ Platform-console access, local operation, and deployment are documented in
 [`docs/PLATFORM_CONSOLE.md`](docs/PLATFORM_CONSOLE.md).
 Owner onboarding, quotas, and upgrades are documented in
 [`docs/SAAS_TRIALS.md`](docs/SAAS_TRIALS.md).
+Project provisioning, infrastructure ownership, backups, and account-to-account
+migration are documented in
+[`docs/INFRASTRUCTURE_AND_MIGRATION.md`](docs/INFRASTRUCTURE_AND_MIGRATION.md).
 
 ## Prerequisites
 

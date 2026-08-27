@@ -59,6 +59,19 @@ firebase-debug.log
 firestore-debug.log
 ui-debug.log
 
+# Terraform state can contain infrastructure identifiers and sensitive values.
+# Keep state in an encrypted remote backend for shared environments.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+infra/terraform/backend.hcl
+
+# Firebase account-migration exports contain users and customer data.
+.firebase-migration/
+
 # Private credentials and signing material (Firebase client config is public
 # and intentionally tracked separately).
 **/firebase-adminsdk-*.json
