@@ -24,8 +24,20 @@ class FirebaseSessionRepository {
   final FirebaseFirestore firestore;
   final FirebaseFunctions functions;
   ConfirmationResult? _webConfirmation;
+  AuthCredential? _pendingCredential;
 
   Stream<User?> get authChanges => auth.authStateChanges();
+  Stream<Map<String, dynamic>> platformBrandingChanges() => firestore
+      .doc('platform_public/app_branding')
+      .snapshots()
+      .map(
+        (snapshot) => {
+          ...?snapshot.data(),
+          // Distinguishes a loaded-but-missing document from the initial state.
+          // The router must not choose the legacy login route before this read.
+          '_configurationLoaded': true,
+        },
+      );
   Stream<Map<String, dynamic>> gymChanges(String gymId) => firestore
       .doc('gyms/$gymId')
       .snapshots()
@@ -38,8 +50,33 @@ class FirebaseSessionRepository {
       email: email.trim(),
       password: password,
     );
+    await _linkPendingCredential(credential.user);
     if (!AppEnvironment.useEmulators) {
       await FirebaseAnalytics.instance.logLogin(loginMethod: 'password');
+    }
+    return credential;
+  }
+
+  Future<UserCredential> signInWithGoogle() async {
+    final provider = GoogleAuthProvider()
+      ..addScope('email')
+      ..setCustomParameters({'prompt': 'select_account'});
+    final credential = await _signInWithProvider(provider);
+    await _ensureIdentityDocument(credential.user);
+    if (!AppEnvironment.useEmulators) {
+      await FirebaseAnalytics.instance.logLogin(loginMethod: 'google');
+    }
+    return credential;
+  }
+
+  Future<UserCredential> signInWithApple() async {
+    final provider = AppleAuthProvider()
+      ..addScope('email')
+      ..addScope('name');
+    final credential = await _signInWithProvider(provider);
+    await _ensureIdentityDocument(credential.user);
+    if (!AppEnvironment.useEmulators) {
+      await FirebaseAnalytics.instance.logLogin(loginMethod: 'apple');
     }
     return credential;
   }
@@ -65,6 +102,90 @@ class FirebaseSessionRepository {
       await FirebaseAnalytics.instance.logSignUp(signUpMethod: 'password');
     }
     return credential;
+  }
+
+  Future<void> ensureConsumerAccount() =>
+      functions.httpsCallable('ensureConsumerAccount').call<void>();
+
+  Future<Map<String, dynamic>> userAccount(String uid) async =>
+      (await firestore.doc('users/$uid').get()).data() ?? const {};
+
+  Future<void> completeConsumerOnboarding({
+    required String displayName,
+    required List<String> fitnessGoals,
+    required String experienceLevel,
+    required int workoutDaysPerWeek,
+    required List<String> equipmentAccess,
+    required bool ageConfirmed,
+    required String termsVersion,
+  }) async {
+    final user = auth.currentUser;
+    if (user == null) throw StateError('Sign in first.');
+    final batch = firestore.batch();
+    batch.set(firestore.doc('users/${user.uid}'), {
+      'displayName': displayName.trim(),
+      'ageConfirmedAt': ageConfirmed ? FieldValue.serverTimestamp() : null,
+      'termsAcceptedAt': FieldValue.serverTimestamp(),
+      'termsVersion': termsVersion,
+      'onboardingCompletedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    batch.set(
+      firestore.doc('users/${user.uid}/fitness_profile/current'),
+      {
+        'ownerUid': user.uid,
+        'displayName': displayName.trim(),
+        'fitnessGoals': fitnessGoals,
+        'experienceLevel': experienceLevel,
+        'workoutDaysPerWeek': workoutDaysPerWeek,
+        'equipmentAccess': equipmentAccess,
+        'onboardingCompletedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+    await batch.commit();
+    unawaited(
+      functions
+          .httpsCallable('trackFeatureUsage')
+          .call<void>({
+            'scopeType': 'personal',
+            'audience': 'standalone',
+            'featureId': 'onboarding',
+          })
+          .then<void>((_) {}, onError: (_) {}),
+    );
+  }
+
+  Future<void> _ensureIdentityDocument(User? user) async {
+    if (user == null) return;
+    await firestore.doc('users/${user.uid}').set({
+      'displayName': user.displayName,
+      'email': user.email?.trim().toLowerCase(),
+      'phone': user.phoneNumber,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<UserCredential> _signInWithProvider(AuthProvider provider) async {
+    try {
+      return kIsWeb
+          ? await auth.signInWithPopup(provider)
+          : await auth.signInWithProvider(provider);
+    } on FirebaseAuthException catch (error) {
+      if (error.code == 'account-exists-with-different-credential' &&
+          error.credential != null) {
+        _pendingCredential = error.credential;
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _linkPendingCredential(User? user) async {
+    final pending = _pendingCredential;
+    if (pending == null || user == null) return;
+    await user.linkWithCredential(pending);
+    _pendingCredential = null;
   }
 
   Future<void> signOut() async {

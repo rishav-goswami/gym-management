@@ -26,9 +26,9 @@ enum _ExerciseMetric {
 }
 
 class MemberProgressPanel extends StatefulWidget {
-  const MemberProgressPanel({required this.membership, super.key});
+  const MemberProgressPanel({required this.scope, super.key});
 
-  final GymMembership membership;
+  final FitnessScope scope;
 
   @override
   State<MemberProgressPanel> createState() => _MemberProgressPanelState();
@@ -50,8 +50,7 @@ class _MemberProgressPanelState extends State<MemberProgressPanel> {
   @override
   void didUpdateWidget(covariant MemberProgressPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.membership.gymId != widget.membership.gymId ||
-        oldWidget.membership.uid != widget.membership.uid) {
+    if (oldWidget.scope != widget.scope) {
       _selectedExerciseId = null;
       _bindStreams();
     }
@@ -59,23 +58,17 @@ class _MemberProgressPanelState extends State<MemberProgressPanel> {
 
   void _bindStreams() {
     final repository = context.read<GymRepository>();
-    _workouts = repository.recentForMember(
-      widget.membership.gymId,
+    _workouts = repository.fitnessRecords(
+      widget.scope,
       'workout_logs',
-      widget.membership.uid,
       limit: 100,
     );
-    _measurements = repository.recentForMember(
-      widget.membership.gymId,
+    _measurements = repository.fitnessRecords(
+      widget.scope,
       'measurements',
-      widget.membership.uid,
       limit: 100,
     );
-    _photos = repository.memberProgressPhotos(
-      widget.membership.gymId,
-      widget.membership.uid,
-      limit: 24,
-    );
+    _photos = repository.fitnessProgressPhotos(widget.scope, limit: 24);
   }
 
   @override
@@ -157,7 +150,7 @@ class _MemberProgressPanelState extends State<MemberProgressPanel> {
                                 setState(() => _section = value),
                             onMeasurement: _showMeasurement,
                             onPhoto: _uploadProgressPhoto,
-                            photosEnabled: widget.membership.feature(
+                            photosEnabled: widget.scope.feature(
                               'progressPhotos',
                             ),
                           ),
@@ -275,10 +268,9 @@ class _MemberProgressPanelState extends State<MemberProgressPanel> {
     );
     if (accepted != true || !mounted) return;
     try {
-      await context.read<GymRepository>().saveMemberOwnedRecord(
-        gymId: widget.membership.gymId,
+      await context.read<GymRepository>().saveFitnessRecord(
+        scope: widget.scope,
         collection: 'measurements',
-        uid: widget.membership.uid,
         data: {
           'weightKg': double.parse(weight.text.trim()),
           if (bodyFat.text.trim().isNotEmpty)
@@ -307,10 +299,7 @@ class _MemberProgressPanelState extends State<MemberProgressPanel> {
     try {
       final path = await context
           .read<GymMediaRepository>()
-          .pickAndUploadProgressPhoto(
-            gymId: widget.membership.gymId,
-            uid: widget.membership.uid,
-          );
+          .pickAndUploadFitnessProgressPhoto(scope: widget.scope);
       if (mounted && path != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Private progress photo uploaded.')),

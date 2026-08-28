@@ -1,7 +1,20 @@
 import 'package:gym_core/gym_core.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gym_management/firebase/logic/session_cubit.dart';
 
 void main() {
+  test('consumer routing waits for public branding configuration', () {
+    expect(const SessionState().platformBrandingLoaded, isFalse);
+    const loaded = SessionState(
+      platformBranding: {
+        '_configurationLoaded': true,
+        'consumerFeatures': {'personalSpacesV1': true},
+      },
+    );
+    expect(loaded.platformBrandingLoaded, isTrue);
+    expect(loaded.personalSpacesEnabled, isTrue);
+  });
+
   test('role permissions honor explicit per-user overrides', () {
     const membership = GymMembership(
       id: 'gym_uid',

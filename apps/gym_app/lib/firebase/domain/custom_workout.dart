@@ -23,6 +23,7 @@ class RoutineMovement {
     required this.targetSets,
     this.exerciseId,
     this.notes = '',
+    this.supersetGroup,
   });
 
   final String id;
@@ -31,6 +32,7 @@ class RoutineMovement {
   final MovementTrackingType trackingType;
   final int targetSets;
   final String notes;
+  final String? supersetGroup;
 
   Map<String, dynamic> toMap() => {
     'id': id,
@@ -39,6 +41,7 @@ class RoutineMovement {
     'trackingType': trackingType.name,
     'targetSets': targetSets,
     if (notes.isNotEmpty) 'notes': notes,
+    if (supersetGroup != null) 'supersetGroup': supersetGroup,
   };
 
   factory RoutineMovement.fromMap(Map<String, dynamic> data) => RoutineMovement(
@@ -48,6 +51,21 @@ class RoutineMovement {
     trackingType: MovementTrackingType.fromName(data['trackingType']),
     targetSets: ((data['targetSets'] as num?)?.toInt() ?? 1).clamp(1, 20),
     notes: '${data['notes'] ?? ''}',
+    supersetGroup: data['supersetGroup'] as String?,
+  );
+
+  RoutineMovement copyWith({
+    int? targetSets,
+    String? supersetGroup,
+    bool clearSuperset = false,
+  }) => RoutineMovement(
+    id: id,
+    exerciseId: exerciseId,
+    name: name,
+    trackingType: trackingType,
+    targetSets: targetSets ?? this.targetSets,
+    notes: notes,
+    supersetGroup: clearSuperset ? null : supersetGroup ?? this.supersetGroup,
   );
 }
 
@@ -92,6 +110,7 @@ class MemberRoutine {
 
 class LoggedMovementSet {
   const LoggedMovementSet({
+    this.setType = 'working',
     this.reps,
     this.weightKg,
     this.additionalLoadKg,
@@ -99,8 +118,11 @@ class LoggedMovementSet {
     this.speedKph,
     this.inclinePercent,
     this.distanceKm,
+    this.rpe,
+    this.rir,
   });
 
+  final String setType;
   final int? reps;
   final double? weightKg;
   final double? additionalLoadKg;
@@ -108,6 +130,8 @@ class LoggedMovementSet {
   final double? speedKph;
   final double? inclinePercent;
   final double? distanceKm;
+  final double? rpe;
+  final int? rir;
 
   bool get hasData =>
       reps != null ||
@@ -120,6 +144,7 @@ class LoggedMovementSet {
 
   Map<String, dynamic> toMap(int setNumber) => {
     'setNumber': setNumber,
+    'setType': setType,
     if (reps != null) 'reps': reps,
     if (weightKg != null) 'weightKg': weightKg,
     if (additionalLoadKg != null) 'additionalLoadKg': additionalLoadKg,
@@ -127,5 +152,7 @@ class LoggedMovementSet {
     if (speedKph != null) 'speedKph': speedKph,
     if (inclinePercent != null) 'inclinePercent': inclinePercent,
     if (distanceKm != null) 'distanceKm': distanceKm,
+    if (rpe != null) 'rpe': rpe,
+    if (rir != null) 'rir': rir,
   };
 }

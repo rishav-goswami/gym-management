@@ -14,6 +14,105 @@ enum GymRole {
   );
 }
 
+enum FitnessScopeKind { personal, gym }
+
+sealed class AppSpace extends Equatable {
+  const AppSpace();
+
+  String get id;
+  String get displayName;
+  FitnessScope get fitnessScope;
+}
+
+class PersonalSpace extends AppSpace {
+  const PersonalSpace({required this.uid});
+
+  final String uid;
+
+  @override
+  String get id => 'personal';
+
+  @override
+  String get displayName => 'My Fitness';
+
+  @override
+  FitnessScope get fitnessScope => FitnessScope.personal(uid);
+
+  @override
+  List<Object?> get props => [uid];
+}
+
+class GymSpace extends AppSpace {
+  const GymSpace({required this.membership});
+
+  final GymMembership membership;
+
+  @override
+  String get id => 'gym:${membership.gymId}';
+
+  @override
+  String get displayName => membership.gymName;
+
+  @override
+  FitnessScope get fitnessScope => FitnessScope.gym(membership);
+
+  @override
+  List<Object?> get props => [membership];
+}
+
+/// Identifies where member-owned fitness data lives without pretending that a
+/// standalone consumer belongs to a hidden gym tenant.
+class FitnessScope extends Equatable {
+  const FitnessScope._({
+    required this.kind,
+    required this.uid,
+    this.membership,
+  });
+
+  const FitnessScope.personal(String uid)
+    : this._(kind: FitnessScopeKind.personal, uid: uid);
+
+  FitnessScope.gym(GymMembership membership)
+    : this._(
+        kind: FitnessScopeKind.gym,
+        uid: membership.uid,
+        membership: membership,
+      );
+
+  final FitnessScopeKind kind;
+  final String uid;
+  final GymMembership? membership;
+
+  bool get isPersonal => kind == FitnessScopeKind.personal;
+  String? get gymId => membership?.gymId;
+  String get id => isPersonal ? 'personal' : 'gym:${membership!.gymId}';
+  String get draftKey => isPersonal ? 'personal' : membership!.gymId;
+  String get displayName => isPersonal ? 'My Fitness' : membership!.gymName;
+  String get tagline => isPersonal
+      ? 'Your training. Your progress. Your pace.'
+      : membership!.tagline;
+
+  bool feature(String name, {bool defaultValue = true}) => isPersonal
+      ? defaultValue
+      : membership!.feature(name, defaultValue: defaultValue);
+
+  String collectionPath(String collection) {
+    final gymCollection = collection == 'routines'
+        ? 'member_routines'
+        : collection;
+    return isPersonal
+        ? 'users/$uid/$collection'
+        : 'gyms/${membership!.gymId}/$gymCollection';
+  }
+
+  String get profilePath => isPersonal
+      ? 'users/$uid/fitness_profile/current'
+      : 'gyms/${membership!.gymId}/members/$uid';
+
+  @override
+  List<Object?> get props => [kind, uid, membership];
+}
+
 class GymMembership extends Equatable {
   const GymMembership({
     required this.id,

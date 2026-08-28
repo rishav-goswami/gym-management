@@ -10,7 +10,9 @@ service firebase.storage {
       return firestore.get(/databases/(default)/documents/gym_memberships/$(gymId + '_' + request.auth.uid)).data;
     }
     function activeGym(gymId) {
-      return signedIn() && membership(gymId).status == 'active' &&
+      return signedIn() &&
+        firestore.exists(/databases/(default)/documents/gym_memberships/$(gymId + '_' + request.auth.uid)) &&
+        membership(gymId).status == 'active' &&
         firestore.get(/databases/(default)/documents/gyms/$(gymId)).data.status in ['trial', 'active'];
     }
     function staff(gymId) {
@@ -30,10 +32,43 @@ service firebase.storage {
       return request.resource.size < 50 * 1024 * 1024 &&
         request.resource.contentType.matches('(image|video)/.*');
     }
+    function activeConsumer(uid) {
+      return signedIn() && request.auth.uid == uid &&
+        (!firestore.exists(/databases/(default)/documents/users/$(uid)) ||
+         !('status' in firestore.get(/databases/(default)/documents/users/$(uid)).data) ||
+         firestore.get(/databases/(default)/documents/users/$(uid)).data.status == 'active');
+    }
+    function consentedConsumer(uid) {
+      return activeConsumer(uid) &&
+        firestore.exists(/databases/(default)/documents/users/$(uid)) &&
+        'ageConfirmedAt' in firestore.get(/databases/(default)/documents/users/$(uid)).data &&
+        'termsAcceptedAt' in firestore.get(/databases/(default)/documents/users/$(uid)).data &&
+        'termsVersion' in firestore.get(/databases/(default)/documents/users/$(uid)).data;
+    }
 
     match /platform/exercise-media/{version}/{allPaths=**} {
       allow read: if signedIn();
       allow write: if false;
+    }
+
+    match /platform/onboarding/{allPaths=**} {
+      allow read: if true;
+      allow write: if platformAdmin() && safeImage();
+    }
+
+    match /platform/branding/{allPaths=**} {
+      allow read: if true;
+      allow write: if platformAdmin() && safeImage();
+    }
+
+    match /users/{uid}/progress/{fileName} {
+      allow read: if consentedConsumer(uid);
+      allow write: if consentedConsumer(uid) && safeImage();
+    }
+
+    match /users/{uid}/profile/{fileName} {
+      allow read: if consentedConsumer(uid);
+      allow write: if consentedConsumer(uid) && safeImage();
     }
 
     match /gyms/{gymId}/branding/{fileName} {

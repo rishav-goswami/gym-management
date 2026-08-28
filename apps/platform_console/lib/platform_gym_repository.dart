@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_picker_for_web/image_picker_for_web.dart';
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 
 class PlatformGymRepository {
   PlatformGymRepository({
@@ -10,7 +15,13 @@ class PlatformGymRepository {
   }) : functions =
            functions ?? FirebaseFunctions.instanceFor(region: 'asia-south1'),
        storage = storage ?? FirebaseStorage.instance,
-       picker = picker ?? ImagePicker();
+       picker = picker ?? ImagePicker() {
+    // Register the browser implementation explicitly so an older cached web
+    // bootstrap cannot leave the first upload on the method-channel fallback.
+    if (kIsWeb && ImagePickerPlatform.instance is! ImagePickerPlugin) {
+      ImagePickerPlatform.instance = ImagePickerPlugin();
+    }
+  }
 
   final FirebaseFunctions functions;
   final FirebaseStorage storage;
@@ -21,6 +32,71 @@ class PlatformGymRepository {
         (await functions.httpsCallable('getPlatformDashboard').call()).data
             as Map,
       );
+
+  Future<List<Map<String, dynamic>>> listConsumers({int limit = 100}) async {
+    final response = await functions.httpsCallable('listConsumers').call({
+      'limit': limit,
+    });
+    final data = Map<String, dynamic>.from(response.data as Map);
+    return (data['consumers'] as List? ?? const [])
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
+  Future<void> setConsumerStatus({
+    required String uid,
+    required String status,
+    required String reason,
+  }) => functions.httpsCallable('setConsumerStatus').call<void>({
+    'uid': uid,
+    'status': status,
+    'reason': reason,
+  });
+
+  Future<void> setConsumerEntitlementOverrides({
+    required String uid,
+    required Map<String, bool> overrides,
+    required String reason,
+  }) => functions.httpsCallable('setConsumerEntitlementOverrides').call<void>({
+    'uid': uid,
+    'overrides': overrides,
+    'reason': reason,
+  });
+
+  Future<Map<String, dynamic>> openConsumerSupport({
+    required String uid,
+    required String reason,
+    required List<String> categories,
+  }) async {
+    final grant = Map<String, dynamic>.from(
+      (await functions.httpsCallable('startConsumerSupportSession').call({
+            'targetUid': uid,
+            'reason': reason,
+            'categories': categories,
+          })).data
+          as Map,
+    );
+    return Map<String, dynamic>.from(
+      (await functions.httpsCallable('getConsumerSupportData').call({
+            'grantId': grant['grantId'],
+            'targetUid': uid,
+            'categories': categories,
+          })).data
+          as Map,
+    );
+  }
+
+  Future<void> updatePlatformBranding(Map<String, dynamic> data) async {
+    await functions
+        .httpsCallable('updatePlatformBranding')
+        .call<void>(data)
+        .timeout(
+          const Duration(seconds: 30),
+          onTimeout: () => throw TimeoutException(
+            'Saving took too long. Check your connection and try again.',
+          ),
+        );
+  }
 
   Future<void> setSubscription({
     required String gymId,
@@ -67,6 +143,74 @@ class PlatformGymRepository {
       ),
     );
     return reference.getDownloadURL();
+  }
+
+  Future<String?> pickAndUploadPlatformImage({
+    required String area,
+    ValueChanged<double>? onProgress,
+    ValueChanged<String>? onStage,
+  }) async {
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      // image_picker_for_web performs resizing through canvas.toBlob. That
+      // callback can remain pending in some Chromium/mobile-emulation paths,
+      // leaving the upload stuck before Firebase Storage is contacted. Upload
+      // the original browser file and retain the size guard below instead.
+      imageQuality: kIsWeb ? null : 85,
+      maxWidth: kIsWeb ? null : 1600,
+      maxHeight: kIsWeb ? null : 1600,
+    );
+    if (image == null) return null;
+    onStage?.call('Reading image…');
+    final bytes = await image.readAsBytes().timeout(
+      const Duration(seconds: 20),
+      onTimeout: () => throw TimeoutException(
+        'The browser could not finish reading this image. Try a smaller JPEG or PNG.',
+      ),
+    );
+    if (bytes.length > 10 * 1024 * 1024) {
+      throw StateError('Image must be smaller than 10 MB.');
+    }
+    final contentType = image.mimeType?.startsWith('image/') == true
+        ? image.mimeType!
+        : 'image/jpeg';
+    final extension = contentType == 'image/png' ? 'png' : 'jpg';
+    final reference = storage.ref(
+      'platform/$area/${DateTime.now().millisecondsSinceEpoch}.$extension',
+    );
+    onStage?.call('Starting secure upload…');
+    final upload = reference.putData(
+      bytes,
+      SettableMetadata(
+        contentType: contentType,
+        cacheControl: 'public,max-age=86400',
+      ),
+    );
+    final progressSubscription = upload.snapshotEvents.listen((snapshot) {
+      if (snapshot.totalBytes <= 0) return;
+      onProgress?.call(snapshot.bytesTransferred / snapshot.totalBytes);
+    });
+    try {
+      await upload.timeout(
+        const Duration(seconds: 60),
+        onTimeout: () {
+          unawaited(upload.cancel());
+          throw TimeoutException(
+            'The image upload took too long. Check your connection and retry.',
+          );
+        },
+      );
+      onProgress?.call(1);
+    } finally {
+      await progressSubscription.cancel();
+    }
+    onStage?.call('Finalizing image…');
+    return reference.getDownloadURL().timeout(
+      const Duration(seconds: 20),
+      onTimeout: () => throw TimeoutException(
+        'The image uploaded, but its download URL could not be confirmed. Retry shortly.',
+      ),
+    );
   }
 
   Future<void> updateConfiguration({

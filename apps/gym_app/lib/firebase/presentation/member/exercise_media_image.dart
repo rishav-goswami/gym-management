@@ -36,7 +36,12 @@ class _ExerciseMediaImageState extends State<ExerciseMediaImage> {
   late Future<String> _url;
   bool _usingSourceFallback = false;
 
-  String get _storagePath => widget.exercise.storagePaths[widget.imageIndex];
+  bool get _hasStorage =>
+      widget.imageIndex < widget.exercise.storagePaths.length;
+  bool get _hasSource => widget.imageIndex < widget.exercise.imageUrls.length;
+  String get _storagePath => _hasStorage
+      ? widget.exercise.storagePaths[widget.imageIndex]
+      : 'external/${widget.exercise.id}/${widget.imageIndex}';
   String get _cacheKey => '${Firebase.app().options.projectId}::$_storagePath';
   String get _preferenceKey => 'exercise_media_url::$_cacheKey';
 
@@ -59,6 +64,10 @@ class _ExerciseMediaImageState extends State<ExerciseMediaImage> {
   Future<String> _resolve() {
     final cacheKey = _cacheKey;
     return _resolvedUrls.putIfAbsent(cacheKey, () async {
+      if (!_hasStorage) {
+        _usingSourceFallback = true;
+        return _hasSource ? widget.exercise.imageUrls[widget.imageIndex] : '';
+      }
       final preferences = await SharedPreferences.getInstance();
       final cachedUrl = preferences.getString(_preferenceKey);
       if (cachedUrl != null && cachedUrl.isNotEmpty) return cachedUrl;
@@ -70,13 +79,13 @@ class _ExerciseMediaImageState extends State<ExerciseMediaImage> {
         return url;
       } catch (_) {
         _usingSourceFallback = true;
-        return widget.exercise.imageUrls[widget.imageIndex];
+        return _hasSource ? widget.exercise.imageUrls[widget.imageIndex] : '';
       }
     });
   }
 
   void _retryFromSource() {
-    if (_usingSourceFallback) return;
+    if (_usingSourceFallback || !_hasSource) return;
     _usingSourceFallback = true;
     _resolvedUrls.remove(_cacheKey);
     SharedPreferences.getInstance().then(
@@ -97,6 +106,14 @@ class _ExerciseMediaImageState extends State<ExerciseMediaImage> {
       final url = snapshot.data;
       if (url == null) {
         return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+      }
+      if (url.isEmpty) {
+        return ColoredBox(
+          color: const Color(0x11000000),
+          child: Center(
+            child: Icon(Icons.fitness_center, size: widget.errorIconSize),
+          ),
+        );
       }
       return CachedNetworkImage(
         imageUrl: url,

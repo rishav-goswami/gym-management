@@ -6,7 +6,12 @@ import {
   getFirestore
 } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
-import { onDocumentCreated, onDocumentDeleted } from "firebase-functions/v2/firestore";
+import { getStorage } from "firebase-admin/storage";
+import {
+  onDocumentCreated,
+  onDocumentDeleted,
+  onDocumentWritten
+} from "firebase-functions/v2/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger } from "firebase-functions";
@@ -150,7 +155,14 @@ const featureIdSchema = z.enum([
   "staff",
   "announcements",
   "branding",
-  "profile"
+  "profile",
+  "registration",
+  "onboarding",
+  "firstRoutine",
+  "firstWorkout",
+  "firstProgress",
+  "invitationAcceptance",
+  "gymCreation"
 ]);
 
 const saasPlanSchema = z.object({
@@ -300,7 +312,14 @@ export const startGymTrial = onCall(
         monthlyRevenueMinor: 0, updatedAt: now
       });
     });
+    await db.doc(`users/${request.auth.uid}`).set({
+      gymConnectionCount: FieldValue.increment(1),
+      hasGymConnection: true,
+      ownsGym: true,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
     await writeAudit(db, gymRef.id, request.auth.uid, "gym.self_service_trial_started", {});
+    await recordPlatformMilestone("gymCreation", "owner", "gym", gymRef.id);
     return { gymId: gymRef.id };
   }
 );
@@ -448,6 +467,7 @@ export const acceptInvitation = onCall(
     );
     const entitlementRef = db.doc(`gyms/${gymId}/entitlements/current`);
     const usageRef = db.doc(`gyms/${gymId}/usage/current`);
+    let acceptedRole = "member";
     try {
       await db.runTransaction(async (tx) => {
       const [invite, entitlement, usage] = await Promise.all([
@@ -466,6 +486,7 @@ export const acceptInvitation = onCall(
         throw new HttpsError("permission-denied", "Invitation does not match this account.");
       }
       const role = String(invite.get("role"));
+      acceptedRole = role;
       const usageField = usageFieldForRole(role);
       if (usageField) {
         if (!entitlement.exists || !usage.exists) {
@@ -515,12 +536,16 @@ export const acceptInvitation = onCall(
         displayName: identity.displayName,
         email: tokenEmail,
         phone: tokenPhone,
+        gymConnectionCount: FieldValue.increment(1),
+        hasGymConnection: true,
+        ...(role === "owner" ? { ownsGym: true } : {}),
         updatedAt: FieldValue.serverTimestamp()
       }, { merge: true });
       });
     } catch (error) {
       quotaError(error);
     }
+    await recordPlatformMilestone("invitationAcceptance", acceptedRole, "gym", gymId);
     return { gymId };
   }
 );
@@ -795,7 +820,13 @@ export const getPlatformDashboard = onCall(
   { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
     requirePlatformAdmin(request);
-    const gyms = await db.collection("gyms").orderBy("createdAt", "desc").limit(200).get();
+    const [gyms, consumerCount, onboardedCount, connectedCount, ownerCount] = await Promise.all([
+      db.collection("gyms").orderBy("createdAt", "desc").limit(200).get(),
+      db.collection("users").count().get(),
+      db.collection("users").where("onboardingCompletedAt", "!=", null).count().get(),
+      db.collection("users").where("hasGymConnection", "==", true).count().get(),
+      db.collection("users").where("ownsGym", "==", true).count().get()
+    ]);
     const usageSnapshots = gyms.empty
       ? []
       : await db.getAll(...gyms.docs.map((gym) => db.doc(`gyms/${gym.id}/usage/current`)));
@@ -823,6 +854,8 @@ export const getPlatformDashboard = onCall(
     });
     const featureMetrics = await db.collection("platform_feature_metrics")
       .orderBy("totalEvents", "desc").limit(20).get();
+    const consumers = consumerCount.data().count;
+    const connectedConsumers = connectedCount.data().count;
     return {
       totals: {
         gyms: gyms.size,
@@ -831,7 +864,12 @@ export const getPlatformDashboard = onCall(
         members,
         trainers,
         staff,
-        users: members + trainers + staff + gyms.size
+        users: members + trainers + staff + gyms.size,
+        consumers,
+        standaloneConsumers: Math.max(0, consumers - connectedConsumers),
+        gymConnectedConsumers: connectedConsumers,
+        consumerOwners: ownerCount.data().count,
+        onboardingCompleted: onboardedCount.data().count
       },
       tenants,
       features: featureMetrics.docs.map((metric) => ({ id: metric.id, ...metric.data() }))
@@ -839,30 +877,88 @@ export const getPlatformDashboard = onCall(
   }
 );
 
+async function recordPlatformMilestone(
+  featureId: string,
+  audience: string,
+  scopeType: "personal" | "gym",
+  gymId?: string
+) {
+  const now = FieldValue.serverTimestamp();
+  const batch = db.batch();
+  batch.set(db.doc(`platform_feature_metrics/${featureId}`), {
+    featureId,
+    totalEvents: FieldValue.increment(1),
+    [`audience_${audience}`]: FieldValue.increment(1),
+    [`scope_${scopeType}`]: FieldValue.increment(1),
+    updatedAt: now
+  }, { merge: true });
+  if (gymId) {
+    batch.set(db.doc(`gyms/${gymId}/feature_metrics/${featureId}`), {
+      gymId,
+      featureId,
+      totalEvents: FieldValue.increment(1),
+      [`audience_${audience}`]: FieldValue.increment(1),
+      scopeType: "gym",
+      updatedAt: now
+    }, { merge: true });
+  }
+  await batch.commit();
+}
+
 export const trackFeatureUsage = onCall(
   { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
     requireAuth(request);
     const input = z.object({
-      gymId: z.string().min(1),
+      scopeType: z.enum(["personal", "gym"]).default("gym"),
+      gymId: z.string().min(1).optional(),
       featureId: featureIdSchema
     }).parse(request.data);
-    const [membership, gym] = await Promise.all([
-      db.doc(`gym_memberships/${input.gymId}_${request.auth.uid}`).get(),
-      db.doc(`gyms/${input.gymId}`).get()
-    ]);
-    if (!membership.exists || membership.get("status") !== "active") {
-      throw new HttpsError("permission-denied", "Active gym membership is required.");
+    if (input.scopeType === "gym" && !input.gymId) {
+      throw new HttpsError("invalid-argument", "gymId is required for gym scope.");
     }
-    if (!gym.exists) throw new HttpsError("failed-precondition", "This gym is not currently active.");
-    const planEndsAt = gym.get("platformPlanEndsAt") as Timestamp | undefined;
-    if (!["trial", "active"].includes(String(gym.get("status"))) ||
-        (planEndsAt && planEndsAt.toMillis() <= Date.now())) {
-      throw new HttpsError("failed-precondition", "This gym is not currently active.");
+    let role = "standalone";
+    if (input.scopeType === "gym") {
+      const [membership, gym] = await Promise.all([
+        db.doc(`gym_memberships/${input.gymId}_${request.auth.uid}`).get(),
+        db.doc(`gyms/${input.gymId}`).get()
+      ]);
+      if (!membership.exists || membership.get("status") !== "active") {
+        throw new HttpsError("permission-denied", "Active gym membership is required.");
+      }
+      if (!gym.exists) throw new HttpsError("failed-precondition", "This gym is not currently active.");
+      const planEndsAt = gym.get("platformPlanEndsAt") as Timestamp | undefined;
+      if (!["trial", "active"].includes(String(gym.get("status"))) ||
+          (planEndsAt && planEndsAt.toMillis() <= Date.now())) {
+        throw new HttpsError("failed-precondition", "This gym is not currently active.");
+      }
+      role = String(membership.get("role") ?? "member");
+    } else {
+      const [account, memberships] = await Promise.all([
+        db.doc(`users/${request.auth.uid}`).get(),
+        db.collection("gym_memberships")
+          .where("uid", "==", request.auth.uid)
+          .where("status", "==", "active")
+          .limit(20)
+          .get()
+      ]);
+      if (account.get("status") === "suspended") {
+        throw new HttpsError("permission-denied", "This account is suspended.");
+      }
+      const roles = memberships.docs.map((item) => String(item.get("role")));
+      role = roles.includes("owner")
+        ? "owner"
+        : roles.includes("trainer")
+        ? "trainer"
+        : roles.includes("member")
+        ? "member"
+        : roles.length > 0
+        ? "staff"
+        : "standalone";
     }
-    const role = String(membership.get("role") ?? "member");
+    const scopeKey = input.scopeType === "gym" ? input.gymId! : "personal";
     const throttleRef = db.doc(
-      `users/${request.auth.uid}/feature_usage_state/${input.gymId}_${input.featureId}`
+      `users/${request.auth.uid}/feature_usage_state/${scopeKey}_${input.featureId}`
     );
     const tracked = await db.runTransaction(async (tx) => {
       const state = await tx.get(throttleRef);
@@ -872,7 +968,8 @@ export const trackFeatureUsage = onCall(
       }
       const now = FieldValue.serverTimestamp();
       tx.set(throttleRef, {
-        gymId: input.gymId,
+        scopeType: input.scopeType,
+        ...(input.gymId ? { gymId: input.gymId } : {}),
         featureId: input.featureId,
         lastTrackedAt: now
       });
@@ -880,15 +977,19 @@ export const trackFeatureUsage = onCall(
         featureId: input.featureId,
         totalEvents: FieldValue.increment(1),
         [`audience_${role}`]: FieldValue.increment(1),
+        [`scope_${input.scopeType}`]: FieldValue.increment(1),
         updatedAt: now
       }, { merge: true });
-      tx.set(db.doc(`gyms/${input.gymId}/feature_metrics/${input.featureId}`), {
-        gymId: input.gymId,
-        featureId: input.featureId,
-        totalEvents: FieldValue.increment(1),
-        [`audience_${role}`]: FieldValue.increment(1),
-        updatedAt: now
-      }, { merge: true });
+      if (input.gymId) {
+        tx.set(db.doc(`gyms/${input.gymId}/feature_metrics/${input.featureId}`), {
+          gymId: input.gymId,
+          scopeType: "gym",
+          featureId: input.featureId,
+          totalEvents: FieldValue.increment(1),
+          [`audience_${role}`]: FieldValue.increment(1),
+          updatedAt: now
+        }, { merge: true });
+      }
       return true;
     });
     return { tracked };
@@ -1658,6 +1759,20 @@ export const exportMyData = onCall(
     requireAuth(request);
     const memberships = await db.collection("gym_memberships").where("uid", "==", request.auth.uid).get();
     const profile = await db.doc(`users/${request.auth.uid}`).get();
+    const personalCollections = [
+      "fitness_profile", "routines", "workout_logs", "measurements", "goals",
+      "personal_records", "progress_photos", "notifications", "gym_shares",
+      "entitlements", "support_history"
+    ];
+    const personalData: Record<string, unknown[]> = {};
+    for (const collection of personalCollections) {
+      const snapshot = await db.collection(`users/${request.auth.uid}/${collection}`)
+        .limit(5000).get();
+      personalData[collection] = snapshot.docs.map((document) => ({
+        id: document.id,
+        ...document.data()
+      }));
+    }
     const gymData = [];
     const memberCollections = [
       "subscriptions", "payments", "attendance", "class_bookings",
@@ -1685,6 +1800,7 @@ export const exportMyData = onCall(
     }
     return {
       profile: profile.data() ?? {},
+      personalData,
       memberships: memberships.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
       gymData,
       exportedAt: new Date().toISOString()
@@ -1701,8 +1817,550 @@ export const requestAccountDeletion = onCall(
       deletionScheduledFor: Timestamp.fromMillis(Date.now() + 30 * 86400000),
       status: "deletion_requested"
     }, { merge: true });
+    const shares = await db.collection(`users/${request.auth.uid}/gym_shares`).get();
+    for (const share of shares.docs) {
+      const root = db.doc(`gyms/${share.id}/shared_fitness/${request.auth.uid}`);
+      for (const collection of [
+        "profile", "goals", "workout_logs", "personal_records",
+        "measurements", "progress_photos"
+      ]) {
+        await deleteProjectedCollection(`${root.path}/${collection}`);
+      }
+      await root.delete().catch(() => undefined);
+    }
     await getAuth().revokeRefreshTokens(request.auth.uid);
     await getAuth().updateUser(request.auth.uid, { disabled: true });
     return { requested: true, deletionAfterDays: 30 };
+  }
+);
+
+const sharingCategories = [
+  "profile",
+  "goals",
+  "workoutSummaries",
+  "measurements",
+  "progress"
+] as const;
+
+type SharingCategory = typeof sharingCategories[number];
+
+const sharingSchema = z.object({
+  gymId: z.string().min(1),
+  categories: z.object({
+    profile: z.boolean(),
+    goals: z.boolean(),
+    workoutSummaries: z.boolean(),
+    measurements: z.boolean(),
+    progress: z.boolean()
+  })
+});
+
+const defaultConsumerFeatures = {
+  routines: true,
+  workoutLogging: true,
+  progress: true,
+  exerciseLibrary: true,
+  progressPhotos: true,
+  gymConnections: true
+};
+
+export const ensureConsumerAccount = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requireAuth(request);
+    const uid = request.auth.uid;
+    const identity = await userIdentity(uid, request.auth.token);
+    const userRef = db.doc(`users/${uid}`);
+    const entitlementRef = db.doc(`users/${uid}/entitlements/current`);
+    const planRef = db.doc("consumer_plans/free");
+    await db.runTransaction(async (tx) => {
+      const [user, entitlement, plan] = await Promise.all([
+        tx.get(userRef),
+        tx.get(entitlementRef),
+        tx.get(planRef)
+      ]);
+      if (!user.exists) {
+        tx.create(userRef, {
+          uid,
+          displayName: identity.displayName,
+          email: identity.email,
+          phone: identity.phone,
+          status: "active",
+          consumerPlanId: "free",
+          registrationTrackedAt: FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+      } else {
+        tx.set(userRef, {
+          displayName: user.get("displayName") ?? identity.displayName,
+          email: identity.email,
+          phone: identity.phone,
+          status: user.get("status") ?? "active",
+          consumerPlanId: user.get("consumerPlanId") ?? "free",
+          lastSeenAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        if (!user.get("registrationTrackedAt")) {
+          tx.set(userRef, {
+            registrationTrackedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+        }
+      }
+      if (!user.exists || !user.get("registrationTrackedAt")) {
+        tx.set(db.doc("platform_feature_metrics/registration"), {
+          featureId: "registration",
+          totalEvents: FieldValue.increment(1),
+          audience_standalone: FieldValue.increment(1),
+          scope_personal: FieldValue.increment(1),
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
+      if (!entitlement.exists) {
+        tx.create(entitlementRef, {
+          ownerUid: uid,
+          planId: "free",
+          planVersion: Number(plan.get("version") ?? 1),
+          features: plan.get("features") ?? defaultConsumerFeatures,
+          overrides: {},
+          status: "active",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        });
+      }
+    });
+    return { uid, planId: "free" };
+  }
+);
+
+function categoryForCollection(collection: string): SharingCategory | null {
+  if (collection === "fitness_profile") return "profile";
+  if (collection === "goals") return "goals";
+  if (collection === "workout_logs" || collection === "personal_records") {
+    return "workoutSummaries";
+  }
+  if (collection === "measurements") return "measurements";
+  if (collection === "progress_photos") return "progress";
+  return null;
+}
+
+function safeProjection(
+  category: SharingCategory,
+  data: Record<string, unknown>
+): Record<string, unknown> {
+  const allowed: Record<SharingCategory, string[]> = {
+    profile: ["displayName", "fitnessGoals", "experienceLevel", "workoutDaysPerWeek"],
+    goals: ["name", "target", "unit", "status", "targetAt", "createdAt", "updatedAt"],
+    workoutSummaries: [
+      "name", "title", "goal", "durationMinutes", "durationSeconds", "completedAt", "totalVolumeKg",
+      "movementCount", "personalRecords", "origin", "createdAt", "updatedAt"
+    ],
+    measurements: [
+      "weightKg", "bodyFatPercent", "chestCm", "waistCm", "hipsCm",
+      "armsCm", "measuredAt", "createdAt", "updatedAt"
+    ],
+    progress: ["caption", "capturedAt", "createdAt", "updatedAt"]
+  };
+  const projection = Object.fromEntries(
+    allowed[category]
+      .filter((key) => data[key] !== undefined)
+      .map((key) => [key, data[key]])
+  );
+  if (category === "workoutSummaries" && Array.isArray(data.exercises)) {
+    projection.movementCount = data.exercises.length;
+    projection.completedSets = data.exercises.reduce(
+      (sum: number, exercise: unknown) => sum + Number(
+        typeof exercise === "object" && exercise !== null && "completedSets" in exercise
+          ? (exercise as Record<string, unknown>).completedSets ?? 0
+          : 0
+      ),
+      0
+    );
+  }
+  return projection;
+}
+
+async function deleteProjectedCollection(path: string) {
+  const snapshot = await db.collection(path).limit(500).get();
+  if (snapshot.empty) return;
+  const batch = db.batch();
+  snapshot.docs.forEach((document) => batch.delete(document.ref));
+  await batch.commit();
+  if (snapshot.size === 500) await deleteProjectedCollection(path);
+}
+
+async function refreshSharingProjection(
+  uid: string,
+  gymId: string,
+  categories: Record<SharingCategory, boolean>
+) {
+  const root = db.doc(`gyms/${gymId}/shared_fitness/${uid}`);
+  await root.set({
+    uid,
+    gymId,
+    categories,
+    updatedAt: FieldValue.serverTimestamp()
+  }, { merge: true });
+
+  const sources: Array<[SharingCategory, string]> = [
+    ["goals", "goals"],
+    ["workoutSummaries", "workout_logs"],
+    ["workoutSummaries", "personal_records"],
+    ["measurements", "measurements"],
+    ["progress", "progress_photos"]
+  ];
+  for (const [category, collection] of sources) {
+    const targetName = collection;
+    await deleteProjectedCollection(`${root.path}/${targetName}`);
+    if (!categories[category]) continue;
+    const records = await db.collection(`users/${uid}/${collection}`).limit(250).get();
+    if (records.empty) continue;
+    const batch = db.batch();
+    records.docs.forEach((document) => {
+      batch.set(root.collection(targetName).doc(document.id), {
+        ...safeProjection(category, document.data()),
+        sourceId: document.id,
+        projectedAt: FieldValue.serverTimestamp()
+      });
+    });
+    await batch.commit();
+  }
+  await deleteProjectedCollection(`${root.path}/profile`);
+  if (categories.profile) {
+    const profile = await db.doc(`users/${uid}/fitness_profile/current`).get();
+    if (profile.exists) {
+      await root.collection("profile").doc("current").set({
+        ...safeProjection("profile", profile.data()!),
+        projectedAt: FieldValue.serverTimestamp()
+      });
+    }
+  }
+}
+
+export const updateGymSharing = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requireAuth(request);
+    const input = sharingSchema.parse(request.data);
+    const uid = request.auth.uid;
+    const membership = await db.doc(`gym_memberships/${membershipDocumentId(input.gymId, uid)}`).get();
+    if (!membership.exists || membership.get("status") !== "active") {
+      throw new HttpsError("permission-denied", "An active gym membership is required.");
+    }
+    await db.doc(`users/${uid}/gym_shares/${input.gymId}`).set({
+      ownerUid: uid,
+      gymId: input.gymId,
+      categories: input.categories,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+    await refreshSharingProjection(uid, input.gymId, input.categories);
+    await writeAudit(
+      db,
+      input.gymId,
+      uid,
+      "consumer.sharing_updated",
+      { type: "member", id: uid },
+      { categories: input.categories }
+    );
+    return { gymId: input.gymId, categories: input.categories };
+  }
+);
+
+export const projectPersonalFitnessChange = onDocumentWritten(
+  { region: REGION, document: "users/{uid}/{collection}/{documentId}" },
+  async (event) => {
+    const category = categoryForCollection(event.params.collection);
+    if (!category) return;
+    const shares = await db.collection(`users/${event.params.uid}/gym_shares`)
+      .where(`categories.${category}`, "==", true)
+      .get();
+    for (const share of shares.docs) {
+      const gymId = share.id;
+      const targetCollection = event.params.collection === "fitness_profile"
+        ? "profile"
+        : event.params.collection;
+      const target = db.doc(
+        `gyms/${gymId}/shared_fitness/${event.params.uid}/${targetCollection}/${event.params.documentId}`
+      );
+      if (!event.data?.after.exists) {
+        await target.delete().catch(() => undefined);
+        continue;
+      }
+      await target.set({
+        ...safeProjection(category, event.data.after.data()!),
+        sourceId: event.params.documentId,
+        projectedAt: FieldValue.serverTimestamp()
+      });
+    }
+  }
+);
+
+export const aggregateConsumerGymConnections = onDocumentWritten(
+  { region: REGION, document: "gym_memberships/{membershipId}" },
+  async (event) => {
+    const beforeUid = event.data?.before.get("uid") as string | undefined;
+    const afterUid = event.data?.after.get("uid") as string | undefined;
+    for (const uid of new Set([beforeUid, afterUid].filter(Boolean) as string[])) {
+      const memberships = await db.collection("gym_memberships")
+        .where("uid", "==", uid)
+        .where("status", "==", "active")
+        .limit(100)
+        .get();
+      await db.doc(`users/${uid}`).set({
+        gymConnectionCount: memberships.size,
+        hasGymConnection: !memberships.empty,
+        ownsGym: memberships.docs.some((item) => item.get("role") === "owner"),
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
+  }
+);
+
+const supportCategories = ["account", "onboarding", "sharing", "memberships", "usage"] as const;
+const supportCategorySchema = z.enum(supportCategories);
+
+export const startConsumerSupportSession = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requirePlatformAdmin(request);
+    const input = z.object({
+      targetUid: z.string().min(1),
+      reason: z.string().trim().min(12).max(500),
+      categories: z.array(supportCategorySchema).min(1).max(supportCategories.length)
+    }).parse(request.data);
+    const target = await db.doc(`users/${input.targetUid}`).get();
+    if (!target.exists) throw new HttpsError("not-found", "Consumer was not found.");
+    const grant = db.collection("platform_consumer_support_grants").doc();
+    const expiresAt = Timestamp.fromMillis(Date.now() + 15 * 60_000);
+    await grant.create({
+      targetUid: input.targetUid,
+      administratorUid: request.auth!.uid,
+      reason: input.reason,
+      categories: input.categories,
+      status: "active",
+      createdAt: FieldValue.serverTimestamp(),
+      expiresAt
+    });
+    await db.doc(`users/${input.targetUid}/support_history/${grant.id}`).set({
+      administratorUid: request.auth!.uid,
+      reason: input.reason,
+      categories: input.categories,
+      createdAt: FieldValue.serverTimestamp(),
+      expiresAt
+    });
+    return { grantId: grant.id, expiresAt: expiresAt.toDate().toISOString() };
+  }
+);
+
+export const getConsumerSupportData = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requirePlatformAdmin(request);
+    const input = z.object({
+      grantId: z.string().min(1),
+      targetUid: z.string().min(1),
+      categories: z.array(supportCategorySchema).min(1).max(supportCategories.length)
+    }).parse(request.data);
+    const grant = await db.doc(`platform_consumer_support_grants/${input.grantId}`).get();
+    if (!grant.exists) {
+      throw new HttpsError("permission-denied", "The support grant is invalid or expired.");
+    }
+    const permitted = grant.get("categories") as string[] | undefined;
+    if (grant.get("status") !== "active" ||
+        grant.get("administratorUid") !== request.auth!.uid ||
+        grant.get("targetUid") !== input.targetUid ||
+        !(grant.get("expiresAt") as Timestamp | undefined) ||
+        (grant.get("expiresAt") as Timestamp).toMillis() <= Date.now() ||
+        input.categories.some((category) => !permitted?.includes(category))) {
+      throw new HttpsError("permission-denied", "The support grant is invalid or expired.");
+    }
+    const result: Record<string, unknown> = {};
+    if (input.categories.includes("account")) {
+      const account = await db.doc(`users/${input.targetUid}`).get();
+      result.account = account.data() ?? {};
+    }
+    if (input.categories.includes("onboarding")) {
+      const profile = await db.doc(`users/${input.targetUid}/fitness_profile/current`).get();
+      result.onboarding = safeProjection("profile", profile.data() ?? {});
+    }
+    if (input.categories.includes("sharing")) {
+      const shares = await db.collection(`users/${input.targetUid}/gym_shares`).limit(50).get();
+      result.sharing = shares.docs.map((document) => ({ id: document.id, ...document.data() }));
+    }
+    if (input.categories.includes("memberships")) {
+      const memberships = await db.collection("gym_memberships")
+        .where("uid", "==", input.targetUid).limit(50).get();
+      result.memberships = memberships.docs.map((document) => ({ id: document.id, ...document.data() }));
+    }
+    if (input.categories.includes("usage")) {
+      const [routines, workouts, measurements] = await Promise.all([
+        db.collection(`users/${input.targetUid}/routines`).count().get(),
+        db.collection(`users/${input.targetUid}/workout_logs`).count().get(),
+        db.collection(`users/${input.targetUid}/measurements`).count().get()
+      ]);
+      result.usage = {
+        routines: routines.data().count,
+        workouts: workouts.data().count,
+        measurements: measurements.data().count
+      };
+    }
+    const audit = {
+      grantId: input.grantId,
+      targetUid: input.targetUid,
+      administratorUid: request.auth!.uid,
+      reason: grant.get("reason"),
+      categories: input.categories,
+      viewedAt: FieldValue.serverTimestamp()
+    };
+    const auditRef = db.collection("platform_consumer_support_audit").doc();
+    await Promise.all([
+      auditRef.create(audit),
+      db.doc(`users/${input.targetUid}/support_history/${auditRef.id}`).create(audit)
+    ]);
+    return result;
+  }
+);
+
+export const listConsumers = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requirePlatformAdmin(request);
+    const input = z.object({ limit: z.number().int().min(1).max(200).default(100) })
+      .parse(request.data ?? {});
+    const consumers = await db.collection("users").limit(input.limit).get();
+    return {
+      consumers: consumers.docs.map((document) => {
+        const data = document.data();
+        return {
+          uid: document.id,
+          displayName: data.displayName ?? null,
+          email: data.email ?? null,
+          phone: data.phone ?? null,
+          status: data.status ?? "active",
+          planId: data.consumerPlanId ?? "free",
+          onboardingCompleted: Boolean(data.onboardingCompletedAt),
+          lastSeenAt: data.lastSeenAt ?? null
+        };
+      })
+    };
+  }
+);
+
+export const setConsumerStatus = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requirePlatformAdmin(request);
+    const input = z.object({
+      uid: z.string().min(1),
+      status: z.enum(["active", "suspended"]),
+      reason: z.string().trim().min(8).max(500)
+    }).parse(request.data);
+    await db.doc(`users/${input.uid}`).set({
+      status: input.status,
+      statusReason: input.reason,
+      statusUpdatedBy: request.auth!.uid,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+    if (input.status === "suspended") await getAuth().revokeRefreshTokens(input.uid);
+    await db.collection("platform_consumer_audit").add({
+      action: "consumer.status_updated",
+      targetUid: input.uid,
+      administratorUid: request.auth!.uid,
+      status: input.status,
+      reason: input.reason,
+      createdAt: FieldValue.serverTimestamp()
+    });
+    return { uid: input.uid, status: input.status };
+  }
+);
+
+export const setConsumerEntitlementOverrides = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requirePlatformAdmin(request);
+    const input = z.object({
+      uid: z.string().min(1),
+      overrides: z.record(z.string(), z.boolean()),
+      reason: z.string().trim().min(8).max(500)
+    }).parse(request.data);
+    await db.doc(`users/${input.uid}/entitlements/current`).set({
+      overrides: input.overrides,
+      updatedBy: request.auth!.uid,
+      updateReason: input.reason,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+    await db.collection("platform_consumer_audit").add({
+      action: "consumer.entitlements_updated",
+      targetUid: input.uid,
+      administratorUid: request.auth!.uid,
+      overrides: input.overrides,
+      reason: input.reason,
+      createdAt: FieldValue.serverTimestamp()
+    });
+    return { uid: input.uid, overrides: input.overrides };
+  }
+);
+
+export const updatePlatformBranding = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requirePlatformAdmin(request);
+    const input = z.object({
+      name: z.string().trim().min(2).max(80),
+      logoUrl: z.string().url().nullable(),
+      primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+      secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+      accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+      termsUrl: z.string().url(),
+      privacyUrl: z.string().url(),
+      introduction: z.array(z.object({
+        title: z.string().trim().min(2).max(100),
+        body: z.string().trim().min(2).max(300),
+        imageUrl: z.string().url().nullable()
+      })).length(3),
+      consumerFeatures: z.record(z.string(), z.boolean())
+    }).parse(request.data);
+    await db.doc("platform_public/app_branding").set({
+      ...input,
+      updatedBy: request.auth!.uid,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+    return { updated: true };
+  }
+);
+
+async function deleteConsumerData(uid: string) {
+  const userRef = db.doc(`users/${uid}`);
+  const collections = await userRef.listCollections();
+  for (const collection of collections) {
+    while (true) {
+      const snapshot = await collection.limit(400).get();
+      if (snapshot.empty) break;
+      const batch = db.batch();
+      snapshot.docs.forEach((document) => batch.delete(document.ref));
+      await batch.commit();
+    }
+  }
+  await getStorage().bucket().deleteFiles({ prefix: `users/${uid}/` });
+  await userRef.delete();
+  await getAuth().deleteUser(uid).catch((error: unknown) => {
+    logger.warn("Auth user deletion failed after data deletion", { uid, error });
+  });
+}
+
+export const purgeExpiredConsumerDeletionRequests = onSchedule(
+  { region: REGION, schedule: "every day 02:30", timeZone: "Asia/Kolkata" },
+  async () => {
+    const requests = await db.collection("users")
+      .where("status", "==", "deletion_requested")
+      .where("deletionScheduledFor", "<=", Timestamp.now())
+      .limit(100)
+      .get();
+    for (const account of requests.docs) {
+      await deleteConsumerData(account.id);
+    }
+    logger.info("Expired consumer deletion requests purged", {
+      count: requests.size
+    });
   }
 );

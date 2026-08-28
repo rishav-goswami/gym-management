@@ -89,6 +89,35 @@ class _Overview extends StatelessWidget {
               mainAxisSpacing: 14,
               children: [
                 _MetricCard(
+                  label: 'Consumers',
+                  value: totals['consumers'] ?? 0,
+                  supporting:
+                      '${totals['standaloneConsumers'] ?? 0} standalone only',
+                  icon: Icons.person_outline,
+                  color: Colors.blue,
+                ),
+                _MetricCard(
+                  label: 'Gym-connected',
+                  value: totals['gymConnectedConsumers'] ?? 0,
+                  supporting: 'Consumers with an active gym space',
+                  icon: Icons.hub_outlined,
+                  color: Colors.cyan,
+                ),
+                _MetricCard(
+                  label: 'Onboarding complete',
+                  value: totals['onboardingCompleted'] ?? 0,
+                  supporting: 'Ready to use personal fitness',
+                  icon: Icons.task_alt,
+                  color: Colors.green,
+                ),
+                _MetricCard(
+                  label: 'Consumer owners',
+                  value: totals['consumerOwners'] ?? 0,
+                  supporting: 'Consumers who also run a gym',
+                  icon: Icons.storefront_outlined,
+                  color: Colors.deepOrange,
+                ),
+                _MetricCard(
                   label: 'Gym tenants',
                   value: gyms,
                   supporting: '$activeGyms active · $trialGyms trial',
@@ -273,6 +302,11 @@ class _FeatureAnalytics extends StatelessWidget {
                       runSpacing: 8,
                       children: [
                         _AudienceChip(
+                          label: 'Standalone',
+                          value: feature['audience_standalone'],
+                          color: Colors.blue,
+                        ),
+                        _AudienceChip(
                           label: 'Members',
                           value: feature['audience_member'],
                           color: Colors.orange,
@@ -294,6 +328,16 @@ class _FeatureAnalytics extends StatelessWidget {
                               (feature['audience_receptionist'] as num? ?? 0) +
                               (feature['audience_accountant'] as num? ?? 0),
                           color: Colors.teal,
+                        ),
+                        _AudienceChip(
+                          label: 'Personal scope',
+                          value: feature['scope_personal'],
+                          color: Colors.cyan,
+                        ),
+                        _AudienceChip(
+                          label: 'Gym scope',
+                          value: feature['scope_gym'],
+                          color: Colors.indigo,
                         ),
                       ],
                     ),

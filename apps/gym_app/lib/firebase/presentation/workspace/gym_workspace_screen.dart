@@ -67,12 +67,18 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
           ],
         ),
         actions: [
-          if (membership.role == GymRole.member)
+          if (membership.role == GymRole.member) ...[
+            IconButton(
+              tooltip: 'Back to My Fitness',
+              onPressed: () =>
+                  context.read<SessionCubit>().choosePersonalSpace(),
+              icon: const Icon(Icons.favorite_outline),
+            ),
             _MemberNotificationButton(
               membership: membership,
               onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
-            )
-          else ...[
+            ),
+          ] else ...[
             Chip(label: Text(membership.role.name)),
             IconButton(
               tooltip: 'Switch gym or role',
@@ -563,11 +569,11 @@ class _WorkspaceContent extends StatelessWidget {
     }
     if (destination.collection == 'workout_assignments' &&
         membership.role == GymRole.member) {
-      return MemberTrainingPanel(membership: membership);
+      return MemberTrainingPanel(scope: FitnessScope.gym(membership));
     }
     if (destination.collection == 'measurements' &&
         membership.role == GymRole.member) {
-      return MemberProgressPanel(membership: membership);
+      return MemberProgressPanel(scope: FitnessScope.gym(membership));
     }
     if (destination.collection == 'attendance') {
       return _AttendancePanel(membership: membership);
@@ -1300,6 +1306,31 @@ class _InvitationReadySheet extends StatelessWidget {
                     'Expires in ${invitation.expiresInHours} hours and only works with the invited email.',
                   ),
                 ),
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: Semantics(
+                  label: 'QR code for the secure gym invitation',
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: QrImageView(
+                        data: invitation.shareUri.toString(),
+                        size: 196,
+                        backgroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'The invited person can scan this code with their phone camera.',
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
               Builder(

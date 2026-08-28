@@ -93,6 +93,7 @@ class FirebaseBootstrap {
         'chat_enabled': true,
         'attendance_qr_enabled': true,
         'progress_photos_enabled': true,
+        'personal_spaces_v1': false,
         'maintenance_message': '',
       });
 }

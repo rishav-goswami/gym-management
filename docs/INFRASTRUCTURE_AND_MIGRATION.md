@@ -15,10 +15,11 @@ Firebase product:
    migrations. `firebase/functions/src/seed.ts` remains disposable emulator demo
    data and is not a production migration.
 
-Current forward migrations include foundation metadata and member identity
-backfill. The identity migration reads Firebase Auth through Application Default
-Credentials and fills only missing tenant-profile name/contact fields; it does
-not overwrite member-edited profile data.
+Current forward migrations include foundation metadata, tenant member identity,
+consumer personal-space initialization/history copy, and progress-photo media
+copy. The consumer migrations use deterministic IDs, preserve tenant originals,
+report candidates during `--dry-run`, and are safe to resume. See
+[`CONSUMER_FITNESS.md`](CONSUMER_FITNESS.md) before enabling the rollout switch.
 
 Run the local consistency check after infrastructure changes:
 
@@ -78,9 +79,10 @@ that the same Terraform state might replace or retire.
    CORS origin supports Firebase Hosting, local Flutter web ports, and migrated
    Hosting domains; Firebase Storage Rules still control authorization. Pass
    `--origins URL,...` when an environment deliberately uses a fixed allowlist.
-8. Configure console-only services: App Check provider/enforcement, APNs and FCM,
-   Android SHA fingerprints, authorized Auth domains, SMS region policy, custom
-   domains/DNS, budget alerts, Function secrets, and store signing credentials.
+8. Configure console-only services: Google and Apple Auth provider credentials,
+   App Check provider/enforcement, APNs and FCM, Android SHA fingerprints,
+   authorized Auth domains, SMS region policy, custom domains/DNS, budget alerts,
+   Function secrets, and store signing credentials.
    These contain external trust relationships and are intentionally not guessed
    by the repository.
 

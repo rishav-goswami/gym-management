@@ -32,7 +32,7 @@ class GymInvitationLink {
   String get registerLocation =>
       Uri(path: '/register', queryParameters: queryParameters).toString();
 
-  Uri get shareUri => Uri.parse('https://$_host/#$routeLocation');
+  Uri get shareUri => Uri.https(_host, '/join', queryParameters);
 
   String get roleLabel =>
       role == 'member' ? 'member' : role.replaceAll('_', ' ');
@@ -58,5 +58,22 @@ class GymInvitationLink {
           ? values['role']!.trim()
           : 'member',
     );
+  }
+
+  static GymInvitationLink? fromText(String value) {
+    final trimmed = value.trim();
+    final candidates = <String>[
+      trimmed,
+      ...RegExp(
+        r'https?://[^\s<>]+',
+      ).allMatches(trimmed).map((match) => match.group(0)!),
+    ];
+    for (final candidate in candidates) {
+      final uri = Uri.tryParse(candidate);
+      if (uri == null) continue;
+      final invitation = fromUri(uri);
+      if (invitation != null) return invitation;
+    }
+    return null;
   }
 }

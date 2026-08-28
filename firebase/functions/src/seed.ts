@@ -54,6 +54,79 @@ async function seed() {
     features: { ...trialFeatures, progressPhotos: true },
     createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()
   });
+  batch.set(db.doc("consumer_plans/free"), {
+    planId: "free",
+    name: "Free",
+    status: "active",
+    isPublic: true,
+    version: 1,
+    features: {
+      routines: true,
+      workoutLogging: true,
+      progress: true,
+      exerciseLibrary: true,
+      progressPhotos: true,
+      gymConnections: true
+    },
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp()
+  });
+  batch.set(db.doc("platform_public/app_branding"), {
+    name: "Gym Management",
+    primaryColor: "#2563EB",
+    secondaryColor: "#0F172A",
+    accentColor: "#F97316",
+    termsUrl: "https://example.com/terms",
+    privacyUrl: "https://example.com/privacy",
+    consumerFeatures: { personalSpacesV1: true },
+    introduction: [
+      { title: "Build workouts around your goals", body: "Create routines that fit your life.", imageUrl: null },
+      { title: "Log every set", body: "Understand your progress over time.", imageUrl: null },
+      { title: "Connect with your gym", body: "Add gym services whenever you choose.", imageUrl: null }
+    ],
+    updatedAt: FieldValue.serverTimestamp()
+  });
+  for (const user of [owner, trainer, member]) {
+    batch.set(db.doc(`users/${user.uid}`), {
+      uid: user.uid,
+      displayName: user.displayName,
+      email: user.email,
+      status: "active",
+      consumerPlanId: "free",
+      gymConnectionCount: 1,
+      hasGymConnection: true,
+      ownsGym: user.uid === owner.uid,
+      ageConfirmedAt: FieldValue.serverTimestamp(),
+      termsAcceptedAt: FieldValue.serverTimestamp(),
+      termsVersion: "2026-08-28",
+      onboardingCompletedAt: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+    batch.set(db.doc(`users/${user.uid}/entitlements/current`), {
+      ownerUid: user.uid,
+      planId: "free",
+      planVersion: 1,
+      status: "active",
+      features: {
+        routines: true, workoutLogging: true, progress: true,
+        exerciseLibrary: true, progressPhotos: true, gymConnections: true
+      },
+      overrides: {},
+      updatedAt: FieldValue.serverTimestamp()
+    });
+    batch.set(db.doc(`users/${user.uid}/fitness_profile/current`), {
+      ownerUid: user.uid,
+      displayName: user.displayName,
+      experienceLevel: "beginner",
+      workoutDaysPerWeek: 3,
+      fitnessGoals: ["improveFitness"],
+      equipmentAccess: ["fullGym"],
+      onboardingCompletedAt: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    });
+  }
   batch.set(db.doc(`trial_claims/${ownerUid}`), {
     uid: ownerUid, gymId, createdAt: FieldValue.serverTimestamp()
   });

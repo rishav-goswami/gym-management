@@ -42,6 +42,8 @@ dependencies:
   gym_core:
     path: ../../packages/gym_core
   image_picker: ^1.2.1
+  image_picker_for_web: ^3.1.1
+  image_picker_platform_interface: ^2.11.1
 
 dev_dependencies:
   flutter_test:

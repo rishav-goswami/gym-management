@@ -5,8 +5,9 @@
 1. A gym owner creates a normal Firebase identity in the customer app.
 2. Firebase sends an email verification link. Phone-auth identities are already
    verified by OTP.
-3. On **Choose workspace**, the owner selects **Start my gym** and submits the
-   gym name. No owner role can be selected on the public registration form.
+3. From **Profile → My gyms & spaces**, the user selects **Start your own gym**
+   and submits the gym name. No owner role can be selected on the public
+   registration form.
 4. The `startGymTrial` callable Function verifies the identity, reads the active
    `saas_plans/trial` version, and transactionally creates the tenant, immutable
    owner membership, plan snapshot, entitlements, usage counters, and a

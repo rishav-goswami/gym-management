@@ -29,6 +29,8 @@ class ExerciseGuide {
     this.variationGroup,
     this.coachingCues = const [],
     this.commonMistakes = const [],
+    this.directImageUrls = const [],
+    this.directStoragePaths = const [],
   });
 
   static const _sourceRoot =
@@ -51,13 +53,64 @@ class ExerciseGuide {
   final String? variationGroup;
   final List<String> coachingCues;
   final List<String> commonMistakes;
+  final List<String> directImageUrls;
+  final List<String> directStoragePaths;
 
-  List<String> get imageUrls =>
-      imagePaths.map((path) => '$_sourceRoot/$path').toList(growable: false);
+  List<String> get imageUrls => directImageUrls.isNotEmpty
+      ? directImageUrls
+      : imagePaths.map((path) => '$_sourceRoot/$path').toList(growable: false);
 
-  List<String> get storagePaths => imagePaths
-      .map((path) => 'platform/exercise-media/v1/$path')
-      .toList(growable: false);
+  List<String> get storagePaths => directStoragePaths.isNotEmpty
+      ? directStoragePaths
+      : imagePaths
+            .map((path) => 'platform/exercise-media/v1/$path')
+            .toList(growable: false);
+
+  factory ExerciseGuide.fromTenant(
+    String gymId,
+    String documentId,
+    Map<String, dynamic> data,
+  ) {
+    final goals = (data['goals'] as List? ?? const [])
+        .map((value) => TrainingGoal.values.where((goal) => goal.name == value))
+        .expand((value) => value)
+        .toSet();
+    return ExerciseGuide(
+      id: 'gym:$gymId:$documentId',
+      name: data['name'] as String? ?? 'Gym exercise',
+      level: data['level'] as String? ?? 'All levels',
+      equipment: data['equipment'] as String? ?? 'Gym equipment',
+      primaryMuscle:
+          data['primaryMuscle'] as String? ??
+          data['muscleGroup'] as String? ??
+          'Full body',
+      secondaryMuscles: (data['secondaryMuscles'] as List? ?? const [])
+          .whereType<String>()
+          .toList(),
+      instructions: (data['instructions'] as List? ?? const [])
+          .whereType<String>()
+          .toList(),
+      imagePaths: const [],
+      directImageUrls: (data['imageUrls'] as List? ?? const [])
+          .whereType<String>()
+          .toList(),
+      directStoragePaths: (data['mediaPaths'] as List? ?? const [])
+          .whereType<String>()
+          .toList(),
+      goals: goals.isEmpty ? TrainingGoal.values.toSet() : goals,
+      defaultSets: (data['defaultSets'] as num?)?.toInt() ?? 3,
+      defaultReps: data['defaultReps'] as String? ?? '8–12 reps',
+      restSeconds: (data['restSeconds'] as num?)?.toInt() ?? 60,
+      movementPattern: data['movementPattern'] as String? ?? 'General',
+      variationGroup: data['variationGroup'] as String?,
+      coachingCues: (data['coachingCues'] as List? ?? const [])
+          .whereType<String>()
+          .toList(),
+      commonMistakes: (data['commonMistakes'] as List? ?? const [])
+          .whereType<String>()
+          .toList(),
+    );
+  }
 }
 
 const exerciseGuides = <ExerciseGuide>[

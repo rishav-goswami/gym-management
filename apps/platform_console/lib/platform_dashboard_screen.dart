@@ -4,15 +4,19 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'platform_insights_panel.dart';
+import 'consumer_management_panel.dart';
+import 'platform_branding_panel.dart';
 import 'tenant_branding_dialog.dart';
 import 'tenant_subscription_dialog.dart';
 
 enum _ConsoleSection {
   overview('Overview', Icons.space_dashboard_outlined),
+  consumers('Consumers', Icons.people_alt_outlined),
   gyms('Gyms', Icons.business_outlined),
   plans('Plans & upgrades', Icons.workspace_premium_outlined),
   analytics('Feature analytics', Icons.query_stats_outlined),
-  feedback('Feedback', Icons.forum_outlined);
+  feedback('Feedback', Icons.forum_outlined),
+  platformBrand('Platform brand', Icons.palette_outlined);
 
   const _ConsoleSection(this.label, this.icon);
   final String label;
@@ -125,6 +129,12 @@ class _PlatformDashboardScreenState extends State<PlatformDashboardScreen> {
       description: 'Health, scale and adoption across your gym tenants.',
       child: PlatformInsightsPanel(view: PlatformInsightsView.overview),
     ),
+    _ConsoleSection.consumers => const _ConsolePage(
+      title: 'Consumer accounts',
+      description:
+          'Manage status and audited support without browsing private health data.',
+      child: ConsumerManagementPanel(),
+    ),
     _ConsoleSection.gyms => const _ConsolePage(
       title: 'Gym tenants',
       description: 'Provision gyms and manage branding, plans and access.',
@@ -152,6 +162,12 @@ class _PlatformDashboardScreenState extends State<PlatformDashboardScreen> {
       title: 'Product feedback',
       description: 'Review member, trainer and owner ratings and comments.',
       child: PlatformInsightsPanel(view: PlatformInsightsView.feedback),
+    ),
+    _ConsoleSection.platformBrand => const _ConsolePage(
+      title: 'Platform branding',
+      description:
+          'Control the public consumer identity, introduction and rollout switches.',
+      child: PlatformBrandingPanel(),
     ),
   };
 }

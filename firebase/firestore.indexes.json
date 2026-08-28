@@ -112,6 +112,14 @@
         { "fieldPath": "recipientUid", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "deletionScheduledFor", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [
@@ -123,6 +131,12 @@
     },
     {
       "collectionGroup": "invitations",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "platform_consumer_support_grants",
       "fieldPath": "expiresAt",
       "ttl": true,
       "indexes": []

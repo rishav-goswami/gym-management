@@ -84,7 +84,7 @@ class _MemberHomePanelState extends State<MemberHomePanel>
               exercises: plan,
               onStart: () => openGuidedWorkout(
                 context,
-                membership: membership,
+                scope: FitnessScope.gym(membership),
                 goal: goal,
                 exercises: plan,
               ),

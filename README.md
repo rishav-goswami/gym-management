@@ -1,8 +1,8 @@
-# Gym Management multi-tenant gym platform
+# Gym Management consumer fitness and multi-tenant gym platform
 
 Two independently built Flutter clients use Firebase as their shared system of record:
 
-- `apps/gym_app`: the customer product for members, trainers, staff, and gym owners on iOS, Android, and web.
+- `apps/gym_app`: the consumer fitness product with optional gym spaces for members, trainers, staff, and owners on iOS, Android, and web.
 - `apps/platform_console`: a web-only control plane for trusted Gym Management platform operators.
 
 Platform code is not imported into the customer application. A separate Firebase Web App registration and Hosting target are used for each web client. Actual authorization remains enforced by the `platformAdmin` custom claim, Cloud Functions, and Firestore rules.
@@ -12,7 +12,12 @@ the product boundaries, verification baseline, and canonical project documents.
 
 ## What is implemented
 
-- Firebase Auth with email/password and phone OTP, invitation-only gym roles, and platform-admin custom claims.
+- A permanent private **My Fitness** space for standalone routines, mixed workout
+  logging, exercise guidance, measurements and progress; gym membership is optional.
+- Firebase Auth with email/password, phone OTP, Google and Apple entry points,
+  18+ and versioned-policy onboarding, invitation-only gym roles, and platform-admin custom claims.
+- Explicit per-gym fitness sharing with server-owned projections, revocation,
+  consumer entitlements, suspension, export/deletion and audited support grants.
 - Firestore tenant data under `gyms/{gymId}` and memberships at `gym_memberships/{gymId_uid}`.
 - Runtime gym logo, name, tagline and color branding with responsive staff,
   trainer, and member workspaces.
@@ -46,13 +51,15 @@ Platform and owner branding workflows are documented in
 Feature analytics, product feedback, and member recommendation onboarding are
 documented in
 [`docs/PRODUCT_ANALYTICS_AND_ONBOARDING.md`](docs/PRODUCT_ANALYTICS_AND_ONBOARDING.md).
+The personal-space model, consent bridge, consumer support controls and rollout
+are documented in [`docs/CONSUMER_FITNESS.md`](docs/CONSUMER_FITNESS.md).
 
 ## Prerequisites
 
 - FVM (Flutter is pinned by `.fvmrc`)
 - Node.js 22 or 24 (Firebase Functions targets Node 22)
 - Java 21+ for the Firestore and Storage emulators
-- Xcode and CocoaPods for iOS
+- Xcode with Swift Package Manager for iOS 15+
 
 Install dependencies:
 
@@ -227,8 +234,11 @@ token does not contain `platformAdmin: true`.
 
 Create dedicated staging and production Firebase projects before release and
 replace their placeholders in `.firebaserc`. Register Android, Apple, web, and
-Windows apps in each project, then enable email/password and phone providers and
-create Firestore and Storage.
+Windows apps in each project, create Firestore and Storage, and configure
+email/password, phone, Google and Apple providers. OAuth/Apple secrets remain in
+the provider consoles or an encrypted secret store, never in Git or Terraform
+variable files. See [`docs/CONSUMER_FITNESS.md`](docs/CONSUMER_FITNESS.md) for
+the required return URLs and native provider setup.
 
 The checked-in `firebase_options.dart` contains only the development Firebase
 client configuration (these client values are not service-account secrets).
@@ -346,7 +356,9 @@ The rules suite covers own-tenant access, cross-tenant attacks, suspended tenant
 - Store money as integer minor units and record payments manually; release one does not process money.
 - Writes that affect money, capacity, attendance, roles, or tenant status belong in Cloud Functions transactions.
 - Member-owned offline data is cached for reading. UI writes should require connectivity and clearly report failure.
-- Store progress photos at `gyms/{gymId}/progress/{uid}` and chat attachments under their conversation. Storage rules enforce ownership, participant access, MIME types, and size limits.
+- Store personal progress photos at `users/{uid}/progress`, gym-origin photos at
+  `gyms/{gymId}/progress/{uid}`, and chat attachments under their conversation.
+  Storage rules enforce ownership, participant access, MIME types, and size limits.
 
 ## Repository map
 

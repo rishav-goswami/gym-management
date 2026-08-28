@@ -59,15 +59,22 @@ terminal clears data unless import/export persistence is deliberately added.
 
 These accounts only exist locally. The pilot gym ID is `pilot-gym`.
 
-## 3. Basic authentication and context checks
+## 3. Consumer authentication and personal-space checks
 
 For the owner, trainer, and member accounts in the customer app:
 
 1. Sign in with the seeded email and password.
-2. Confirm that **Choose workspace** appears before tenant data is shown.
-3. Select the Pilot Gym context and confirm the role chip in the top bar.
-4. Use **Switch gym or role** and confirm that the context chooser returns.
+2. Confirm the launch opens **My Fitness**, not a role or workspace chooser.
+3. Confirm **Home, Training, Progress, Profile** work without opening Pilot Gym.
+4. Open **Profile → My gyms & spaces**, select Pilot Gym, and confirm the role
+   chip and tenant brand only appear inside that gym space.
+5. Return to **My Fitness** and confirm the platform brand is restored.
 5. Use **Log out** and confirm that the login page returns.
+
+For a fresh identity, verify the three skippable introduction screens, Google/
+Apple buttons, phone under **More ways to sign in**, mandatory 18+/policy
+confirmation, and skippable goal/experience/equipment steps. A fresh standalone
+user must be able to create a routine and log a workout without a gym.
 
 For `platform.admin@example.com`, use the separate platform console. Confirm
 that the tenant list opens and that the customer app does not offer a platform
@@ -103,6 +110,13 @@ Sign in as `platform.admin@example.com` and open **Platform administration**.
 - Open the status menu and switch between trial and active.
 - Confirm SaaS plans can be versioned and pending upgrade requests can be
   approved or rejected.
+- Open **Consumers**, verify only account summaries appear, and confirm private
+  fitness collections cannot be browsed. Enter a meaningful reason, open the
+  audited diagnostics session, then verify the affected user's Profile shows
+  that support-history entry.
+- Open **Platform brand**, edit introduction copy/colors, save, and verify a
+  fresh installation loads it. Keep `personalSpacesV1` disabled until the
+  migration/security checklist passes in non-local environments.
 - Temporarily selecting suspended should block normal tenant access. Restore the
   tenant to active before testing other roles.
 - To test provisioning, copy an Auth UID from the Emulator UI, select
@@ -146,13 +160,16 @@ Do not use production personal data during local testing.
 3. Log out, then open the shared link in a new browser or on another device.
 4. Register or sign in with the invited identity. Confirm the invitation gym
    and role remain visible through authentication.
-5. Tap **Accept and join gym** without manually entering a gym ID or token.
-6. Confirm the new gym/role workspace opens and the person appears in the
-   owner's member or staff list.
-7. Try reusing the link and confirm it is rejected.
+5. Tap **Join gym** without manually entering a gym ID or token.
+6. Keep every sharing category off. Confirm the person appears in the owner's
+   member/staff list but their personal workouts are absent from gym projections.
+7. Enable only workout summaries from **Profile → Fitness data sharing**, log a
+   personal workout, verify its bounded projection, then revoke it and confirm
+   the projection is removed without changing payments or attendance.
+8. Try reusing the link and confirm it is rejected.
 
-The manual gym-ID/token form remains available from **Choose workspace** as a
-support fallback, but it is not the normal member onboarding path.
+There is no customer-facing gym-ID/token form. Owners distribute a branded
+universal link or QR; support staff must not ask users to copy technical IDs.
 
 The backend normalizes identity matching, checks expiry, and creates membership
 server-side. A user with memberships in multiple gyms can switch context without
@@ -173,9 +190,10 @@ Templates, plan revision UX, adherence summaries, and full member timelines are
 later product-stage work; the secure storage and assignment foundation is what
 this pass verifies.
 
-## 8. Member workspace
+## 8. Personal fitness and member gym workspace
 
-Sign in as `member@pilotgym.example.com`.
+Sign in as `member@pilotgym.example.com`. Test the personal flow first, then
+open Pilot Gym through **Profile → My gyms & spaces** for tenant-only services.
 
 - **Home:** confirm the tenant-branded summary and five-day expiry banner load.
 - **Exercise media:** confirm the recommended workout and Training catalog show

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 
 import 'core/firebase/firebase_bootstrap.dart';
 import 'core/theme/theme.dart';
@@ -11,6 +13,7 @@ import 'routes/firebase_app_router.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (kIsWeb) usePathUrlStrategy();
   await FirebaseBootstrap.initialize();
   runApp(const GymApp());
 }
@@ -56,13 +59,19 @@ class _GymAppState extends State<GymApp> {
       value: _sessionCubit,
       child: BlocBuilder<SessionCubit, SessionState>(
         builder: (context, session) {
-          final seed = _brandColor(session.activeMembership?.primaryColor);
+          final platform = session.platformBranding;
+          final seed = _brandColor(
+            session.activeMembership?.primaryColor ??
+                platform['primaryColor'] as String?,
+          );
           final secondary = _brandColor(
-            session.activeMembership?.secondaryColor,
+            session.activeMembership?.secondaryColor ??
+                platform['secondaryColor'] as String?,
             fallback: const Color(0xFF0F172A),
           );
           final accent = _brandColor(
-            session.activeMembership?.accentColor,
+            session.activeMembership?.accentColor ??
+                platform['accentColor'] as String?,
             fallback: const Color(0xFFF97316),
           );
           final lightScheme = ColorScheme.fromSeed(
@@ -73,7 +82,10 @@ class _GymAppState extends State<GymApp> {
             brightness: Brightness.dark,
           ).copyWith(secondary: secondary, tertiary: accent);
           return MaterialApp.router(
-            title: session.activeMembership?.gymName ?? 'Gym Management',
+            title:
+                session.activeMembership?.gymName ??
+                platform['name'] as String? ??
+                'Gym Management',
             debugShowCheckedModeBanner: false,
             theme: lightTheme.copyWith(colorScheme: lightScheme),
             darkTheme: darkTheme.copyWith(colorScheme: darkScheme),

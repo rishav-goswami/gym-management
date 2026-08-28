@@ -16,6 +16,11 @@
       "valueType": "BOOLEAN",
       "description": "Emergency platform-level switch for progress-photo uploads."
     },
+    "personal_spaces_v1": {
+      "defaultValue": { "value": "false" },
+      "valueType": "BOOLEAN",
+      "description": "Release gate for the consumer-first personal fitness experience. Enable only after migration and acceptance checks."
+    },
     "maintenance_message": {
       "defaultValue": { "value": "" },
       "valueType": "STRING",

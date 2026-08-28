@@ -11,7 +11,9 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/gym_memberships/$(membershipId(gymId))).data;
     }
     function activeGym(gymId) {
-      return signedIn() && membership(gymId).status == 'active' &&
+      return signedIn() &&
+        exists(/databases/$(database)/documents/gym_memberships/$(membershipId(gymId))) &&
+        membership(gymId).status == 'active' &&
         get(/databases/$(database)/documents/gyms/$(gymId)).data.status in ['trial', 'active'] &&
         (!('platformPlanEndsAt' in get(/databases/$(database)/documents/gyms/$(gymId)).data) ||
          get(/databases/$(database)/documents/gyms/$(gymId)).data.platformPlanEndsAt > request.time);
@@ -31,6 +33,29 @@ service cloud.firestore {
     function identityValid(uid) {
       return !('uid' in request.resource.data) || request.resource.data.uid == uid;
     }
+    function activeConsumer(uid) {
+      return signedIn() && request.auth.uid == uid &&
+        (!exists(/databases/$(database)/documents/users/$(uid)) ||
+         !('status' in get(/databases/$(database)/documents/users/$(uid)).data) ||
+         get(/databases/$(database)/documents/users/$(uid)).data.status == 'active');
+    }
+    function consentedConsumer(uid) {
+      return activeConsumer(uid) &&
+        exists(/databases/$(database)/documents/users/$(uid)) &&
+        'ageConfirmedAt' in get(/databases/$(database)/documents/users/$(uid)).data &&
+        'termsAcceptedAt' in get(/databases/$(database)/documents/users/$(uid)).data &&
+        'termsVersion' in get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+    function consentedConsumerAfter(uid) {
+      return signedIn() && request.auth.uid == uid &&
+        getAfter(/databases/$(database)/documents/users/$(uid)).data.status == 'active' &&
+        'ageConfirmedAt' in getAfter(/databases/$(database)/documents/users/$(uid)).data &&
+        'termsAcceptedAt' in getAfter(/databases/$(database)/documents/users/$(uid)).data &&
+        'termsVersion' in getAfter(/databases/$(database)/documents/users/$(uid)).data;
+    }
+    function personalOwnerValid(uid) {
+      return !('ownerUid' in request.resource.data) || request.resource.data.ownerUid == uid;
+    }
     function validMemberProfile(gymId, uid) {
       return (!('displayName' in request.resource.data) ||
           (request.resource.data.displayName is string &&
@@ -48,12 +73,12 @@ service cloud.firestore {
           request.resource.data.experienceLevel in ['beginner', 'intermediate', 'advanced']) &&
         (!('fitnessGoals' in request.resource.data) ||
           (request.resource.data.fitnessGoals is list &&
-           request.resource.data.fitnessGoals.size() >= 1 &&
+           (gymId == 'personal' || request.resource.data.fitnessGoals.size() >= 1) &&
            request.resource.data.fitnessGoals.size() <= 5)) &&
         (!('equipmentAccess' in request.resource.data) ||
           (request.resource.data.equipmentAccess is list &&
-           request.resource.data.equipmentAccess.size() >= 1 &&
-           request.resource.data.equipmentAccess.size() <= 4)) &&
+           (gymId == 'personal' || request.resource.data.equipmentAccess.size() >= 1) &&
+           request.resource.data.equipmentAccess.size() <= 5)) &&
         (!('workoutDaysPerWeek' in request.resource.data) ||
           (request.resource.data.workoutDaysPerWeek is int &&
            request.resource.data.workoutDaysPerWeek >= 1 &&
@@ -63,16 +88,81 @@ service cloud.firestore {
            request.resource.data.limitations.size() <= 1000)) &&
         (!('photoPath' in request.resource.data) ||
           (request.resource.data.photoPath is string &&
-           request.resource.data.photoPath.matches('gyms/' + gymId + '/profiles/' + uid + '/.*')));
+           (request.resource.data.photoPath.matches('gyms/' + gymId + '/profiles/' + uid + '/.*') ||
+            (gymId == 'personal' &&
+             request.resource.data.photoPath.matches('users/' + uid + '/profile/.*')))));
     }
 
     match /users/{uid} {
-      allow read, update, delete: if signedIn() && request.auth.uid == uid || platformAdmin();
+      // The root document is an account summary. Health and fitness records
+      // below it never inherit platform-administrator access.
+      allow read: if activeConsumer(uid) || platformAdmin();
+      allow update: if activeConsumer(uid) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName', 'photoUrl', 'ageConfirmedAt', 'termsAcceptedAt',
+          'termsVersion', 'onboardingCompletedAt', 'updatedAt'
+        ]);
+      allow delete: if false;
       allow create: if signedIn() && request.auth.uid == uid;
 
       match /device_tokens/{tokenId} {
-        allow read, create, update, delete: if signedIn() && request.auth.uid == uid;
+        allow read, create, update, delete: if activeConsumer(uid);
       }
+
+      match /fitness_profile/{documentId} {
+        allow read: if consentedConsumer(uid);
+        allow create, update: if consentedConsumerAfter(uid) && personalOwnerValid(uid) &&
+          validMemberProfile('personal', uid);
+        allow delete: if consentedConsumer(uid);
+      }
+
+      match /entitlements/{documentId} {
+        allow read: if activeConsumer(uid);
+        allow write: if false;
+      }
+
+      match /gym_shares/{gymId} {
+        allow read: if activeConsumer(uid);
+        allow write: if false;
+      }
+
+      match /support_history/{grantId} {
+        allow read: if activeConsumer(uid);
+        allow write: if false;
+      }
+
+      match /notifications/{notificationId} {
+        allow read: if activeConsumer(uid);
+        allow update: if activeConsumer(uid) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']);
+        allow create, delete: if false;
+      }
+
+      match /{collection}/{documentId} {
+        allow read: if collection in [
+          'routines', 'workout_logs', 'measurements', 'goals',
+          'personal_records', 'progress_photos'
+        ] && consentedConsumer(uid);
+        allow create, update: if collection in [
+          'routines', 'workout_logs', 'measurements', 'goals',
+          'personal_records', 'progress_photos'
+        ] && consentedConsumerAfter(uid) && personalOwnerValid(uid);
+        allow delete: if collection in [
+          'routines', 'workout_logs', 'measurements', 'goals',
+          'personal_records', 'progress_photos'
+        ] && consentedConsumer(uid);
+      }
+    }
+
+    match /platform_public/{documentId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /consumer_plans/{planId} {
+      allow read: if (signedIn() && resource.data.status == 'active' &&
+        resource.data.isPublic == true) || platformAdmin();
+      allow write: if false;
     }
 
     match /gym_memberships/{id} {
@@ -275,6 +365,20 @@ service cloud.firestore {
       match /feature_metrics/{featureId} {
         allow read: if platformAdmin() || role(gymId, ['owner', 'manager']);
         allow write: if false;
+      }
+
+      match /shared_fitness/{uid} {
+        allow read: if activeGym(gymId) &&
+          (request.auth.uid == uid || role(gymId, ['owner', 'manager', 'trainer']) ||
+           permission(gymId, 'fitness.manage'));
+        allow write: if false;
+
+        match /{collection}/{documentId} {
+          allow read: if activeGym(gymId) &&
+            (request.auth.uid == uid || role(gymId, ['owner', 'manager', 'trainer']) ||
+             permission(gymId, 'fitness.manage'));
+          allow write: if false;
+        }
       }
     }
   }

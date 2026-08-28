@@ -47,13 +47,13 @@ class _FirebaseRegisterScreenState extends State<FirebaseRegisterScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Create your identity',
+                  'Create your fitness account',
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   widget.invitation == null
-                      ? 'Verify your email to start a gym trial, or use the identity from your invitation to join a gym.'
+                      ? 'Build routines, log workouts and track progress. You can connect a gym later.'
                       : 'Create an account with the email invited to ${widget.invitation!.gymName}. Your invitation will be ready after sign-up.',
                 ),
                 const SizedBox(height: 24),

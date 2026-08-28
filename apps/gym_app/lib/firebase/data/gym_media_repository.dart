@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:gym_core/gym_core.dart';
 
 class GymMediaRepository {
   GymMediaRepository({
@@ -75,6 +76,37 @@ class GymMediaRepository {
     return path;
   }
 
+  Future<String?> pickAndUploadFitnessProgressPhoto({
+    required FitnessScope scope,
+  }) async {
+    if (!scope.isPersonal) {
+      return pickAndUploadProgressPhoto(gymId: scope.gymId!, uid: scope.uid);
+    }
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 75,
+      maxWidth: 1600,
+    );
+    if (image == null) return null;
+    final bytes = await image.readAsBytes();
+    if (bytes.length > 10 * 1024 * 1024) {
+      throw StateError('Progress image must be smaller than 10 MB.');
+    }
+    final path =
+        'users/${scope.uid}/progress/${DateTime.now().microsecondsSinceEpoch}.jpg';
+    await storage
+        .ref(path)
+        .putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+    await firestore.collection(scope.collectionPath('progress_photos')).add({
+      'ownerUid': scope.uid,
+      'origin': 'personal',
+      'storagePath': path,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    return path;
+  }
+
   Future<String?> pickAndUploadProfilePhoto({
     required String gymId,
     required String uid,
@@ -100,6 +132,45 @@ class GymMediaRepository {
     };
     final path =
         'gyms/$gymId/profiles/$uid/avatar-${DateTime.now().millisecondsSinceEpoch}.$extension';
+    await storage
+        .ref(path)
+        .putData(
+          bytes,
+          SettableMetadata(
+            contentType: contentType,
+            cacheControl: 'private,max-age=3600',
+          ),
+        );
+    return path;
+  }
+
+  Future<String?> pickAndUploadFitnessProfilePhoto({
+    required FitnessScope scope,
+  }) async {
+    if (!scope.isPersonal) {
+      return pickAndUploadProfilePhoto(gymId: scope.gymId!, uid: scope.uid);
+    }
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 1000,
+      maxHeight: 1000,
+    );
+    if (image == null) return null;
+    final bytes = await image.readAsBytes();
+    if (bytes.length > 10 * 1024 * 1024) {
+      throw StateError('Profile image must be smaller than 10 MB.');
+    }
+    final contentType = image.mimeType?.startsWith('image/') == true
+        ? image.mimeType!
+        : 'image/jpeg';
+    final extension = switch (contentType) {
+      'image/png' => 'png',
+      'image/webp' => 'webp',
+      _ => 'jpg',
+    };
+    final path =
+        'users/${scope.uid}/profile/avatar-${DateTime.now().millisecondsSinceEpoch}.$extension';
     await storage
         .ref(path)
         .putData(

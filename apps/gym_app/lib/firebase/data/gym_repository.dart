@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:csv/csv.dart';
+import 'package:gym_core/gym_core.dart';
 
 class GymRepository {
   GymRepository({FirebaseFirestore? firestore, FirebaseFunctions? functions})
@@ -11,6 +14,182 @@ class GymRepository {
 
   final FirebaseFirestore firestore;
   final FirebaseFunctions functions;
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> fitnessProfile(
+    FitnessScope scope,
+  ) => firestore.doc(scope.profilePath).snapshots();
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> fitnessRecords(
+    FitnessScope scope,
+    String collection, {
+    int limit = 30,
+  }) {
+    Query<Map<String, dynamic>> query = firestore.collection(
+      scope.collectionPath(collection),
+    );
+    if (!scope.isPersonal) {
+      query = query.where('memberUid', isEqualTo: scope.uid);
+    }
+    return query.limit(limit).snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> fitnessProgressPhotos(
+    FitnessScope scope, {
+    int limit = 24,
+  }) => fitnessRecords(scope, 'progress_photos', limit: limit);
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> fitnessRoutines(
+    FitnessScope scope, {
+    int limit = 30,
+  }) => fitnessRecords(scope, 'routines', limit: limit);
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> tenantExercises(
+    String gymId, {
+    int limit = 100,
+  }) => firestore.collection('gyms/$gymId/exercises').limit(limit).snapshots();
+
+  Future<Map<String, dynamic>?> previousExerciseSet(
+    FitnessScope scope,
+    String exerciseId,
+  ) async {
+    Query<Map<String, dynamic>> query = firestore.collection(
+      scope.collectionPath('workout_logs'),
+    );
+    if (!scope.isPersonal) {
+      query = query.where('memberUid', isEqualTo: scope.uid);
+    }
+    final snapshot = await query.limit(50).get();
+    final documents = [...snapshot.docs]
+      ..sort((left, right) {
+        final leftTime =
+            (left.data()['completedAt'] as Timestamp?)
+                ?.millisecondsSinceEpoch ??
+            0;
+        final rightTime =
+            (right.data()['completedAt'] as Timestamp?)
+                ?.millisecondsSinceEpoch ??
+            0;
+        return rightTime.compareTo(leftTime);
+      });
+    for (final document in documents) {
+      final exercises = document.data()['exercises'] as List? ?? const [];
+      for (final raw in exercises.whereType<Map>()) {
+        final exercise = Map<String, dynamic>.from(raw);
+        if (exercise['exerciseId'] != exerciseId &&
+            exercise['movementId'] != exerciseId) {
+          continue;
+        }
+        final sets = exercise['sets'] as List? ?? const [];
+        final completed = sets.whereType<Map>().toList();
+        if (completed.isNotEmpty) {
+          return Map<String, dynamic>.from(completed.last);
+        }
+      }
+    }
+    return null;
+  }
+
+  Future<void> saveFitnessRecord({
+    required FitnessScope scope,
+    required String collection,
+    required Map<String, dynamic> data,
+  }) async {
+    await _requireOnline();
+    await firestore.collection(scope.collectionPath(collection)).add({
+      ...data,
+      if (!scope.isPersonal) ...{
+        'gymId': scope.gymId,
+        'memberUid': scope.uid,
+      } else ...{
+        'ownerUid': scope.uid,
+        'origin': data['origin'] ?? 'personal',
+      },
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    if (scope.isPersonal) {
+      final milestone = collection == 'workout_logs'
+          ? 'firstWorkout'
+          : collection == 'measurements' || collection == 'goals'
+          ? 'firstProgress'
+          : null;
+      if (milestone != null) {
+        unawaited(trackPersonalFeatureUsage(milestone).catchError((_) {}));
+      }
+    }
+  }
+
+  Future<void> saveFitnessRoutine({
+    required FitnessScope scope,
+    String? routineId,
+    required String name,
+    required List<int> scheduledWeekdays,
+    required List<Map<String, dynamic>> movements,
+  }) async {
+    await _requireOnline();
+    final data = <String, dynamic>{
+      if (!scope.isPersonal) ...{
+        'gymId': scope.gymId,
+        'memberUid': scope.uid,
+      } else ...{
+        'ownerUid': scope.uid,
+        'origin': 'personal',
+      },
+      'name': name.trim(),
+      'scheduledWeekdays': scheduledWeekdays,
+      'movements': movements,
+      'status': 'active',
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    final collection = firestore.collection(scope.collectionPath('routines'));
+    if (routineId == null) {
+      await collection.add({
+        ...data,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      await collection.doc(routineId).update(data);
+    }
+    if (scope.isPersonal) {
+      unawaited(trackPersonalFeatureUsage('firstRoutine').catchError((_) {}));
+    }
+  }
+
+  Future<void> deleteFitnessRoutine({
+    required FitnessScope scope,
+    required String routineId,
+  }) async {
+    await _requireOnline();
+    await firestore
+        .doc('${scope.collectionPath('routines')}/$routineId')
+        .delete();
+  }
+
+  Future<void> updateFitnessProfile({
+    required FitnessScope scope,
+    required Map<String, dynamic> data,
+  }) async {
+    await _requireOnline();
+    await firestore.doc(scope.profilePath).set({
+      ...data,
+      if (scope.isPersonal) 'ownerUid': scope.uid,
+      'onboardingCompletedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> gymSharing(
+    String uid,
+    String gymId,
+  ) => firestore.doc('users/$uid/gym_shares/$gymId').snapshots();
+
+  Future<void> updateGymSharing({
+    required String gymId,
+    required Map<String, bool> categories,
+  }) => functions.httpsCallable('updateGymSharing').call<void>({
+    'gymId': gymId,
+    'categories': categories,
+  });
 
   Stream<DocumentSnapshot<Map<String, dynamic>>> platformSubscription(
     String gymId,
@@ -58,9 +237,17 @@ class GymRepository {
     required String gymId,
     required String featureId,
   }) => functions.httpsCallable('trackFeatureUsage').call<void>({
+    'scopeType': 'gym',
     'gymId': gymId,
     'featureId': featureId,
   });
+
+  Future<void> trackPersonalFeatureUsage(String featureId) =>
+      functions.httpsCallable('trackFeatureUsage').call<void>({
+        'scopeType': 'personal',
+        'audience': 'standalone',
+        'featureId': featureId,
+      });
 
   Future<void> submitFeatureFeedback({
     required String gymId,

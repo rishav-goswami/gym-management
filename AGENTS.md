@@ -6,8 +6,13 @@ linked canonical documents.
 
 ## Product and architecture
 
-- The product is one multi-tenant Firebase platform with a Flutter customer app
-  and a separate Flutter web platform console.
+- The product is a consumer-first fitness platform with optional multi-tenant
+  gym spaces: one Flutter customer app and a separate Flutter web console.
+- Every identity owns a permanent private **My Fitness** space. Do not require a
+  gym role or invent a tenant for standalone workouts, routines, or progress.
+- Personal data is user-owned and never enters a gym projection without an
+  explicit per-category sharing grant. Platform admins have no direct rules
+  access to personal fitness data; use short-lived audited support Functions.
 - Firebase project `createmix-in` is the current production environment.
 - Never restore Express/MongoDB as a system of record. It is legacy comparison
   material only.
@@ -32,6 +37,8 @@ Read the documents relevant to the change:
 - [docs/SAAS_TRIALS.md](docs/SAAS_TRIALS.md): trials, quotas and upgrades.
 - [docs/PRODUCT_ANALYTICS_AND_ONBOARDING.md](docs/PRODUCT_ANALYTICS_AND_ONBOARDING.md):
   feature analytics, feedback and member recommendation profile.
+- [docs/CONSUMER_FITNESS.md](docs/CONSUMER_FITNESS.md): personal spaces,
+  onboarding, gym sharing, consumer controls and migration rollout.
 - [docs/MEMBER_TRAINING.md](docs/MEMBER_TRAINING.md): exercise guidance and safety.
 - [docs/BILLING.md](docs/BILLING.md) and
   [docs/MEMBER_BILLING.md](docs/MEMBER_BILLING.md): recorded payments and member
@@ -54,7 +61,17 @@ When behavior changes, update its canonical document in the same change.
 5. Do not commit credentials, service-account keys, `.env` secrets, build
    output, Firebase export data, or generated platform caches.
 6. Keep infrastructure, rules, indexes, seeds and migrations account-portable.
-7. Run the smallest relevant checks while iterating, then the full release
+7. Treat observability and feedback as part of every user-facing feature's
+   definition of done. Before rollout, give the feature a stable identifier,
+   record one or more meaningful privacy-safe outcomes (not noisy tap streams),
+   derive audience and `personal`/`gym` scope on the server, throttle or
+   deduplicate counters, provide contextual feedback where useful, expose only
+   aggregates in the platform console, and update the analytics allowlist,
+   dashboard, documentation and Function/rules tests. Never include workout,
+   health, message or other private content in analytics or feedback metadata.
+   Follow the checklist in
+   [docs/PRODUCT_ANALYTICS_AND_ONBOARDING.md](docs/PRODUCT_ANALYTICS_AND_ONBOARDING.md).
+8. Run the smallest relevant checks while iterating, then the full release
    checks before deployment.
 
 ## Verification baseline

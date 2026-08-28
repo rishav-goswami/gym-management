@@ -41,10 +41,30 @@ void main() {
     expect(effort.hasData, isTrue);
     expect(effort.toMap(1), {
       'setNumber': 1,
+      'setType': 'working',
       'additionalLoadKg': 1.0,
       'durationSeconds': 900,
       'speedKph': 12.0,
       'inclinePercent': 6.0,
+    });
+  });
+
+  test('strength sets preserve set type and effort ratings', () {
+    const set = LoggedMovementSet(
+      setType: 'drop',
+      reps: 8,
+      weightKg: 70,
+      rpe: 9,
+      rir: 1,
+    );
+
+    expect(set.toMap(3), {
+      'setNumber': 3,
+      'setType': 'drop',
+      'reps': 8,
+      'weightKg': 70.0,
+      'rpe': 9.0,
+      'rir': 1,
     });
   });
 }

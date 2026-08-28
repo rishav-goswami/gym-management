@@ -136,13 +136,21 @@ class _StartGymTrialScreenState extends State<StartGymTrialScreen> {
     if (_formKey.currentState?.validate() != true) return;
     setState(() => _saving = true);
     try {
-      await context.read<GymRepository>().startGymTrial(
+      final result = await context.read<GymRepository>().startGymTrial(
         name: _name.text,
         city: _city.text,
         phone: _phone.text == '+91' ? null : _phone.text,
       );
       if (!mounted) return;
-      await context.read<SessionCubit>().refreshContexts();
+      final session = context.read<SessionCubit>();
+      await session.refreshContexts();
+      final gymId = result['gymId'] as String?;
+      for (final membership in session.state.memberships) {
+        if (membership.gymId == gymId) {
+          await session.selectMembership(membership);
+          break;
+        }
+      }
     } on FirebaseFunctionsException catch (error) {
       if (mounted) _show(error.message ?? 'Unable to start the trial.');
     } catch (error) {

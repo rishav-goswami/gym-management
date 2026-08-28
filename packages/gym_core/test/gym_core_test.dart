@@ -74,4 +74,28 @@ void main() {
     expect(branded.tagline, 'Train with purpose');
     expect(branded.city, 'Jaipur');
   });
+
+  test('fitness scope keeps personal and tenant paths separate', () {
+    const membership = GymMembership(
+      id: 'gym_uid',
+      gymId: 'gym',
+      uid: 'uid',
+      role: GymRole.member,
+      status: 'active',
+      permissions: {},
+    );
+    const personal = FitnessScope.personal('uid');
+    final gym = FitnessScope.gym(membership);
+    const personalSpace = PersonalSpace(uid: 'uid');
+    const gymSpace = GymSpace(membership: membership);
+
+    expect(personal.collectionPath('workout_logs'), 'users/uid/workout_logs');
+    expect(personal.profilePath, 'users/uid/fitness_profile/current');
+    expect(gym.collectionPath('routines'), 'gyms/gym/member_routines');
+    expect(gym.collectionPath('workout_logs'), 'gyms/gym/workout_logs');
+    expect(personal.isPersonal, isTrue);
+    expect(gym.isPersonal, isFalse);
+    expect(personalSpace.fitnessScope, personal);
+    expect(gymSpace.fitnessScope, gym);
+  });
 }

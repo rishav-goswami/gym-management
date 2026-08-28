@@ -9,11 +9,19 @@ The member profile supplies non-medical inputs for general exercise selection.
 
 ## Feature analytics
 
-`trackFeatureUsage` validates an active gym membership and increments:
+`trackFeatureUsage` accepts an explicit `personal` or `gym` scope. Gym events
+validate an active membership; personal events validate an active consumer. It
+increments:
 
 - `platform_feature_metrics/{featureId}` for platform-wide totals and role
   segments;
 - `gyms/{gymId}/feature_metrics/{featureId}` for tenant-level totals.
+
+Platform metrics segment `scope_personal`/`scope_gym` and bounded audiences such
+as standalone, member, trainer and owner. Funnel milestones cover registration,
+onboarding, first routine, first workout, first progress entry, invitation
+acceptance and gym creation. These remain directional counters rather than a
+health-data event stream.
 
 Counters identify the gym and audience role, but platform aggregates do not
 store a per-user event history. They are directional product metrics, not
@@ -25,6 +33,37 @@ A private server-owned throttle document limits the same user, gym and feature
 to one counted open per 15 minutes. It is not readable or writable by clients
 and prevents accidental navigation loops from distorting the counters.
 
+## New feature observability checklist
+
+Feature monitoring is part of the implementation, not a follow-up task. For
+each user-facing capability introduced or materially changed:
+
+1. Assign a stable, non-sensitive `featureId` and add it to the server allowlist.
+   Do not build identifiers from user, gym, exercise or health data.
+2. Prefer meaningful outcomes such as opened, started, completed, saved or
+   shared. Avoid logging every tap, set, repetition or measurement.
+3. Send `scopeType` as `personal` or `gym`; Functions must validate membership
+   and derive trusted audience segments rather than accepting client-forged
+   roles or gym identifiers.
+4. Count recurring events through a bounded throttle and record activation
+   milestones idempotently so retries and navigation loops do not inflate the
+   dashboard.
+5. Add a contextual feedback entry point after meaningful use when feedback can
+   improve the feature. Accept a bounded rating and optional short message;
+   never attach workout logs, measurements, photos, conversations or payment
+   details.
+6. Add or update an aggregate console tile, trend or audience comparison that
+   explains an actionable product question. Do not expose individual health or
+   fitness activity to ordinary console queries.
+7. Test rejected feature identifiers, forged scope/audience/gym data,
+   cross-tenant access, throttling/idempotency and feedback sanitization.
+8. Document the event meaning and manually verify that its aggregate and
+   feedback view work before enabling the feature's rollout flag.
+
+If a feature intentionally has no analytics or feedback surface, record the
+privacy, safety or usefulness reason in its canonical document so the omission
+is deliberate and reviewable.
+
 ## Feedback
 
 `submitFeatureFeedback` creates a server-authored `platform_feedback` record
@@ -35,7 +74,9 @@ same user, gym and feature every five minutes.
 
 ## Member recommendation profile
 
-Members can maintain their own `gyms/{gymId}/members/{uid}` fields:
+Consumers maintain `users/{uid}/fitness_profile/current` in personal space.
+Members may also maintain the corresponding allowed fields in their existing
+`gyms/{gymId}/members/{uid}` tenant profile:
 
 - display name, phone and tenant-private profile image path;
 - height and weight;

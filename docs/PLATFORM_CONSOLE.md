@@ -31,6 +31,10 @@ Firebase Web App registration and Hosting target.
   status and optional per-gym feature overrides atomically.
 - The branding action manages the public tenant identity independently from
   subscription entitlements.
+- **Platform brand** image fields upload directly to Firebase Storage. The UI
+  reports file reading, secure-upload percentage, and finalization separately.
+  A successful upload is only staged until the operator selects **Save public
+  branding**; the preview and status then confirm that it is published.
 
 Feature counters are directional product signals, not financial or compliance
 records. See `docs/PRODUCT_ANALYTICS_AND_ONBOARDING.md` for the data boundary.
@@ -102,3 +106,10 @@ Use the Emulator Suite to exercise these workflows without enabling billing.
 Before enabling App Check enforcement, create a dedicated web App Check setup
 for the console and compile its site key with
 `--dart-define=FIREBASE_APPCHECK_SITE_KEY=...`.
+
+If a browser upload fails, use a JPEG or PNG smaller than 10 MB and note the
+last stage shown in the UI. Browser uploads intentionally skip the web image
+picker's canvas resize path because it can leave Chromium waiting before the
+Firebase Storage request begins. Reading, upload, URL finalization, and branding
+save all have bounded timeouts and surface an actionable error instead of an
+indefinite spinner.

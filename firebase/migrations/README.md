@@ -23,8 +23,16 @@ Preview pending migrations:
 npm run migrate:data -- --project demo-gym-dev --dry-run
 ```
 
+Dry-run output includes candidate Auth users, member memberships and legacy
+progress-photo documents for the personal-space migrations. Migration 003 uses
+deterministic IDs and migration 004 copies media while preserving tenant
+originals, so interrupted runs are resumable.
+
 Apply after checking the exact project:
 
 ```sh
-npm run migrate:data -- --project YOUR_PROJECT_ID --confirm YOUR_PROJECT_ID
+npm run migrate:data -- \
+  --project YOUR_PROJECT_ID \
+  --bucket YOUR_FIREBASE_STORAGE_BUCKET \
+  --confirm YOUR_PROJECT_ID
 ```

@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gym_core/gym_core.dart';
 
 import '../../data/gym_repository.dart';
+import '../../logic/session_cubit.dart';
 import '../../domain/exercise_guide.dart';
 import '../../domain/workout_draft.dart';
 import 'member_custom_workouts.dart';
@@ -13,15 +14,15 @@ import 'exercise_media_image.dart';
 
 Future<void> openGuidedWorkout(
   BuildContext context, {
-  required GymMembership membership,
+  required FitnessScope scope,
   required TrainingGoal goal,
   required List<ExerciseGuide> exercises,
 }) async {
-  final draft = await WorkoutDraftStore.load(membership.uid, membership.gymId);
+  final draft = await WorkoutDraftStore.load(scope.uid, scope.draftKey);
   final canResume =
       draft?.matches(
-        expectedGymId: membership.gymId,
-        expectedUid: membership.uid,
+        expectedGymId: scope.draftKey,
+        expectedUid: scope.uid,
         expectedGoal: goal.name,
         expectedExerciseIds: exercises.map((exercise) => exercise.id).toList(),
       ) ??
@@ -51,14 +52,14 @@ Future<void> openGuidedWorkout(
     if (resume == true) {
       selectedDraft = draft;
     } else {
-      await WorkoutDraftStore.clear(membership.uid, membership.gymId);
+      await WorkoutDraftStore.clear(scope.uid, scope.draftKey);
     }
   }
   if (!context.mounted) return;
   await Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => GuidedWorkoutScreen(
-        membership: membership,
+        scope: scope,
         goal: goal,
         exercises: exercises,
         initialDraft: selectedDraft,
@@ -68,9 +69,9 @@ Future<void> openGuidedWorkout(
 }
 
 class MemberTrainingPanel extends StatefulWidget {
-  const MemberTrainingPanel({required this.membership, super.key});
+  const MemberTrainingPanel({required this.scope, super.key});
 
-  final GymMembership membership;
+  final FitnessScope scope;
 
   @override
   State<MemberTrainingPanel> createState() => _MemberTrainingPanelState();
@@ -88,8 +89,33 @@ class _MemberTrainingPanelState extends State<MemberTrainingPanel> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.scope.isPersonal) {
+      return _buildContent(context, exerciseGuides);
+    }
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: context.read<GymRepository>().tenantExercises(
+        widget.scope.gymId!,
+      ),
+      builder: (context, snapshot) {
+        final tenant =
+            snapshot.data?.docs
+                .map(
+                  (document) => ExerciseGuide.fromTenant(
+                    widget.scope.gymId!,
+                    document.id,
+                    document.data(),
+                  ),
+                )
+                .toList() ??
+            const <ExerciseGuide>[];
+        return _buildContent(context, [...exerciseGuides, ...tenant]);
+      },
+    );
+  }
+
+  Widget _buildContent(BuildContext context, List<ExerciseGuide> catalog) {
     final query = _search.text.trim().toLowerCase();
-    final filtered = exerciseGuides
+    final filtered = catalog
         .where((exercise) {
           final matchesGoal = exercise.goals.contains(_goal);
           final matchesQuery =
@@ -119,9 +145,23 @@ class _MemberTrainingPanelState extends State<MemberTrainingPanel> {
         const SizedBox(height: 20),
         _GoalPlanCard(goal: _goal, onStart: () => _startWorkout(context)),
         const SizedBox(height: 20),
-        MemberRoutinesSection(membership: widget.membership),
-        const SizedBox(height: 24),
-        _TrainerAssignments(membership: widget.membership),
+        MemberRoutinesSection(scope: widget.scope),
+        if (widget.scope.isPersonal) ...[
+          const SizedBox(height: 24),
+          _ConnectedGymAssignments(
+            memberships: context
+                .watch<SessionCubit>()
+                .state
+                .memberships
+                .where((item) => item.role == GymRole.member)
+                .toList(),
+            personalScope: widget.scope,
+          ),
+        ],
+        if (!widget.scope.isPersonal) ...[
+          const SizedBox(height: 24),
+          _TrainerAssignments(membership: widget.scope.membership!),
+        ],
         const SizedBox(height: 24),
         Text(
           'Choose your target',
@@ -210,7 +250,7 @@ class _MemberTrainingPanelState extends State<MemberTrainingPanel> {
 
   Future<void> _startWorkout(BuildContext context) => openGuidedWorkout(
     context,
-    membership: widget.membership,
+    scope: widget.scope,
     goal: _goal,
     exercises: exercisesForGoal(_goal, limit: 5),
   );
@@ -352,6 +392,131 @@ class _TrainerAssignments extends StatelessWidget {
       );
     },
   );
+}
+
+class _ConnectedGymAssignments extends StatelessWidget {
+  const _ConnectedGymAssignments({
+    required this.memberships,
+    required this.personalScope,
+  });
+
+  final List<GymMembership> memberships;
+  final FitnessScope personalScope;
+
+  @override
+  Widget build(BuildContext context) {
+    if (memberships.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('From your gyms', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 4),
+        const Text(
+          'Assignments appear here, but results stay private unless you choose to share summaries.',
+        ),
+        const SizedBox(height: 8),
+        for (final membership in memberships)
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: context.read<GymRepository>().recentForMember(
+              membership.gymId,
+              'workout_assignments',
+              membership.uid,
+              limit: 3,
+            ),
+            builder: (context, snapshot) {
+              final assignments = snapshot.data?.docs ?? const [];
+              return Column(
+                children: assignments
+                    .map(
+                      (document) => Card(
+                        child: ListTile(
+                          leading: const CircleAvatar(
+                            child: Icon(Icons.assignment_outlined),
+                          ),
+                          title: Text(
+                            document.data()['title'] as String? ??
+                                'Trainer workout',
+                          ),
+                          subtitle: Text(
+                            '${membership.gymName} · ${document.data()['routine'] ?? 'Open trainer notes'}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: const Icon(Icons.play_arrow),
+                          onTap: () =>
+                              _startAssignment(context, membership, document),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  Future<void> _startAssignment(
+    BuildContext context,
+    GymMembership membership,
+    QueryDocumentSnapshot<Map<String, dynamic>> assignment,
+  ) async {
+    final repository = context.read<GymRepository>();
+    final sharing = await repository.firestore
+        .doc('users/${personalScope.uid}/gym_shares/${membership.gymId}')
+        .get();
+    final categories = Map<String, bool>.from(
+      sharing.data()?['categories'] as Map? ?? const {},
+    );
+    var shareSummary = categories['workoutSummaries'] == true;
+    if (!shareSummary && context.mounted) {
+      final decision = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('Share result with ${membership.gymName}?'),
+          content: const Text(
+            'The workout will always be saved to My Fitness. Sharing sends only a summary—not your full set-by-set personal record.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Keep private'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Share summaries'),
+            ),
+          ],
+        ),
+      );
+      shareSummary = decision == true;
+      if (shareSummary) {
+        categories.addAll({
+          'profile': categories['profile'] ?? false,
+          'goals': categories['goals'] ?? false,
+          'workoutSummaries': true,
+          'measurements': categories['measurements'] ?? false,
+          'progress': categories['progress'] ?? false,
+        });
+        await repository.updateGymSharing(
+          gymId: membership.gymId,
+          categories: categories,
+        );
+      }
+    }
+    if (!context.mounted) return;
+    await openMemberWorkoutLogger(
+      context,
+      personalScope,
+      origin: 'gymAssignment',
+      sourceReference: {
+        'gymId': membership.gymId,
+        'assignmentId': assignment.id,
+        'title': assignment.data()['title'] ?? 'Trainer workout',
+        'sharedOnCompletion': shareSummary,
+      },
+    );
+  }
 }
 
 class _ExerciseCard extends StatelessWidget {
@@ -577,14 +742,14 @@ class _ExerciseDetails extends StatelessWidget {
 
 class GuidedWorkoutScreen extends StatefulWidget {
   const GuidedWorkoutScreen({
-    required this.membership,
+    required this.scope,
     required this.goal,
     required this.exercises,
     this.initialDraft,
     super.key,
   });
 
-  final GymMembership membership;
+  final FitnessScope scope;
   final TrainingGoal goal;
   final List<ExerciseGuide> exercises;
   final WorkoutDraft? initialDraft;
@@ -874,10 +1039,9 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
     setState(() => _saving = true);
     try {
       final endedAt = DateTime.now();
-      await context.read<GymRepository>().saveMemberOwnedRecord(
-        gymId: widget.membership.gymId,
+      await context.read<GymRepository>().saveFitnessRecord(
+        scope: widget.scope,
         collection: 'workout_logs',
-        uid: widget.membership.uid,
         data: {
           'title': '${widget.goal.label} session',
           'goal': widget.goal.name,
@@ -903,10 +1067,7 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
           ],
         },
       );
-      await WorkoutDraftStore.clear(
-        widget.membership.uid,
-        widget.membership.gymId,
-      );
+      await WorkoutDraftStore.clear(widget.scope.uid, widget.scope.draftKey);
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -943,8 +1104,8 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
     _draftTimer = Timer(const Duration(milliseconds: 250), () {
       WorkoutDraftStore.save(
         WorkoutDraft(
-          gymId: widget.membership.gymId,
-          uid: widget.membership.uid,
+          gymId: widget.scope.draftKey,
+          uid: widget.scope.uid,
           goal: widget.goal.name,
           exerciseIds: widget.exercises
               .map((exercise) => exercise.id)

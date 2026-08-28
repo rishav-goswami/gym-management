@@ -28,6 +28,29 @@ beforeEach(async () => {
     await setDoc(doc(store, "saas_plans/trial"), {
       name: "Free trial", status: "active", isPublic: true, isTrial: true
     });
+    await setDoc(doc(store, "users/member-a"), {
+      uid: "member-a", displayName: "Member A", status: "active",
+      ageConfirmedAt: Timestamp.now(), termsAcceptedAt: Timestamp.now(), termsVersion: "test"
+    });
+    await setDoc(doc(store, "users/member-b"), {
+      uid: "member-b", displayName: "Member B", status: "active",
+      ageConfirmedAt: Timestamp.now(), termsAcceptedAt: Timestamp.now(), termsVersion: "test"
+    });
+    await setDoc(doc(store, "users/unconsented-user"), {
+      uid: "unconsented-user", status: "active"
+    });
+    await setDoc(doc(store, "users/suspended-user"), {
+      uid: "suspended-user", status: "suspended"
+    });
+    await setDoc(doc(store, "users/member-a/workout_logs/log-a"), {
+      ownerUid: "member-a", name: "Private workout"
+    });
+    await setDoc(doc(store, "users/member-a/gym_shares/gym-a"), {
+      ownerUid: "member-a", gymId: "gym-a", categories: { workoutSummaries: false }
+    });
+    await setDoc(doc(store, "users/suspended-user/routines/routine-a"), {
+      ownerUid: "suspended-user", name: "Blocked"
+    });
     await setDoc(doc(store, "gym_memberships/gym-a_member-a"), {
       gymId: "gym-a", uid: "member-a", role: "member", status: "active", permissions: { "fitness.read": true }
     });
@@ -73,6 +96,9 @@ beforeEach(async () => {
     await setDoc(doc(store, "gyms/gym-a/notifications/reminder-a"), {
       gymId: "gym-a", recipientUid: "member-a", read: false
     });
+    await setDoc(doc(store, "gyms/gym-a/shared_fitness/member-a/workout_logs/log-a"), {
+      sourceId: "log-a", name: "Shared summary"
+    });
     await setDoc(doc(store, "platform_feature_metrics/training"), {
       featureId: "training", totalEvents: 12
     });
@@ -85,6 +111,55 @@ beforeEach(async () => {
 afterAll(async () => environment.cleanup());
 
 describe("Firestore tenant isolation", () => {
+  it("keeps personal fitness private from other consumers and platform admins", async () => {
+    const owner = environment.authenticatedContext("member-a").firestore();
+    const other = environment.authenticatedContext("member-b").firestore();
+    const admin = environment.authenticatedContext(
+      "platform-admin", { platformAdmin: true }
+    ).firestore();
+    const record = doc(owner, "users/member-a/workout_logs/log-a");
+    await assertSucceeds(getDoc(record));
+    await assertFails(getDoc(doc(other, record.path)));
+    await assertFails(getDoc(doc(admin, record.path)));
+  });
+
+  it("allows owner-scoped personal writes but rejects forged ownership", async () => {
+    const owner = environment.authenticatedContext("member-a").firestore();
+    await assertSucceeds(setDoc(doc(owner, "users/member-a/routines/own"), {
+      ownerUid: "member-a", name: "Upper body", movements: []
+    }));
+    await assertFails(setDoc(doc(owner, "users/member-a/routines/forged"), {
+      ownerUid: "member-b", name: "Forged", movements: []
+    }));
+    await assertFails(setDoc(doc(owner, "users/member-a/gym_shares/gym-a"), {
+      ownerUid: "member-a", categories: { workoutSummaries: true }
+    }));
+  });
+
+  it("blocks personal access for suspended consumers", async () => {
+    const store = environment.authenticatedContext("suspended-user").firestore();
+    await assertFails(getDoc(doc(store, "users/suspended-user/routines/routine-a")));
+    await assertFails(setDoc(doc(store, "users/suspended-user/goals/goal-a"), {
+      ownerUid: "suspended-user", name: "Blocked"
+    }));
+  });
+
+  it("blocks personal fitness writes until age and policy consent", async () => {
+    const store = environment.authenticatedContext("unconsented-user").firestore();
+    await assertFails(setDoc(doc(store, "users/unconsented-user/routines/routine-a"), {
+      ownerUid: "unconsented-user", name: "Too early", movements: []
+    }));
+  });
+
+  it("exposes server-owned projections only inside the active gym", async () => {
+    const trainer = environment.authenticatedContext("trainer-a").firestore();
+    const outsider = environment.authenticatedContext("member-b").firestore();
+    const path = "gyms/gym-a/shared_fitness/member-a/workout_logs/log-a";
+    await assertSucceeds(getDoc(doc(trainer, path)));
+    await assertFails(getDoc(doc(outsider, path)));
+    await assertFails(setDoc(doc(trainer, path), { name: "Tampered" }));
+  });
+
   it("lets a member read their own tenant profile", async () => {
     const store = environment.authenticatedContext("member-a").firestore();
     await assertSucceeds(getDoc(doc(store, "gyms/gym-a/members/member-a")));
@@ -206,6 +281,25 @@ describe("Firestore tenant isolation", () => {
 });
 
 describe("Storage tenant isolation", () => {
+  it("keeps personal media private and blocks suspended accounts", async () => {
+    const image = new Uint8Array([137, 80, 78, 71]);
+    const owner = environment.authenticatedContext("member-a").storage();
+    const other = environment.authenticatedContext("member-b").storage();
+    const admin = environment.authenticatedContext(
+      "platform-admin", { platformAdmin: true }
+    ).storage();
+    const suspended = environment.authenticatedContext("suspended-user").storage();
+    const path = "users/member-a/progress/photo.png";
+    await assertSucceeds(uploadBytes(ref(owner, path), image, { contentType: "image/png" }));
+    await assertSucceeds(getBytes(ref(owner, path)));
+    await assertFails(getBytes(ref(other, path)));
+    await assertFails(getBytes(ref(admin, path)));
+    await assertFails(uploadBytes(
+      ref(suspended, "users/suspended-user/progress/photo.png"), image,
+      { contentType: "image/png" }
+    ));
+  });
+
   it("allows only platform admins and owner/managers to upload gym branding", async () => {
     const image = new Uint8Array([137, 80, 78, 71]);
     const ownerStorage = environment.authenticatedContext("owner-a").storage();

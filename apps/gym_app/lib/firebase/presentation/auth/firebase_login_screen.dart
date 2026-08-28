@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -73,7 +74,7 @@ class _FirebaseLoginScreenState extends State<FirebaseLoginScreen> {
                       const SizedBox(height: 8),
                       Text(
                         widget.invitation == null
-                            ? 'Sign in once, then choose your gym and role.'
+                            ? 'Train your way. Connect with a gym only when you want to.'
                             : 'Sign in with the email invited to ${widget.invitation!.gymName}.',
                         textAlign: TextAlign.center,
                       ),
@@ -183,6 +184,47 @@ class _FirebaseLoginScreenState extends State<FirebaseLoginScreen> {
                                     : 'Sign in',
                               ),
                       ),
+                      if (!_phoneMode) ...[
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            const Expanded(child: Divider()),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              child: Text(
+                                'or',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                            const Expanded(child: Divider()),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (kIsWeb ||
+                            defaultTargetPlatform == TargetPlatform.android)
+                          OutlinedButton.icon(
+                            onPressed:
+                                state.status == SessionStatus.initializing
+                                ? null
+                                : context.read<SessionCubit>().signInWithGoogle,
+                            icon: const Icon(Icons.g_mobiledata, size: 28),
+                            label: const Text('Continue with Google'),
+                          ),
+                        if (!kIsWeb &&
+                            defaultTargetPlatform == TargetPlatform.iOS) ...[
+                          const SizedBox(height: 8),
+                          OutlinedButton.icon(
+                            onPressed:
+                                state.status == SessionStatus.initializing
+                                ? null
+                                : context.read<SessionCubit>().signInWithApple,
+                            icon: const Icon(Icons.apple),
+                            label: const Text('Continue with Apple'),
+                          ),
+                        ],
+                      ],
                       TextButton(
                         onPressed: _sendingCode
                             ? null
@@ -193,7 +235,7 @@ class _FirebaseLoginScreenState extends State<FirebaseLoginScreen> {
                         child: Text(
                           _phoneMode
                               ? 'Use email and password'
-                              : 'Use phone OTP',
+                              : 'More ways to sign in · Phone OTP',
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -201,10 +243,10 @@ class _FirebaseLoginScreenState extends State<FirebaseLoginScreen> {
                         onPressed: () => context.go(
                           widget.invitation?.registerLocation ?? '/register',
                         ),
-                        child: const Text('Create an account or start a gym'),
+                        child: const Text('Create my free fitness account'),
                       ),
                       const Text(
-                        'Owners can start one verified free trial. Staff and member roles are assigned by secure invitation.',
+                        'Core workout tracking is free. Gym services are optional and can be connected later.',
                         textAlign: TextAlign.center,
                       ),
                     ],

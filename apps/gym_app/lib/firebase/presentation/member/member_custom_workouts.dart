@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,20 +9,33 @@ import '../../data/gym_repository.dart';
 import '../../domain/custom_workout.dart';
 import '../../domain/exercise_guide.dart';
 
-class MemberRoutinesSection extends StatelessWidget {
-  const MemberRoutinesSection({required this.membership, super.key});
+Future<void> openMemberWorkoutLogger(
+  BuildContext context,
+  FitnessScope scope, {
+  MemberRoutine? routine,
+  String origin = 'personal',
+  Map<String, dynamic>? sourceReference,
+}) => Navigator.of(context).push(
+  MaterialPageRoute<void>(
+    builder: (_) => MemberWorkoutLoggerScreen(
+      scope: scope,
+      routine: routine,
+      origin: origin,
+      sourceReference: sourceReference,
+    ),
+  ),
+);
 
-  final GymMembership membership;
+class MemberRoutinesSection extends StatelessWidget {
+  const MemberRoutinesSection({required this.scope, super.key});
+
+  final FitnessScope scope;
 
   @override
   Widget build(
     BuildContext context,
   ) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-    stream: context.read<GymRepository>().memberRoutines(
-      membership.gymId,
-      membership.uid,
-      limit: 30,
-    ),
+    stream: context.read<GymRepository>().fitnessRoutines(scope, limit: 30),
     builder: (context, snapshot) {
       final routines =
           snapshot.data?.docs
@@ -55,9 +70,9 @@ class MemberRoutinesSection extends StatelessWidget {
                 icon: const Icon(Icons.add_circle_outline),
                 onSelected: (value) {
                   if (value == 'routine') {
-                    _openRoutineBuilder(context, membership);
+                    _openRoutineBuilder(context, scope);
                   } else {
-                    _openWorkoutLogger(context, membership);
+                    _openWorkoutLogger(context, scope);
                   }
                 },
                 itemBuilder: (_) => const [
@@ -72,7 +87,7 @@ class MemberRoutinesSection extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           FilledButton.icon(
-            onPressed: () => _openWorkoutLogger(context, membership),
+            onPressed: () => _openWorkoutLogger(context, scope),
             icon: const Icon(Icons.edit_note),
             label: const Text('Log today’s workout'),
           ),
@@ -129,11 +144,11 @@ class MemberRoutinesSection extends StatelessWidget {
                               if (value == 'edit') {
                                 _openRoutineBuilder(
                                   context,
-                                  membership,
+                                  scope,
                                   routine: routine,
                                 );
                               } else {
-                                _deleteRoutine(context, membership, routine);
+                                _deleteRoutine(context, scope, routine);
                               }
                             },
                             itemBuilder: (_) => const [
@@ -165,7 +180,7 @@ class MemberRoutinesSection extends StatelessWidget {
                       FilledButton.icon(
                         onPressed: () => _openWorkoutLogger(
                           context,
-                          membership,
+                          scope,
                           routine: routine,
                         ),
                         icon: const Icon(Icons.play_arrow),
@@ -184,29 +199,27 @@ class MemberRoutinesSection extends StatelessWidget {
 
 Future<void> _openRoutineBuilder(
   BuildContext context,
-  GymMembership membership, {
+  FitnessScope scope, {
   MemberRoutine? routine,
 }) => Navigator.of(context).push(
   MaterialPageRoute<void>(
-    builder: (_) =>
-        RoutineBuilderScreen(membership: membership, routine: routine),
+    builder: (_) => RoutineBuilderScreen(scope: scope, routine: routine),
   ),
 );
 
 Future<void> _openWorkoutLogger(
   BuildContext context,
-  GymMembership membership, {
+  FitnessScope scope, {
   MemberRoutine? routine,
 }) => Navigator.of(context).push(
   MaterialPageRoute<void>(
-    builder: (_) =>
-        MemberWorkoutLoggerScreen(membership: membership, routine: routine),
+    builder: (_) => MemberWorkoutLoggerScreen(scope: scope, routine: routine),
   ),
 );
 
 Future<void> _deleteRoutine(
   BuildContext context,
-  GymMembership membership,
+  FitnessScope scope,
   MemberRoutine routine,
 ) async {
   final confirmed = await showDialog<bool>(
@@ -229,20 +242,16 @@ Future<void> _deleteRoutine(
     ),
   );
   if (confirmed != true || !context.mounted) return;
-  await context.read<GymRepository>().deleteMemberRoutine(
-    gymId: membership.gymId,
+  await context.read<GymRepository>().deleteFitnessRoutine(
+    scope: scope,
     routineId: routine.id,
   );
 }
 
 class RoutineBuilderScreen extends StatefulWidget {
-  const RoutineBuilderScreen({
-    required this.membership,
-    this.routine,
-    super.key,
-  });
+  const RoutineBuilderScreen({required this.scope, this.routine, super.key});
 
-  final GymMembership membership;
+  final FitnessScope scope;
   final MemberRoutine? routine;
 
   @override
@@ -344,11 +353,25 @@ class _RoutineBuilderScreenState extends State<RoutineBuilderScreen> {
                 leading: CircleAvatar(child: Text('${item.$1 + 1}')),
                 title: Text(movement.name),
                 subtitle: Text(
-                  '${movement.trackingType.label} · ${movement.targetSets} ${movement.targetSets == 1 ? 'effort' : 'sets'}',
+                  '${movement.trackingType.label} · ${movement.targetSets} ${movement.targetSets == 1 ? 'effort' : 'sets'}'
+                  '${movement.supersetGroup == null ? '' : ' · Superset'}',
                 ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    IconButton(
+                      tooltip: movement.supersetGroup == null
+                          ? 'Pair with previous as superset'
+                          : 'Remove superset pairing',
+                      onPressed: item.$1 == 0
+                          ? null
+                          : () => _toggleSuperset(item.$1),
+                      icon: Icon(
+                        movement.supersetGroup == null
+                            ? Icons.link_outlined
+                            : Icons.link_off,
+                      ),
+                    ),
                     IconButton(
                       tooltip: 'Fewer sets',
                       onPressed: movement.targetSets <= 1
@@ -397,14 +420,27 @@ class _RoutineBuilderScreenState extends State<RoutineBuilderScreen> {
   void _changeSets(int index, int delta) {
     final current = _movements[index];
     setState(() {
-      _movements[index] = RoutineMovement(
-        id: current.id,
-        exerciseId: current.exerciseId,
-        name: current.name,
-        trackingType: current.trackingType,
+      _movements[index] = current.copyWith(
         targetSets: (current.targetSets + delta).clamp(1, 20),
-        notes: current.notes,
       );
+    });
+  }
+
+  void _toggleSuperset(int index) {
+    final current = _movements[index];
+    final previous = _movements[index - 1];
+    setState(() {
+      if (current.supersetGroup != null) {
+        final group = current.supersetGroup;
+        _movements[index] = current.copyWith(clearSuperset: true);
+        if (previous.supersetGroup == group) {
+          _movements[index - 1] = previous.copyWith(clearSuperset: true);
+        }
+      } else {
+        final group = previous.supersetGroup ?? 'superset-${previous.id}';
+        _movements[index - 1] = previous.copyWith(supersetGroup: group);
+        _movements[index] = current.copyWith(supersetGroup: group);
+      }
     });
   }
 
@@ -419,9 +455,8 @@ class _RoutineBuilderScreenState extends State<RoutineBuilderScreen> {
     }
     setState(() => _saving = true);
     try {
-      await context.read<GymRepository>().saveMemberRoutine(
-        gymId: widget.membership.gymId,
-        uid: widget.membership.uid,
+      await context.read<GymRepository>().saveFitnessRoutine(
+        scope: widget.scope,
         routineId: widget.routine?.id,
         name: _name.text,
         scheduledWeekdays: _weekdays.toList()..sort(),
@@ -444,13 +479,17 @@ class _RoutineBuilderScreenState extends State<RoutineBuilderScreen> {
 
 class MemberWorkoutLoggerScreen extends StatefulWidget {
   const MemberWorkoutLoggerScreen({
-    required this.membership,
+    required this.scope,
     this.routine,
+    this.origin = 'personal',
+    this.sourceReference,
     super.key,
   });
 
-  final GymMembership membership;
+  final FitnessScope scope;
   final MemberRoutine? routine;
+  final String origin;
+  final Map<String, dynamic>? sourceReference;
 
   @override
   State<MemberWorkoutLoggerScreen> createState() =>
@@ -460,7 +499,10 @@ class MemberWorkoutLoggerScreen extends StatefulWidget {
 class _MemberWorkoutLoggerScreenState extends State<MemberWorkoutLoggerScreen> {
   late final DateTime _startedAt;
   late final TextEditingController _title;
+  late final TextEditingController _notes;
   late final List<_MovementInput> _movements;
+  Timer? _restTimer;
+  int _restSeconds = 0;
   bool _saving = false;
 
   @override
@@ -468,8 +510,12 @@ class _MemberWorkoutLoggerScreenState extends State<MemberWorkoutLoggerScreen> {
     super.initState();
     _startedAt = DateTime.now();
     _title = TextEditingController(
-      text: widget.routine?.name ?? 'Today’s workout',
+      text:
+          widget.routine?.name ??
+          widget.sourceReference?['title'] as String? ??
+          'Today’s workout',
     );
+    _notes = TextEditingController();
     _movements =
         widget.routine?.movements.map(_MovementInput.fromRoutine).toList() ??
         [];
@@ -478,6 +524,8 @@ class _MemberWorkoutLoggerScreenState extends State<MemberWorkoutLoggerScreen> {
   @override
   void dispose() {
     _title.dispose();
+    _notes.dispose();
+    _restTimer?.cancel();
     for (final movement in _movements) {
       movement.dispose();
     }
@@ -506,6 +554,16 @@ class _MemberWorkoutLoggerScreenState extends State<MemberWorkoutLoggerScreen> {
           ),
         ),
         const SizedBox(height: 12),
+        TextField(
+          controller: _notes,
+          maxLines: 2,
+          decoration: const InputDecoration(
+            labelText: 'Workout notes (optional)',
+            hintText: 'Energy, focus, session context…',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 12),
         const Card(
           child: ListTile(
             leading: Icon(Icons.auto_graph),
@@ -516,10 +574,41 @@ class _MemberWorkoutLoggerScreenState extends State<MemberWorkoutLoggerScreen> {
           ),
         ),
         const SizedBox(height: 10),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                Icon(_restSeconds > 0 ? Icons.timer : Icons.timer_outlined),
+                Text(
+                  _restSeconds > 0
+                      ? 'Rest ${_restSeconds ~/ 60}:${(_restSeconds % 60).toString().padLeft(2, '0')}'
+                      : 'Rest timer',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                OutlinedButton(
+                  onPressed: () => _startRest(60),
+                  child: const Text('1:00'),
+                ),
+                OutlinedButton(
+                  onPressed: () => _startRest(90),
+                  child: const Text('1:30'),
+                ),
+                if (_restSeconds > 0)
+                  TextButton(onPressed: _stopRest, child: const Text('Stop')),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
         ..._movements.indexed.map(
           (item) => _MovementLogCard(
             key: ValueKey(item.$2.id),
             movement: item.$2,
+            scope: widget.scope,
             number: item.$1 + 1,
             onRemove: () {
               setState(() {
@@ -557,6 +646,24 @@ class _MemberWorkoutLoggerScreenState extends State<MemberWorkoutLoggerScreen> {
     }
   }
 
+  void _startRest(int seconds) {
+    _restTimer?.cancel();
+    setState(() => _restSeconds = seconds);
+    _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || _restSeconds <= 1) {
+        timer.cancel();
+        if (mounted) setState(() => _restSeconds = 0);
+        return;
+      }
+      setState(() => _restSeconds--);
+    });
+  }
+
+  void _stopRest() {
+    _restTimer?.cancel();
+    setState(() => _restSeconds = 0);
+  }
+
   Future<void> _finish() async {
     final logged = _movements
         .map((movement) => movement.toLogMap())
@@ -569,12 +676,14 @@ class _MemberWorkoutLoggerScreenState extends State<MemberWorkoutLoggerScreen> {
     setState(() => _saving = true);
     try {
       final endedAt = DateTime.now();
-      await context.read<GymRepository>().saveMemberOwnedRecord(
-        gymId: widget.membership.gymId,
+      await context.read<GymRepository>().saveFitnessRecord(
+        scope: widget.scope,
         collection: 'workout_logs',
-        uid: widget.membership.uid,
         data: {
           'schemaVersion': 2,
+          'origin': widget.origin,
+          if (widget.sourceReference != null)
+            'sourceReference': widget.sourceReference,
           'title': _title.text.trim().isEmpty ? 'Workout' : _title.text.trim(),
           'source': widget.routine == null ? 'quick_log' : 'member_routine',
           if (widget.routine != null) 'routineId': widget.routine!.id,
@@ -582,6 +691,7 @@ class _MemberWorkoutLoggerScreenState extends State<MemberWorkoutLoggerScreen> {
           'startedAt': Timestamp.fromDate(_startedAt),
           'completedAt': Timestamp.fromDate(endedAt),
           'durationSeconds': endedAt.difference(_startedAt).inSeconds,
+          if (_notes.text.trim().isNotEmpty) 'notes': _notes.text.trim(),
           'exercises': logged,
         },
       );
@@ -615,9 +725,10 @@ class _MemberWorkoutLoggerScreenState extends State<MemberWorkoutLoggerScreen> {
   ).showSnackBar(SnackBar(content: Text(value)));
 }
 
-class _MovementLogCard extends StatelessWidget {
+class _MovementLogCard extends StatefulWidget {
   const _MovementLogCard({
     required this.movement,
+    required this.scope,
     required this.number,
     required this.onRemove,
     required this.onChanged,
@@ -625,9 +736,42 @@ class _MovementLogCard extends StatelessWidget {
   });
 
   final _MovementInput movement;
+  final FitnessScope scope;
   final int number;
   final VoidCallback onRemove;
   final VoidCallback onChanged;
+
+  @override
+  State<_MovementLogCard> createState() => _MovementLogCardState();
+}
+
+class _MovementLogCardState extends State<_MovementLogCard> {
+  late Future<Map<String, dynamic>?> previous;
+
+  _MovementInput get movement => widget.movement;
+  FitnessScope get scope => widget.scope;
+  int get number => widget.number;
+  VoidCallback get onRemove => widget.onRemove;
+  VoidCallback get onChanged => widget.onChanged;
+
+  @override
+  void initState() {
+    super.initState();
+    previous = _loadPrevious();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MovementLogCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.movement.id != widget.movement.id ||
+        oldWidget.scope != widget.scope) {
+      previous = _loadPrevious();
+    }
+  }
+
+  Future<Map<String, dynamic>?> _loadPrevious() => context
+      .read<GymRepository>()
+      .previousExerciseSet(scope, movement.exerciseId ?? movement.id);
 
   @override
   Widget build(BuildContext context) => Card(
@@ -649,7 +793,9 @@ class _MovementLogCard extends StatelessWidget {
                       movement.name,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    Text(movement.trackingType.label),
+                    Text(
+                      '${movement.trackingType.label}${movement.supersetGroup == null ? '' : ' · Superset'}',
+                    ),
                   ],
                 ),
               ),
@@ -661,6 +807,30 @@ class _MovementLogCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
+          FutureBuilder<Map<String, dynamic>?>(
+            future: previous,
+            builder: (context, snapshot) {
+              final previous = snapshot.data;
+              if (previous == null) return const SizedBox.shrink();
+              final parts = <String>[
+                if (previous['weightKg'] != null) '${previous['weightKg']} kg',
+                if (previous['reps'] != null) '${previous['reps']} reps',
+                if (previous['durationSeconds'] != null)
+                  '${previous['durationSeconds']} sec',
+              ];
+              if (parts.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Chip(
+                    avatar: const Icon(Icons.history, size: 18),
+                    label: Text('Previous: ${parts.join(' · ')}'),
+                  ),
+                ),
+              );
+            },
+          ),
           if (movement.trackingType == MovementTrackingType.cardio)
             for (final item in movement.sets.indexed)
               _CardioSetRow(
@@ -738,38 +908,75 @@ class _RepSetRow extends StatelessWidget {
   final VoidCallback onRemove;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 28,
-          child: Padding(
-            padding: const EdgeInsets.only(top: 16),
-            child: Text('$number'),
+  Widget build(BuildContext context) => Card.outlined(
+    margin: const EdgeInsets.only(bottom: 10),
+    child: Padding(
+      padding: const EdgeInsets.all(10),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Text('Set $number'),
+              const SizedBox(width: 12),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: set.setType,
+                  decoration: const InputDecoration(
+                    labelText: 'Type',
+                    isDense: true,
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'warmup', child: Text('Warm-up')),
+                    DropdownMenuItem(value: 'working', child: Text('Working')),
+                    DropdownMenuItem(value: 'drop', child: Text('Drop set')),
+                    DropdownMenuItem(
+                      value: 'failure',
+                      child: Text('To failure'),
+                    ),
+                  ],
+                  onChanged: (value) => set.setType = value ?? 'working',
+                ),
+              ),
+              IconButton(
+                onPressed: canRemove ? onRemove : null,
+                icon: const Icon(Icons.remove_circle_outline),
+              ),
+            ],
           ),
-        ),
-        Expanded(
-          child: _NumberField(
-            controller: set.reps,
-            label: 'Reps',
-            decimal: false,
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _SizedNumberField(
+                controller: set.reps,
+                label: 'Reps',
+                decimal: false,
+              ),
+              _SizedNumberField(
+                controller: bodyweight ? set.additionalLoadKg : set.weightKg,
+                label: bodyweight ? 'Added load' : 'Weight',
+                suffix: 'kg',
+              ),
+              _SizedNumberField(controller: set.rpe, label: 'RPE'),
+              _SizedNumberField(
+                controller: set.rir,
+                label: 'Reps in reserve',
+                decimal: false,
+              ),
+            ],
           ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _NumberField(
-            controller: bodyweight ? set.additionalLoadKg : set.weightKg,
-            label: bodyweight ? 'Added load' : 'Weight',
-            suffix: 'kg',
-          ),
-        ),
-        IconButton(
-          onPressed: canRemove ? onRemove : null,
-          icon: const Icon(Icons.remove_circle_outline),
-        ),
-      ],
+          if (!bodyweight)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => _showPlateCalculator(context, set.weightKg),
+                icon: const Icon(Icons.calculate_outlined),
+                label: const Text('Plate calculator'),
+              ),
+            ),
+        ],
+      ),
     ),
   );
 }
@@ -888,16 +1095,23 @@ class _SizedNumberField extends StatelessWidget {
     required this.controller,
     required this.label,
     this.suffix,
+    this.decimal = true,
   });
 
   final TextEditingController controller;
   final String label;
   final String? suffix;
+  final bool decimal;
 
   @override
   Widget build(BuildContext context) => SizedBox(
     width: 145,
-    child: _NumberField(controller: controller, label: label, suffix: suffix),
+    child: _NumberField(
+      controller: controller,
+      label: label,
+      suffix: suffix,
+      decimal: decimal,
+    ),
   );
 }
 
@@ -934,6 +1148,7 @@ class _MovementInput {
     required this.name,
     required this.trackingType,
     required int targetSets,
+    this.supersetGroup,
   }) : sets = List.generate(targetSets, (_) => _SetInput()),
        notes = TextEditingController();
 
@@ -944,12 +1159,14 @@ class _MovementInput {
         name: movement.name,
         trackingType: movement.trackingType,
         targetSets: movement.targetSets,
+        supersetGroup: movement.supersetGroup,
       );
 
   final String id;
   final String? exerciseId;
   final String name;
   final MovementTrackingType trackingType;
+  final String? supersetGroup;
   final List<_SetInput> sets;
   final TextEditingController notes;
 
@@ -972,6 +1189,7 @@ class _MovementInput {
       'movementId': id,
       'name': name,
       'trackingType': trackingType.name,
+      if (supersetGroup != null) 'supersetGroup': supersetGroup,
       'completedSets': loggedSets.length,
       'sets': [
         for (final item in loggedSets.indexed) item.$2.toMap(item.$1 + 1),
@@ -992,6 +1210,7 @@ class _MovementInput {
 }
 
 class _SetInput {
+  String setType = 'working';
   final reps = TextEditingController();
   final weightKg = TextEditingController();
   final additionalLoadKg = TextEditingController();
@@ -1000,10 +1219,13 @@ class _SetInput {
   final speedKph = TextEditingController();
   final inclinePercent = TextEditingController();
   final distanceKm = TextEditingController();
+  final rpe = TextEditingController();
+  final rir = TextEditingController();
 
   LoggedMovementSet get value {
     final minutes = _positiveDouble(durationMinutes.text);
     return LoggedMovementSet(
+      setType: setType,
       reps: _positiveInt(reps.text),
       weightKg: _nonNegativeDouble(weightKg.text),
       additionalLoadKg: _nonNegativeDouble(additionalLoadKg.text),
@@ -1013,6 +1235,8 @@ class _SetInput {
       speedKph: _positiveDouble(speedKph.text),
       inclinePercent: _nonNegativeDouble(inclinePercent.text),
       distanceKm: _positiveDouble(distanceKm.text),
+      rpe: _boundedDouble(rpe.text, 1, 10),
+      rir: _boundedInt(rir.text, 0, 10),
     );
   }
 
@@ -1025,6 +1249,8 @@ class _SetInput {
     speedKph.dispose();
     inclinePercent.dispose();
     distanceKm.dispose();
+    rpe.dispose();
+    rir.dispose();
   }
 }
 
@@ -1173,6 +1399,80 @@ Future<RoutineMovement?> showMovementPicker(BuildContext context) async {
 
 const _weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+Future<void> _showPlateCalculator(
+  BuildContext context,
+  TextEditingController targetController,
+) async {
+  final bar = TextEditingController(text: '20');
+  final target = TextEditingController(text: targetController.text);
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, update) {
+        final targetKg = double.tryParse(target.text) ?? 0;
+        final barKg = double.tryParse(bar.text) ?? 20;
+        var perSide = ((targetKg - barKg) / 2).clamp(0, double.infinity);
+        final plates = <double>[];
+        for (final plate in const [25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25]) {
+          while (perSide + 0.001 >= plate) {
+            plates.add(plate);
+            perSide -= plate;
+          }
+        }
+        return AlertDialog(
+          title: const Text('Plate calculator'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: target,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Target total weight',
+                  suffixText: 'kg',
+                ),
+                onChanged: (_) => update(() {}),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: bar,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Bar weight',
+                  suffixText: 'kg',
+                ),
+                onChanged: (_) => update(() {}),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                plates.isEmpty
+                    ? 'No plates required per side'
+                    : 'Each side: ${plates.map((value) => value == value.roundToDouble() ? value.toStringAsFixed(0) : value.toString()).join(' + ')} kg${perSide > 0.01 ? '\nUnmatched: ${perSide.toStringAsFixed(2)} kg per side' : ''}',
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () {
+                targetController.text = target.text;
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Use weight'),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+  bar.dispose();
+  target.dispose();
+}
+
 String _weekdaySummary(List<int> days) => days.isEmpty
     ? 'Any day'
     : days.map((day) => _weekdayLabels[day - 1]).join(', ');
@@ -1195,4 +1495,18 @@ double? _positiveDouble(String value) {
 double? _nonNegativeDouble(String value) {
   final parsed = double.tryParse(value.trim());
   return parsed != null && parsed >= 0 ? parsed : null;
+}
+
+double? _boundedDouble(String value, double minimum, double maximum) {
+  final parsed = double.tryParse(value.trim());
+  return parsed != null && parsed >= minimum && parsed <= maximum
+      ? parsed
+      : null;
+}
+
+int? _boundedInt(String value, int minimum, int maximum) {
+  final parsed = int.tryParse(value.trim());
+  return parsed != null && parsed >= minimum && parsed <= maximum
+      ? parsed
+      : null;
 }

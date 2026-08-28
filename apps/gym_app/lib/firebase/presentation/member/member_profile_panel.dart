@@ -7,6 +7,7 @@ import 'package:gym_core/gym_core.dart';
 
 import '../../data/gym_media_repository.dart';
 import '../../data/gym_repository.dart';
+import '../../logic/session_cubit.dart';
 import '../workspace/member_billing_panel.dart';
 
 enum _ProfileSection { profile, membership, settings }
@@ -207,9 +208,17 @@ class _MemberSettings extends StatelessWidget {
         child: Column(
           children: [
             ListTile(
+              leading: const Icon(Icons.favorite_outline),
+              title: const Text('Back to My Fitness'),
+              subtitle: const Text('Your personal workouts and progress'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: context.read<SessionCubit>().choosePersonalSpace,
+            ),
+            const Divider(height: 1),
+            ListTile(
               leading: const Icon(Icons.storefront_outlined),
-              title: Text(membership.gymName),
-              subtitle: const Text('Current gym and member context'),
+              title: const Text('Switch gym or role'),
+              subtitle: Text('Currently using ${membership.gymName}'),
               trailing: const Icon(Icons.swap_horiz),
               onTap: onSwitchContext,
             ),
