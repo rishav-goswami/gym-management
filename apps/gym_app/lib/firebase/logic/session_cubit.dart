@@ -9,6 +9,31 @@ import '../data/firebase_session_repository.dart';
 
 enum SessionStatus { initializing, signedOut, selectingContext, ready, failure }
 
+GymMembership? preferredOperationalMembership(
+  Iterable<GymMembership> memberships,
+) {
+  const priority = <GymRole, int>{
+    GymRole.owner: 0,
+    GymRole.manager: 1,
+    GymRole.trainer: 2,
+    GymRole.receptionist: 3,
+    GymRole.accountant: 4,
+  };
+  final operational =
+      memberships
+          .where((membership) => priority.containsKey(membership.role))
+          .toList()
+        ..sort((left, right) {
+          final byRole = priority[left.role]!.compareTo(priority[right.role]!);
+          return byRole != 0
+              ? byRole
+              : left.gymName.toLowerCase().compareTo(
+                  right.gymName.toLowerCase(),
+                );
+        });
+  return operational.firstOrNull;
+}
+
 class SessionState extends Equatable {
   const SessionState({
     this.status = SessionStatus.initializing,
@@ -39,6 +64,8 @@ class SessionState extends Equatable {
 
   bool get platformBrandingLoaded =>
       platformBranding['_configurationLoaded'] == true;
+  GymMembership? get primaryOperationalMembership =>
+      preferredOperationalMembership(memberships);
 
   FitnessScope? get activeFitnessScope => user == null
       ? null

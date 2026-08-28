@@ -28,6 +28,39 @@ void main() {
     expect(membership.can('staff.manage'), isFalse);
   });
 
+  test('role personalization prefers the highest operational role', () {
+    const member = GymMembership(
+      id: 'member',
+      gymId: 'gym-member',
+      uid: 'uid',
+      role: GymRole.member,
+      status: 'active',
+      permissions: {},
+      gymName: 'Member Gym',
+    );
+    const trainer = GymMembership(
+      id: 'trainer',
+      gymId: 'gym-trainer',
+      uid: 'uid',
+      role: GymRole.trainer,
+      status: 'active',
+      permissions: {},
+      gymName: 'Trainer Gym',
+    );
+    const owner = GymMembership(
+      id: 'owner',
+      gymId: 'gym-owner',
+      uid: 'uid',
+      role: GymRole.owner,
+      status: 'active',
+      permissions: {},
+      gymName: 'Owner Gym',
+    );
+
+    expect(preferredOperationalMembership([member, trainer, owner]), owner);
+    expect(preferredOperationalMembership([member]), isNull);
+  });
+
   test('membership pricing uses integer minor units and calculates expiry', () {
     final quote = MembershipQuote.create(
       amount: '1499.50',

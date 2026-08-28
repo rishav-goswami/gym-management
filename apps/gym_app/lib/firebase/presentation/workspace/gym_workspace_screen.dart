@@ -62,7 +62,18 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
             GymBrandMark(membership: membership),
             const SizedBox(width: 10),
             Flexible(
-              child: Text(membership.gymName, overflow: TextOverflow.ellipsis),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(membership.gymName, overflow: TextOverflow.ellipsis),
+                  if (membership.role != GymRole.member)
+                    Text(
+                      _workspaceRoleLabel(membership.role),
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                ],
+              ),
             ),
           ],
         ),
@@ -79,7 +90,11 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
               onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
             ),
           ] else ...[
-            Chip(label: Text(membership.role.name)),
+            if (wide)
+              Chip(
+                avatar: Icon(_workspaceRoleIcon(membership.role), size: 17),
+                label: Text(_workspaceRoleLabel(membership.role)),
+              ),
             IconButton(
               tooltip: 'Switch gym or role',
               onPressed: () =>
@@ -635,10 +650,10 @@ class _Dashboard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         children: [
           Text(
-            'Good to see you',
+            _dashboardTitle(membership.role),
             style: Theme.of(context).textTheme.headlineMedium,
           ),
-          Text('Live operational summary for ${membership.gymName}'),
+          Text(_dashboardSubtitle(membership)),
           if (membership.role == GymRole.owner ||
               membership.role == GymRole.manager) ...[
             const SizedBox(height: 12),
@@ -2520,6 +2535,36 @@ Color _hexColor(String value, Color fallback) {
   if (!RegExp(r'^[0-9A-Fa-f]{6}$').hasMatch(hex)) return fallback;
   return Color(int.parse('FF$hex', radix: 16));
 }
+
+String _workspaceRoleLabel(GymRole role) => switch (role) {
+  GymRole.owner => 'Owner console',
+  GymRole.manager => 'Manager workspace',
+  GymRole.trainer => 'Trainer workspace',
+  GymRole.receptionist => 'Front-desk workspace',
+  GymRole.accountant => 'Accounts workspace',
+  GymRole.member => 'Member services',
+};
+
+IconData _workspaceRoleIcon(GymRole role) => switch (role) {
+  GymRole.owner => Icons.admin_panel_settings_outlined,
+  GymRole.manager => Icons.manage_accounts_outlined,
+  GymRole.trainer => Icons.sports_gymnastics_outlined,
+  GymRole.receptionist => Icons.support_agent_outlined,
+  GymRole.accountant => Icons.account_balance_wallet_outlined,
+  GymRole.member => Icons.person_outline,
+};
+
+String _dashboardTitle(GymRole role) => switch (role) {
+  GymRole.owner => 'Owner dashboard',
+  GymRole.manager => 'Manager dashboard',
+  GymRole.trainer => 'Trainer overview',
+  GymRole.receptionist => 'Front-desk overview',
+  GymRole.accountant => 'Accounts overview',
+  GymRole.member => 'Gym home',
+};
+
+String _dashboardSubtitle(GymMembership membership) =>
+    'You are managing ${membership.gymName} as ${_workspaceRoleLabel(membership.role).toLowerCase()}.';
 
 class _Destination {
   const _Destination(this.label, this.icon, this.collection);

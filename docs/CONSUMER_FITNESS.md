@@ -4,9 +4,9 @@
 
 Every authenticated identity has a permanent **My Fitness** space. It is not a
 hidden gym tenant and does not require a role or membership. Regular launches
-open this personal space. Gym spaces remain optional connections that add
-tenant services such as membership billing, trainers, classes, attendance,
-announcements and gym assignments.
+open this personal space for consumers, members and operational users alike.
+Gym spaces add tenant services such as membership billing, trainers, classes,
+attendance, announcements and gym assignments.
 
 The remote `platform_public/app_branding.consumerFeatures.personalSpacesV1`
 switch gates the new routing. Keep it disabled in an existing environment until
@@ -70,7 +70,12 @@ goals, workout summaries, measurements and progress.
 Opening a connected gym is an explicit, temporary context switch. Member gym
 screens must provide a visible **Back to My Fitness** action and describe the
 gym card as services/operations so users do not mistake tenant branding for a
-replacement of their personal account. A new login still starts in My Fitness.
+replacement of their personal account. Operational users see an explicit role
+label such as **Owner console** or **Trainer workspace** after opening the gym.
+Personal mode keeps a role banner and one-step return to the operational
+workspace; it never relabels an owner or trainer as a member. The gym toolbar
+does not add a second workout shortcut because personal fitness remains the
+default landing and is already available through the spaces/profile flow.
 The **Your fitness spaces** screen makes the complete card actionable: an owner,
 manager or trainer sees an explicit **Open dashboard** action, while selecting
 any connected gym opens its role-aware workspace. **Start my gym** opens trial
@@ -82,6 +87,16 @@ Space-selector taps are intentionally not counted as a separate feature metric:
 they are navigation rather than a meaningful outcome, and destination features
 already record bounded, server-validated usage. Invitation acceptance and gym
 creation remain the privacy-safe conversion milestones.
+
+Operational role and fitness identity are orthogonal. An owner or trainer can
+use personal routines, workout logs and progress without creating a tenant
+member record. Member-only business records—membership charges, trainer
+assignment, class entitlement and member attendance—do not automatically apply
+to staff. The current `gymId_uid` membership model has one gym role per person;
+supporting a billable owner/member combination will require a separately
+reviewed multi-role migration, rules and Functions change. The app must not
+silently convert staff into members or expose their private workouts to the
+gym.
 
 `updateGymSharing` verifies the active membership and maintains server-owned,
 bounded projections under `gyms/{gymId}/shared_fitness/{uid}`. Clients cannot

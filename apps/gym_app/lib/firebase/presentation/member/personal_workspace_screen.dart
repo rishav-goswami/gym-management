@@ -29,8 +29,16 @@ class _PersonalWorkspaceScreenState extends State<PersonalWorkspaceScreen> {
     final user = session.user;
     if (user == null) return const SizedBox.shrink();
     final scope = FitnessScope.personal(user.uid);
+    final operationalMembership = session.primaryOperationalMembership;
     final pages = [
-      _PersonalHome(scope: scope, onTrain: () => setState(() => _index = 1)),
+      _PersonalHome(
+        scope: scope,
+        operationalMembership: operationalMembership,
+        onOpenWorkspace: operationalMembership == null
+            ? null
+            : () => _openWorkspace(operationalMembership),
+        onTrain: () => setState(() => _index = 1),
+      ),
       MemberTrainingPanel(scope: scope),
       MemberProgressPanel(scope: scope),
       _PersonalProfile(scope: scope),
@@ -40,15 +48,22 @@ class _PersonalWorkspaceScreenState extends State<PersonalWorkspaceScreen> {
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(
-        title: const Row(
+        title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.fitness_center),
-            SizedBox(width: 10),
-            Text('My Fitness'),
+            const Icon(Icons.fitness_center),
+            const SizedBox(width: 10),
+            Text(operationalMembership == null ? 'My Fitness' : 'My workouts'),
           ],
         ),
         actions: [
+          if (operationalMembership != null)
+            IconButton(
+              tooltip:
+                  'Return to ${operationalMembership.gymName} ${_roleWorkspaceLabel(operationalMembership.role)}',
+              onPressed: () => _openWorkspace(operationalMembership),
+              icon: const Icon(Icons.business_center_outlined),
+            ),
           IconButton(
             tooltip: 'Notifications',
             onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
@@ -123,12 +138,24 @@ class _PersonalWorkspaceScreenState extends State<PersonalWorkspaceScreen> {
             ),
     );
   }
+
+  Future<void> _openWorkspace(GymMembership membership) async {
+    await context.read<SessionCubit>().selectMembership(membership);
+    if (mounted) context.go('/workspace');
+  }
 }
 
 class _PersonalHome extends StatelessWidget {
-  const _PersonalHome({required this.scope, required this.onTrain});
+  const _PersonalHome({
+    required this.scope,
+    required this.operationalMembership,
+    required this.onOpenWorkspace,
+    required this.onTrain,
+  });
 
   final FitnessScope scope;
+  final GymMembership? operationalMembership;
+  final VoidCallback? onOpenWorkspace;
   final VoidCallback onTrain;
 
   @override
@@ -161,6 +188,27 @@ class _PersonalHome extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           const Text('Small, consistent sessions build lasting progress.'),
+          if (operationalMembership != null) ...[
+            const SizedBox(height: 16),
+            Card(
+              child: ListTile(
+                leading: CircleAvatar(
+                  child: Icon(_roleIcon(operationalMembership!.role)),
+                ),
+                title: Text(
+                  '${_roleTitle(operationalMembership!.role)} at ${operationalMembership!.gymName}',
+                ),
+                subtitle: const Text(
+                  'You are in private workout mode. Your gym tools remain available.',
+                ),
+                trailing: FilledButton.tonal(
+                  onPressed: onOpenWorkspace,
+                  child: const Text('Open workspace'),
+                ),
+                onTap: onOpenWorkspace,
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           Card(
             color: Theme.of(context).colorScheme.primaryContainer,
@@ -260,7 +308,8 @@ class _PersonalProfile extends StatelessWidget {
   Widget build(BuildContext context) {
     final session = context.watch<SessionCubit>().state;
     final user = session.user!;
-    final name = session.account['displayName'] as String? ?? 'Fitness member';
+    final name = session.account['displayName'] as String? ?? 'Fitness user';
+    final operationalMembership = session.primaryOperationalMembership;
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -288,6 +337,23 @@ class _PersonalProfile extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 26),
+        if (operationalMembership != null) ...[
+          Card(
+            color: Theme.of(context).colorScheme.secondaryContainer,
+            child: ListTile(
+              leading: Icon(_roleIcon(operationalMembership.role)),
+              title: Text(
+                '${_roleTitle(operationalMembership.role)} at ${operationalMembership.gymName}',
+              ),
+              subtitle: const Text(
+                'Your role remains active while these workouts stay private.',
+              ),
+              trailing: const Icon(Icons.arrow_forward),
+              onTap: () => _openGymWorkspace(context, operationalMembership),
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
         Card(
           child: Column(
             children: [
@@ -361,6 +427,14 @@ class _PersonalProfile extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _openGymWorkspace(
+    BuildContext context,
+    GymMembership membership,
+  ) async {
+    await context.read<SessionCubit>().selectMembership(membership);
+    if (context.mounted) context.go('/workspace');
   }
 
   Future<void> _editPreferences(BuildContext context) async {
@@ -622,6 +696,33 @@ class _GymSharingSection extends StatelessWidget {
     }
   }
 }
+
+String _roleTitle(GymRole role) => switch (role) {
+  GymRole.owner => 'Owner',
+  GymRole.manager => 'Manager',
+  GymRole.trainer => 'Trainer',
+  GymRole.receptionist => 'Front desk',
+  GymRole.accountant => 'Accountant',
+  GymRole.member => 'Member',
+};
+
+String _roleWorkspaceLabel(GymRole role) => switch (role) {
+  GymRole.owner => 'owner console',
+  GymRole.manager => 'manager workspace',
+  GymRole.trainer => 'trainer workspace',
+  GymRole.receptionist => 'front-desk workspace',
+  GymRole.accountant => 'accounts workspace',
+  GymRole.member => 'member space',
+};
+
+IconData _roleIcon(GymRole role) => switch (role) {
+  GymRole.owner => Icons.admin_panel_settings_outlined,
+  GymRole.manager => Icons.manage_accounts_outlined,
+  GymRole.trainer => Icons.sports_gymnastics_outlined,
+  GymRole.receptionist => Icons.support_agent_outlined,
+  GymRole.accountant => Icons.account_balance_wallet_outlined,
+  GymRole.member => Icons.person_outline,
+};
 
 class _PersonalNotifications extends StatelessWidget {
   const _PersonalNotifications({required this.scope});
