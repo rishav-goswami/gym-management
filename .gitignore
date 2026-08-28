@@ -31,7 +31,7 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
+**/build/
 
 # Symbolication related
 app.*.symbols
@@ -51,4 +51,33 @@ app.*.map.json
 !.env.example
 node_modules/
 dist/
+firebase/functions/lib/
 .fvm/
+.firebase/
+.firebase-data/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Terraform state can contain infrastructure identifiers and sensitive values.
+# Keep state in an encrypted remote backend for shared environments.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+infra/terraform/backend.hcl
+
+# Firebase account-migration exports contain users and customer data.
+.firebase-migration/
+
+# Private credentials and signing material (Firebase client config is public
+# and intentionally tracked separately).
+**/firebase-adminsdk-*.json
+**/service-account*.json
+**/serviceAccount*.json
+*.pem
+*.p12
+*.keystore
+*.jks

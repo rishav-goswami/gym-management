@@ -1,0 +1,35 @@
+{
+  "name": "gym-management-platform",
+  "private": true,
+  "scripts": {
+    "firebase": "firebase",
+    "app:pubget": "cd apps/gym_app && fvm flutter pub get",
+    "app:test": "cd apps/gym_app && fvm flutter test",
+    "app:analyze": "cd apps/gym_app && fvm flutter analyze lib test",
+    "app:build:web": "cd apps/gym_app && fvm flutter build web --release --dart-define=APP_FLAVOR=production --dart-define=FIREBASE_APPCHECK_SITE_KEY=6LddO5otAAAAANe-6ZBAhGUrt87kjNLqiXbbfx8o",
+    "console:pubget": "cd apps/platform_console && fvm flutter pub get",
+    "console:test": "cd apps/platform_console && fvm flutter test",
+    "console:analyze": "cd apps/platform_console && fvm flutter analyze lib test",
+    "console:build:web": "cd apps/platform_console && fvm flutter build web --release --dart-define=FIREBASE_APPCHECK_SITE_KEY=6Ld5H5otAAAAAIbKG4fZKbr6EDlvFDaIxivRAFvP",
+    "catalog:manifest": "node scripts/generate-exercise-media-manifest.mjs",
+    "catalog:sync": "node scripts/sync-exercise-media.mjs",
+    "storage:provision": "node scripts/provision-default-storage.mjs",
+    "storage:cors": "node scripts/configure-storage-cors.mjs",
+    "build:web": "npm run app:build:web && npm run console:build:web",
+    "deploy:web": "npm run build:web && firebase deploy --project createmix-in --only hosting:gym-app,hosting:platform-console",
+    "emulators": "sh scripts/firebase-with-java.sh emulators:start --project demo-gym-dev --import=.firebase-data --export-on-exit=.firebase-data",
+    "emulators:test": "sh scripts/firebase-with-java.sh emulators:exec --only auth,firestore,storage --project demo-gym-dev 'npm --prefix firebase/functions test'",
+    "emulators:seed": "sh scripts/firebase-with-java.sh emulators:exec --only auth,firestore,storage --project demo-gym-dev 'npm run seed'",
+    "functions:build": "npm --prefix firebase/functions run build",
+    "functions:test": "npm --prefix firebase/functions test -- src/domain.test.ts",
+    "infra:fmt": "terraform -chdir=infra/terraform fmt -check -recursive",
+    "infra:validate": "terraform -chdir=infra/terraform validate",
+    "infra:check": "npm run infra:fmt && npm run infra:validate && node scripts/verify-portability.mjs",
+    "migrate:data": "node firebase/migrations/run.mjs",
+    "security:check": "node scripts/check-secrets.mjs",
+    "seed": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=demo-gym-dev npm --prefix firebase/functions run seed"
+  },
+  "devDependencies": {
+    "firebase-tools": "^15.0.0"
+  }
+}

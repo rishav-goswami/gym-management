@@ -1,0 +1,119 @@
+{
+  "functions": {
+    "source": "firebase/functions",
+    "runtime": "nodejs22",
+    "predeploy": [
+      "npm --prefix firebase/functions run build"
+    ]
+  },
+  "firestore": {
+    "rules": "firebase/firestore.rules",
+    "indexes": "firebase/firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "firebase/storage.rules"
+  },
+  "remoteconfig": {
+    "template": "firebase/remoteconfig.template.json"
+  },
+  "hosting": [
+    {
+      "target": "gym-app",
+      "public": "apps/gym_app/build/web",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        }
+      ]
+    },
+    {
+      "target": "platform-console",
+      "public": "apps/platform_console/build/web",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            { "key": "Cache-Control", "value": "no-store" },
+            { "key": "X-Frame-Options", "value": "DENY" },
+            { "key": "Referrer-Policy", "value": "no-referrer" },
+            { "key": "X-Content-Type-Options", "value": "nosniff" }
+          ]
+        }
+      ]
+    }
+  ],
+  "emulators": {
+    "auth": {
+      "host": "0.0.0.0",
+      "port": 9099
+    },
+    "functions": {
+      "host": "0.0.0.0",
+      "port": 5001
+    },
+    "firestore": {
+      "host": "0.0.0.0",
+      "port": 8080
+    },
+    "storage": {
+      "host": "0.0.0.0",
+      "port": 9199
+    },
+    "ui": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 4000
+    },
+    "singleProjectMode": true
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "createmix-in",
+          "appId": "1:996305810467:android:56c3f9c7cff8cfa27bad96",
+          "fileOutput": "apps/gym_app/android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "createmix-in",
+          "appId": "1:996305810467:ios:1d9a9c1cdc384c8e7bad96",
+          "uploadDebugSymbols": true,
+          "fileOutput": "apps/gym_app/ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "createmix-in",
+          "appId": "1:996305810467:ios:1d9a9c1cdc384c8e7bad96",
+          "uploadDebugSymbols": true,
+          "fileOutput": "apps/gym_app/macos/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "apps/gym_app/lib/firebase_options.dart": {
+          "projectId": "createmix-in",
+          "configurations": {
+            "android": "1:996305810467:android:56c3f9c7cff8cfa27bad96",
+            "ios": "1:996305810467:ios:1d9a9c1cdc384c8e7bad96",
+            "macos": "1:996305810467:ios:1d9a9c1cdc384c8e7bad96",
+            "web": "1:996305810467:web:b20ab104434075da7bad96",
+            "windows": "1:996305810467:web:94b70b5a5c2f885f7bad96"
+          }
+        },
+        "apps/platform_console/lib/firebase_options.dart": {
+          "projectId": "createmix-in",
+          "configurations": {
+            "web": "1:996305810467:web:769c342a5836b4ef7bad96"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+name: gym_core
+description: Shared domain contracts for Gym Management applications.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.8.0
+
+dependencies:
+  equatable: ^2.0.7
+
+dev_dependencies:
+  test: ^1.25.0

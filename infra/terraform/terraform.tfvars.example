@@ -1,0 +1,14 @@
+project_id              = "your-gym-platform-prod"
+project_name            = "Gym Management Production"
+billing_account         = "000000-000000-000000"
+firestore_location      = "asia-south1"
+gym_app_site_id         = "your-gym-platform-app"
+platform_console_site_id = "your-gym-platform-admin"
+
+android_package_name = "com.yourcompany.gymmanagement"
+apple_bundle_id      = "com.yourcompany.gymmanagement"
+
+enable_phone_auth             = true
+enable_point_in_time_recovery = true
+enable_daily_backups          = true
+backup_retention              = "1209600s"

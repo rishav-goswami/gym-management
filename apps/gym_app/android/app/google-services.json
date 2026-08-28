@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "996305810467",
+    "project_id": "createmix-in",
+    "storage_bucket": "createmix-in.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:996305810467:android:56c3f9c7cff8cfa27bad96",
+        "android_client_info": {
+          "package_name": "com.rishva.gymmanagement"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAQfdRGRV6G9bTcFW72GvH9IANZQfz1-Ys"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

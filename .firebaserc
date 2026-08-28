@@ -1,0 +1,21 @@
+{
+  "projects": {
+    "default": "createmix-in",
+    "development": "createmix-in",
+    "staging": "gym-management-staging",
+    "production": "gym-management-production"
+  },
+  "targets": {
+    "createmix-in": {
+      "hosting": {
+        "gym-app": [
+          "createmix-gym-app"
+        ],
+        "platform-console": [
+          "createmix-gym-admin"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
