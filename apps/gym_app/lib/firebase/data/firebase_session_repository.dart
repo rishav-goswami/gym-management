@@ -308,9 +308,13 @@ class FirebaseSessionRepository {
     'token': token.trim(),
   });
 
-  Future<void> leaveGymMembership(String gymId) => functions
-      .httpsCallable('leaveGymMembership')
-      .call<void>({'gymId': gymId.trim()});
+  Future<bool> leaveGymMembership(String gymId) async {
+    final result = await functions.httpsCallable('leaveGymMembership').call({
+      'gymId': gymId.trim(),
+    });
+    final data = Map<String, dynamic>.from(result.data as Map);
+    return data['cleanupPending'] == true;
+  }
 
   Future<Map<String, dynamic>> exportMyData() async =>
       Map<String, dynamic>.from(

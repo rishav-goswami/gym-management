@@ -516,9 +516,9 @@ class _PersonalProfile extends StatelessWidget {
     );
     if (confirmed != true || !context.mounted) return;
     try {
-      await context.read<FirebaseSessionRepository>().leaveGymMembership(
-        membership.gymId,
-      );
+      final cleanupPending = await context
+          .read<FirebaseSessionRepository>()
+          .leaveGymMembership(membership.gymId);
       if (!context.mounted) return;
       await context.read<SessionCubit>().refreshContexts();
       if (dialogContext.mounted) Navigator.pop(dialogContext);
@@ -526,7 +526,9 @@ class _PersonalProfile extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'You left ${membership.gymName}. Your personal fitness data is unchanged.',
+              cleanupPending
+                  ? 'You left ${membership.gymName}. Access was revoked immediately; private cleanup will finish in the background.'
+                  : 'You left ${membership.gymName}. Your personal fitness data is unchanged.',
             ),
           ),
         );

@@ -336,6 +336,20 @@ class _GymContextScreenState extends State<GymContextScreen> {
       'measurements': false,
       'progress': false,
     };
+    final repository = context.read<FirebaseSessionRepository>();
+    final uid = repository.auth.currentUser?.uid;
+    if (uid != null) {
+      final snapshot = await repository.firestore
+          .doc('users/$uid/gym_shares/$gymId')
+          .get();
+      final saved = Map<String, dynamic>.from(
+        snapshot.data()?['categories'] as Map? ?? const {},
+      );
+      for (final key in values.keys) {
+        values[key] = saved[key] == true;
+      }
+    }
+    if (!mounted) return const [];
     final save = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -375,11 +389,10 @@ class _GymContextScreenState extends State<GymContextScreen> {
       ),
     );
     if (save == true && mounted) {
-      await context
-          .read<FirebaseSessionRepository>()
-          .functions
-          .httpsCallable('updateGymSharing')
-          .call<void>({'gymId': gymId, 'categories': values});
+      await repository.functions.httpsCallable('updateGymSharing').call<void>({
+        'gymId': gymId,
+        'categories': values,
+      });
       return values.entries
           .where((entry) => entry.value)
           .map((entry) => _sharingLabel(entry.key))

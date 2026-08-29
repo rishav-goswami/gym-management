@@ -20,6 +20,10 @@ export function membershipDocumentId(gymId: string, uid: string): string {
   return `${gymId}_${uid}`;
 }
 
+export function canSelfServiceReactivateMembership(status: unknown): boolean {
+  return status === "left";
+}
+
 export function attendanceDocumentId(uid: string, dateKey: string): string {
   return `${dateKey}_${uid}`;
 }

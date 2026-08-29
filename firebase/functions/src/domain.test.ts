@@ -3,6 +3,7 @@ import {
   attendanceDocumentId,
   assertWithinLimit,
   bookingDocumentId,
+  canSelfServiceReactivateMembership,
   expiryReminderWindow,
   hashToken,
   membershipDocumentId,
@@ -23,6 +24,13 @@ describe("tenant domain identifiers", () => {
     expect(membershipDocumentId("gym-a", "user-1")).toBe("gym-a_user-1");
     expect(attendanceDocumentId("user-1", "2026-08-25")).toBe("2026-08-25_user-1");
     expect(bookingDocumentId("morning-yoga", "user-1")).toBe("morning-yoga_user-1");
+  });
+
+  it("only permits self-service reactivation after a voluntary leave", () => {
+    expect(canSelfServiceReactivateMembership("left")).toBe(true);
+    expect(canSelfServiceReactivateMembership("inactive")).toBe(false);
+    expect(canSelfServiceReactivateMembership("suspended")).toBe(false);
+    expect(canSelfServiceReactivateMembership("active")).toBe(false);
   });
 
   it("never stores the invitation or QR secret in plaintext", () => {

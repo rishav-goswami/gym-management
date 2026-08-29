@@ -180,9 +180,12 @@ Do not use production personal data during local testing.
 10. Try reusing the link and confirm it is rejected.
 11. From the gym membership Settings, choose **Leave gym**. Confirm the app
     returns to platform branding, personal workouts/progress remain, sharing
-    projections are deleted, the deterministic membership/member profile has
-    status `left`, and tenant payments/attendance/audits remain. Create a fresh
-    invitation and confirm the same membership record can be reactivated.
+    projections become unreadable immediately, the cleanup job disappears after
+    deletion, the deterministic membership/member profile has status `left`,
+    and tenant payments/attendance/audits remain. Create a fresh invitation and
+    confirm the same membership record can be reactivated. Separately set a test
+    membership to `inactive` as staff and confirm an invitation cannot bypass
+    that administrative decision.
 
 There is no customer-facing gym-ID/token form. Owners distribute a branded
 universal link or QR; support staff must not ask users to copy technical IDs.

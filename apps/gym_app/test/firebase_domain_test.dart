@@ -15,6 +15,25 @@ void main() {
     expect(loaded.personalSpacesEnabled, isTrue);
   });
 
+  test('member overlay auto-selection follows the personal-spaces rollout', () {
+    const member = GymMembership(
+      id: 'gym_uid',
+      gymId: 'gym',
+      uid: 'uid',
+      role: GymRole.member,
+      status: 'active',
+      permissions: {},
+    );
+    expect(
+      preferredInitialMembership(const [member], personalSpacesEnabled: true),
+      member,
+    );
+    expect(
+      preferredInitialMembership(const [member], personalSpacesEnabled: false),
+      isNull,
+    );
+  });
+
   test('role permissions honor explicit per-user overrides', () {
     const membership = GymMembership(
       id: 'gym_uid',

@@ -23,6 +23,7 @@ import {
   attendanceDocumentId,
   assertWithinLimit,
   bookingDocumentId,
+  canSelfServiceReactivateMembership,
   expiryReminderWindow,
   hashToken,
   membershipDocumentId,
@@ -162,7 +163,6 @@ const featureIdSchema = z.enum([
   "firstWorkout",
   "firstProgress",
   "invitationAcceptance",
-  "membershipLeave",
   "gymCreation"
 ]);
 
@@ -490,6 +490,13 @@ export const acceptInvitation = onCall(
       acceptedRole = role;
       if (existingMembership.exists && existingMembership.get("status") === "active") {
         throw new HttpsError("already-exists", "This account is already active in the gym.");
+      }
+      if (existingMembership.exists &&
+          !canSelfServiceReactivateMembership(existingMembership.get("status"))) {
+        throw new HttpsError(
+          "failed-precondition",
+          "This membership was disabled by gym staff and cannot be reactivated by invitation."
+        );
       }
       if (existingMembership.exists && existingMembership.get("role") !== role) {
         throw new HttpsError(
@@ -1153,10 +1160,12 @@ export const updateGymMembership = onCall(
         const oldProfileCollection = currentRole === "member" ? "members" : "staff";
         tx.update(targetRef, {
           role: input.role, status: input.status, permissions, permissionOverrides,
+          ...(willBeActive ? { leftAt: null } : {}),
           updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth!.uid
         });
         tx.set(db.doc(`gyms/${input.gymId}/${profileCollection}/${input.uid}`), {
           gymId: input.gymId, uid: input.uid, role: input.role, status: input.status,
+          ...(willBeActive ? { leftAt: null } : {}),
           ...(identity.displayName ? { displayName: identity.displayName } : {}),
           ...(identity.email ? { email: identity.email } : {}),
           ...(identity.phone ? { phone: identity.phone } : {}),
@@ -2005,6 +2014,49 @@ async function deleteProjectedCollection(path: string) {
   if (snapshot.size === 500) await deleteProjectedCollection(path);
 }
 
+const SHARING_PROJECTION_SOURCES: ReadonlyArray<{
+  category: SharingCategory;
+  sourceCollection: string;
+  targetCollection: string;
+}> = [
+  { category: "goals", sourceCollection: "goals", targetCollection: "goals" },
+  {
+    category: "workoutSummaries",
+    sourceCollection: "workout_logs",
+    targetCollection: "workout_logs"
+  },
+  {
+    category: "workoutSummaries",
+    sourceCollection: "personal_records",
+    targetCollection: "personal_records"
+  },
+  {
+    category: "measurements",
+    sourceCollection: "measurements",
+    targetCollection: "measurements"
+  },
+  {
+    category: "progress",
+    sourceCollection: "progress_photos",
+    targetCollection: "progress_photos"
+  }
+];
+
+const SHARING_PROJECTION_COLLECTIONS = [
+  ...new Set(SHARING_PROJECTION_SOURCES.map((source) => source.targetCollection)),
+  "profile"
+];
+
+async function deleteSharingProjection(uid: string, gymId: string) {
+  const root = db.doc(`gyms/${gymId}/shared_fitness/${uid}`);
+  await Promise.all(
+    SHARING_PROJECTION_COLLECTIONS.map((collection) =>
+      deleteProjectedCollection(`${root.path}/${collection}`)
+    )
+  );
+  await root.delete();
+}
+
 async function refreshSharingProjection(
   uid: string,
   gymId: string,
@@ -2014,27 +2066,26 @@ async function refreshSharingProjection(
   await root.set({
     uid,
     gymId,
-    categories,
+    categories: {
+      profile: false,
+      goals: false,
+      workoutSummaries: false,
+      measurements: false,
+      progress: false
+    },
+    revokedAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp()
   }, { merge: true });
 
-  const sources: Array<[SharingCategory, string]> = [
-    ["goals", "goals"],
-    ["workoutSummaries", "workout_logs"],
-    ["workoutSummaries", "personal_records"],
-    ["measurements", "measurements"],
-    ["progress", "progress_photos"]
-  ];
-  for (const [category, collection] of sources) {
-    const targetName = collection;
-    await deleteProjectedCollection(`${root.path}/${targetName}`);
-    if (!categories[category]) continue;
-    const records = await db.collection(`users/${uid}/${collection}`).limit(250).get();
+  for (const source of SHARING_PROJECTION_SOURCES) {
+    await deleteProjectedCollection(`${root.path}/${source.targetCollection}`);
+    if (!categories[source.category]) continue;
+    const records = await db.collection(`users/${uid}/${source.sourceCollection}`).limit(250).get();
     if (records.empty) continue;
     const batch = db.batch();
     records.docs.forEach((document) => {
-      batch.set(root.collection(targetName).doc(document.id), {
-        ...safeProjection(category, document.data()),
+      batch.set(root.collection(source.targetCollection).doc(document.id), {
+        ...safeProjection(source.category, document.data()),
         sourceId: document.id,
         projectedAt: FieldValue.serverTimestamp()
       });
@@ -2051,6 +2102,11 @@ async function refreshSharingProjection(
       });
     }
   }
+  await root.set({
+    categories,
+    revokedAt: null,
+    updatedAt: FieldValue.serverTimestamp()
+  }, { merge: true });
 }
 
 export const updateGymSharing = onCall(
@@ -2094,10 +2150,23 @@ export const leaveGymMembership = onCall(
     const memberRef = db.doc(`gyms/${input.gymId}/members/${uid}`);
     const usageRef = db.doc(`gyms/${input.gymId}/usage/current`);
     const metricsRef = db.doc(`gyms/${input.gymId}/dashboard_metrics/current`);
+    const sharingRef = db.doc(`users/${uid}/gym_shares/${input.gymId}`);
+    const projectionRoot = db.doc(`gyms/${input.gymId}/shared_fitness/${uid}`);
+    const userRef = db.doc(`users/${uid}`);
+    const activeMembershipsQuery = db.collection("gym_memberships")
+      .where("uid", "==", uid)
+      .where("status", "==", "active");
+    const cleanupRef = db.doc(
+      `privacy_cleanup_jobs/${membershipDocumentId(input.gymId, uid)}`
+    );
+    const auditRef = db.collection(`gyms/${input.gymId}/audit_logs`).doc();
 
     await db.runTransaction(async (tx) => {
-      const [membership, usage, metrics] = await Promise.all([
-        tx.get(membershipRef), tx.get(usageRef), tx.get(metricsRef)
+      const [membership, usage, metrics, activeMemberships] = await Promise.all([
+        tx.get(membershipRef),
+        tx.get(usageRef),
+        tx.get(metricsRef),
+        tx.get(activeMembershipsQuery)
       ]);
       if (!membership.exists || membership.get("status") !== "active") {
         throw new HttpsError("failed-precondition", "This gym membership is not active.");
@@ -2111,6 +2180,43 @@ export const leaveGymMembership = onCall(
       const now = FieldValue.serverTimestamp();
       tx.update(membershipRef, { status: "left", leftAt: now, updatedAt: now });
       tx.set(memberRef, { status: "left", leftAt: now, updatedAt: now }, { merge: true });
+      tx.delete(sharingRef);
+      tx.set(projectionRoot, {
+        uid,
+        gymId: input.gymId,
+        categories: {
+          profile: false,
+          goals: false,
+          workoutSummaries: false,
+          measurements: false,
+          progress: false
+        },
+        revokedAt: now,
+        updatedAt: now
+      }, { merge: true });
+      tx.set(cleanupRef, {
+        type: "gymSharingProjection",
+        gymId: input.gymId,
+        uid,
+        status: "pending",
+        attempts: 0,
+        createdAt: now,
+        updatedAt: now
+      });
+      const nextConnectionCount = Math.max(0, activeMemberships.size - 1);
+      tx.set(userRef, {
+        gymConnectionCount: nextConnectionCount,
+        hasGymConnection: nextConnectionCount > 0,
+        updatedAt: now
+      }, { merge: true });
+      tx.set(auditRef, {
+        gymId: input.gymId,
+        actorUid: uid,
+        action: "membership.left",
+        target: { type: "member", id: uid },
+        metadata: {},
+        createdAt: now
+      });
       if (usage.exists) {
         tx.update(usageRef, {
           activeMembers: Math.max(0, Number(usage.get("activeMembers") ?? 0) - 1),
@@ -2125,34 +2231,71 @@ export const leaveGymMembership = onCall(
       }
     });
 
-    await db.doc(`users/${uid}/gym_shares/${input.gymId}`).delete();
-    const projectionRoot = db.doc(`gyms/${input.gymId}/shared_fitness/${uid}`);
-    for (const collection of [
-      "goals", "workout_logs", "personal_records", "measurements",
-      "progress_photos", "profile"
-    ]) {
-      await deleteProjectedCollection(`${projectionRoot.path}/${collection}`);
+    let cleanupPending = false;
+    try {
+      await deleteSharingProjection(uid, input.gymId);
+      await cleanupRef.delete();
+    } catch (error) {
+      cleanupPending = true;
+      logger.error("Gym sharing projection cleanup was queued for retry.", {
+        gymId: input.gymId,
+        uid,
+        error: String(error)
+      });
+      await cleanupRef.set({
+        status: "pending",
+        attempts: FieldValue.increment(1),
+        lastError: String(error).slice(0, 500),
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true }).catch((jobError) => logger.error(
+        "Unable to annotate the already-durable privacy cleanup job.",
+        { gymId: input.gymId, uid, error: String(jobError) }
+      ));
     }
-    await projectionRoot.delete();
+    await recordPlatformMilestone("membershipLeave", "member", "gym", input.gymId)
+      .catch((error) => logger.warn("Unable to record membership leave milestone.", {
+        gymId: input.gymId,
+        uid,
+        error: String(error)
+      }));
+    return { gymId: input.gymId, status: "left", cleanupPending };
+  }
+);
 
-    const remaining = await db.collection("gym_memberships")
-      .where("uid", "==", uid)
-      .where("status", "==", "active")
+export const retryPrivacyCleanup = onSchedule(
+  { region: REGION, schedule: "every 60 minutes" },
+  async () => {
+    const jobs = await db.collection("privacy_cleanup_jobs")
+      .where("status", "==", "pending")
+      .limit(25)
       .get();
-    await db.doc(`users/${uid}`).set({
-      gymConnectionCount: remaining.size,
-      hasGymConnection: !remaining.empty,
-      updatedAt: FieldValue.serverTimestamp()
-    }, { merge: true });
-    await writeAudit(
-      db,
-      input.gymId,
-      uid,
-      "membership.left",
-      { type: "member", id: uid }
-    );
-    await recordPlatformMilestone("membershipLeave", "member", "gym", input.gymId);
-    return { gymId: input.gymId, status: "left" };
+    for (const job of jobs.docs) {
+      const gymId = String(job.get("gymId") ?? "");
+      const uid = String(job.get("uid") ?? "");
+      if (!gymId || !uid) {
+        await job.ref.set({
+          status: "invalid",
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+        continue;
+      }
+      try {
+        await deleteSharingProjection(uid, gymId);
+        await job.ref.delete();
+      } catch (error) {
+        logger.error("Scheduled privacy cleanup failed.", {
+          jobId: job.id,
+          gymId,
+          uid,
+          error: String(error)
+        });
+        await job.ref.set({
+          attempts: FieldValue.increment(1),
+          lastError: String(error).slice(0, 500),
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
+    }
   }
 );
 

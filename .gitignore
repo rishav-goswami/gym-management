@@ -81,3 +81,4 @@ infra/terraform/backend.hcl
 *.p12
 *.keystore
 *.jks
+apps/gym_app/android/key.properties

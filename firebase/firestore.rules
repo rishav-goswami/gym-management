@@ -24,6 +24,16 @@ service cloud.firestore {
     function permission(gymId, key) {
       return activeGym(gymId) && membership(gymId).permissions[key] == true;
     }
+    function activeSubjectMembership(gymId, uid) {
+      return exists(/databases/$(database)/documents/gym_memberships/$(gymId + '_' + uid)) &&
+        get(/databases/$(database)/documents/gym_memberships/$(gymId + '_' + uid)).data.status == 'active';
+    }
+    function activeSharingProjection(gymId, uid) {
+      return activeSubjectMembership(gymId, uid) &&
+        exists(/databases/$(database)/documents/gyms/$(gymId)/shared_fitness/$(uid)) &&
+        (!('revokedAt' in get(/databases/$(database)/documents/gyms/$(gymId)/shared_fitness/$(uid)).data) ||
+         get(/databases/$(database)/documents/gyms/$(gymId)/shared_fitness/$(uid)).data.revokedAt == null);
+    }
     function tenantUnchanged() {
       return !('gymId' in resource.data) || request.resource.data.gymId == resource.data.gymId;
     }
@@ -368,13 +378,14 @@ service cloud.firestore {
       }
 
       match /shared_fitness/{uid} {
-        allow read: if activeGym(gymId) &&
+        allow read: if activeGym(gymId) && activeSubjectMembership(gymId, uid) &&
+          (!('revokedAt' in resource.data) || resource.data.revokedAt == null) &&
           (request.auth.uid == uid || role(gymId, ['owner', 'manager', 'trainer']) ||
            permission(gymId, 'fitness.manage'));
         allow write: if false;
 
         match /{collection}/{documentId} {
-          allow read: if activeGym(gymId) &&
+          allow read: if activeGym(gymId) && activeSharingProjection(gymId, uid) &&
             (request.auth.uid == uid || role(gymId, ['owner', 'manager', 'trainer']) ||
              permission(gymId, 'fitness.manage'));
           allow write: if false;

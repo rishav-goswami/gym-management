@@ -122,17 +122,25 @@ gym.
 
 Leaving is a privileged callable transition, never a client-side delete.
 `leaveGymMembership` changes the membership and gym member profile to `left`,
-decrements bounded active-member counters, revokes the sharing grant and deletes
-server-owned projections. It does not delete tenant payments, subscriptions,
-attendance or audits, and it does not touch personal fitness collections. A
-later invitation may reactivate the same deterministic membership record so the
-gym retains continuity without duplicating history.
+decrements bounded active-member counters, deletes the sharing grant, and writes
+a projection revocation tombstone plus a durable cleanup job in the same
+transaction. Rules deny the retained projection immediately; bounded physical
+deletion runs in parallel and an hourly scheduler retries any failed cleanup.
+The callable reports when cleanup is pending instead of implying the leave did
+not happen. It does not delete tenant payments, subscriptions, attendance or
+audits, and it does not touch personal fitness collections. Only a membership
+whose status is explicitly `left` can be reactivated by a later invitation;
+staff-disabled memberships require staff action. Reactivation reuses the same
+deterministic membership record so the gym retains continuity without
+duplicating history.
 
 `updateGymSharing` verifies the active membership and maintains server-owned,
 bounded projections under `gyms/{gymId}/shared_fitness/{uid}`. Clients cannot
-write projections. Disabling a category removes its projection while leaving
-tenant operational records intact. Future personal writes are projected only
-while the corresponding consent remains enabled.
+write projections. A consent refresh temporarily revokes all projection reads
+while the selected categories are deleted and rebuilt, then restores access
+only after the refresh completes. Disabling a category removes its projection
+while leaving tenant operational records intact. Future personal writes are
+projected only while the corresponding consent remains enabled.
 
 ## Consumer plans, support and deletion
 

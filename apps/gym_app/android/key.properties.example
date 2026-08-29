@@ -1,0 +1,6 @@
+# Copy this file to key.properties and replace every value locally.
+# Never commit key.properties or the upload keystore.
+storePassword=replace-me
+keyPassword=replace-me
+keyAlias=upload
+storeFile=/absolute/path/to/gym-management-upload-keystore.jks

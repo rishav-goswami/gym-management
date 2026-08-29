@@ -20,8 +20,8 @@ linked canonical documents.
   explicit per-category sharing grant. Platform admins have no direct rules
   access to personal fitness data; use short-lived audited support Functions.
 - Firebase project `createmix-in` is the current production environment.
-- Never restore Express/MongoDB as a system of record. It is legacy comparison
-  material only.
+- Firebase is the only runtime system of record. Do not reintroduce the retired
+  Express/MongoDB stack or REST-era Flutter client paths.
 - Tenant data belongs under `gyms/{gymId}`. Cross-tenant access is a release
   blocker.
 - Platform administrators use Firebase custom claims. Gym roles and permission

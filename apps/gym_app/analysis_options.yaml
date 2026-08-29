@@ -14,15 +14,6 @@ analyzer:
     - build/**
     - firebase/functions/lib/**
     - firebase/functions/node_modules/**
-    # Temporary Express-era Flutter UI/data code is retained for parity checks,
-    # but is no longer reachable from lib/main.dart.
-    - lib/data/**
-    - lib/logic/**
-    - lib/presentation/**
-    - lib/routes/app_router.dart
-    - lib/routes/member_routes.dart
-    - lib/screens/**
-    - lib/core/widgets/**
 
 linter:
   # The lint rules applied to this project can be customized in the

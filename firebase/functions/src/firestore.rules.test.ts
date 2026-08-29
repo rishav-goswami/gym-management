@@ -99,6 +99,9 @@ beforeEach(async () => {
     await setDoc(doc(store, "gyms/gym-a/shared_fitness/member-a/workout_logs/log-a"), {
       sourceId: "log-a", name: "Shared summary"
     });
+    await setDoc(doc(store, "gyms/gym-a/shared_fitness/member-a"), {
+      uid: "member-a", gymId: "gym-a", categories: { workoutSummaries: true }
+    });
     await setDoc(doc(store, "platform_feature_metrics/training"), {
       featureId: "training", totalEvents: 12
     });
@@ -158,6 +161,32 @@ describe("Firestore tenant isolation", () => {
     await assertSucceeds(getDoc(doc(trainer, path)));
     await assertFails(getDoc(doc(outsider, path)));
     await assertFails(setDoc(doc(trainer, path), { name: "Tampered" }));
+  });
+
+  it("immediately hides retained projections after the member leaves", async () => {
+    await environment.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), "gym_memberships/gym-a_member-a"), {
+        status: "left"
+      });
+    });
+    const trainer = environment.authenticatedContext("trainer-a").firestore();
+    await assertFails(getDoc(doc(
+      trainer,
+      "gyms/gym-a/shared_fitness/member-a/workout_logs/log-a"
+    )));
+  });
+
+  it("hides projections as soon as the server writes the revocation tombstone", async () => {
+    await environment.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), "gyms/gym-a/shared_fitness/member-a"), {
+        revokedAt: Timestamp.now()
+      });
+    });
+    const trainer = environment.authenticatedContext("trainer-a").firestore();
+    await assertFails(getDoc(doc(
+      trainer,
+      "gyms/gym-a/shared_fitness/member-a/workout_logs/log-a"
+    )));
   });
 
   it("lets a member read their own tenant profile", async () => {

@@ -50,12 +50,7 @@ GoRouter createFirebaseRouter(SessionCubit session) => GoRouter(
       path: '/personal',
       builder: (_, _) => const PersonalWorkspaceScreen(),
     ),
-    GoRoute(
-      path: '/workspace',
-      builder: (_, state) => GymWorkspaceScreen(
-        initialSection: state.uri.queryParameters['section'],
-      ),
-    ),
+    GoRoute(path: '/workspace', builder: (_, _) => const GymWorkspaceScreen()),
   ],
   redirect: (_, routerState) {
     final state = session.state;
@@ -122,7 +117,9 @@ String? _readyRedirect(
   }
   if (state.activeMembership != null) {
     if (state.activeMembership!.role == GymRole.member) {
-      return location == '/personal' ? null : '/personal';
+      return location == '/personal' || location == '/spaces'
+          ? null
+          : '/personal';
     }
     return location == '/workspace' ? null : '/workspace';
   }

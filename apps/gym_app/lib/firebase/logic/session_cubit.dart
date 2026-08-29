@@ -46,6 +46,18 @@ GymMembership? preferredMemberMembership(Iterable<GymMembership> memberships) {
   return members.firstOrNull;
 }
 
+bool personalSpacesEnabledFor(Map<String, dynamic> branding) {
+  final features = Map<String, dynamic>.from(
+    branding['consumerFeatures'] as Map? ?? const {},
+  );
+  return features['personalSpacesV1'] == true;
+}
+
+GymMembership? preferredInitialMembership(
+  Iterable<GymMembership> memberships, {
+  required bool personalSpacesEnabled,
+}) => personalSpacesEnabled ? preferredMemberMembership(memberships) : null;
+
 class SessionState extends Equatable {
   const SessionState({
     this.status = SessionStatus.initializing,
@@ -68,10 +80,7 @@ class SessionState extends Equatable {
   bool get needsPersonalOnboarding =>
       user != null && account['onboardingCompletedAt'] == null;
   bool get personalSpacesEnabled {
-    final features = Map<String, dynamic>.from(
-      platformBranding['consumerFeatures'] as Map? ?? const {},
-    );
-    return features['personalSpacesV1'] == true;
+    return personalSpacesEnabledFor(platformBranding);
   }
 
   bool get platformBrandingLoaded =>
@@ -112,17 +121,7 @@ class SessionCubit extends Cubit<SessionState> {
   SessionCubit(this._repository) : super(const SessionState()) {
     _subscription = _repository.authChanges.listen(_onAuthChanged);
     _brandingSubscription = _repository.platformBrandingChanges().listen(
-      (branding) => emit(
-        SessionState(
-          status: state.status,
-          user: state.user,
-          memberships: state.memberships,
-          activeMembership: state.activeMembership,
-          account: state.account,
-          platformBranding: branding,
-          message: state.message,
-        ),
-      ),
+      _onBrandingChanged,
     );
   }
 
@@ -131,6 +130,38 @@ class SessionCubit extends Cubit<SessionState> {
   late final StreamSubscription<Map<String, dynamic>> _brandingSubscription;
   StreamSubscription<String>? _pushTokenSubscription;
   StreamSubscription<Map<String, dynamic>>? _gymSubscription;
+
+  void _onBrandingChanged(Map<String, dynamic> branding) {
+    final personalSpacesEnabled = personalSpacesEnabledFor(branding);
+    final currentMembership = state.activeMembership;
+    final nextMembership =
+        currentMembership?.role == GymRole.member && !personalSpacesEnabled
+        ? null
+        : currentMembership ??
+              preferredInitialMembership(
+                state.memberships,
+                personalSpacesEnabled: personalSpacesEnabled,
+              );
+    emit(
+      SessionState(
+        status: state.status,
+        user: state.user,
+        memberships: state.memberships,
+        activeMembership: nextMembership,
+        account: state.account,
+        platformBranding: branding,
+        message: state.message,
+      ),
+    );
+    if (nextMembership == null && currentMembership != null) {
+      final subscription = _gymSubscription;
+      _gymSubscription = null;
+      if (subscription != null) unawaited(subscription.cancel());
+    }
+    if (nextMembership != null && nextMembership.id != currentMembership?.id) {
+      unawaited(_watchGym(nextMembership));
+    }
+  }
 
   Future<void> _onAuthChanged(User? user) async {
     if (user == null) {
@@ -170,7 +201,10 @@ class SessionCubit extends Cubit<SessionState> {
         status: SessionStatus.ready,
         user: user,
         memberships: memberships,
-        activeMembership: preferredMemberMembership(memberships),
+        activeMembership: preferredInitialMembership(
+          memberships,
+          personalSpacesEnabled: state.personalSpacesEnabled,
+        ),
         account: account,
         platformBranding: state.platformBranding,
       );
@@ -295,7 +329,10 @@ class SessionCubit extends Cubit<SessionState> {
   Future<void> choosePersonalSpace() async {
     await _gymSubscription?.cancel();
     _gymSubscription = null;
-    final memberMembership = preferredMemberMembership(state.memberships);
+    final memberMembership = preferredInitialMembership(
+      state.memberships,
+      personalSpacesEnabled: state.personalSpacesEnabled,
+    );
     emit(
       SessionState(
         status: SessionStatus.ready,
