@@ -9,6 +9,8 @@ import '../../data/gym_repository.dart';
 import '../../data/firebase_session_repository.dart';
 import '../../logic/session_cubit.dart';
 import '../shared/gym_brand_mark.dart';
+import '../support/support_hub_screen.dart';
+import '../workspace/gym_workspace_screen.dart' show MemberGymServicesScreen;
 import 'member_home_panel.dart';
 import 'member_profile_panel.dart';
 import 'member_progress_panel.dart';
@@ -45,7 +47,12 @@ class _PersonalWorkspaceScreenState extends State<PersonalWorkspaceScreen> {
           onTrain: () => setState(() => _index = 1),
         )
       else
-        MemberHomePanel(membership: memberMembership, fitnessScope: scope),
+        MemberHomePanel(
+          membership: memberMembership,
+          fitnessScope: scope,
+          onOpenGymServices: () => _openGymServices(memberMembership),
+          onOpenSupport: () => _openSupport(memberMembership),
+        ),
       MemberTrainingPanel(scope: scope),
       MemberProgressPanel(scope: scope),
       _PersonalProfile(scope: scope),
@@ -161,6 +168,20 @@ class _PersonalWorkspaceScreenState extends State<PersonalWorkspaceScreen> {
     await context.read<SessionCubit>().selectMembership(membership);
     if (mounted) context.go('/workspace');
   }
+
+  Future<void> _openGymServices(GymMembership membership) =>
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => MemberGymServicesScreen(membership: membership),
+        ),
+      );
+
+  Future<void> _openSupport(GymMembership? membership) => Navigator.of(context)
+      .push(
+        MaterialPageRoute<void>(
+          builder: (_) => SupportHubScreen(membership: membership),
+        ),
+      );
 }
 
 class _PersonalHome extends StatelessWidget {
@@ -285,6 +306,24 @@ class _PersonalHome extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const CircleAvatar(
+                child: Icon(Icons.support_agent_outlined),
+              ),
+              title: const Text('Need help?'),
+              subtitle: const Text(
+                'Find exercise guidance or contact Gym Management Support.',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const SupportHubScreen(),
+                ),
+              ),
+            ),
+          ),
         ],
       );
     },
@@ -386,6 +425,24 @@ class _PersonalProfile extends StatelessWidget {
           child: Column(
             children: [
               ListTile(
+                leading: const Icon(Icons.support_agent_outlined),
+                title: const Text('Help & Support'),
+                subtitle: Text(
+                  memberMemberships.isEmpty
+                      ? 'Exercise guidance and app support'
+                      : 'Trainer, gym, and app support',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => SupportHubScreen(
+                      membership: memberMemberships.firstOrNull,
+                    ),
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
                 leading: const Icon(Icons.hub_outlined),
                 title: const Text('My gyms & spaces'),
                 subtitle: Text(
@@ -431,7 +488,9 @@ class _PersonalProfile extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.support_agent_outlined),
                 title: const Text('Support access history'),
-                subtitle: const Text('See audited access to your private data'),
+                subtitle: const Text(
+                  'See audited diagnostic access to your private data',
+                ),
                 onTap: () => _showSupportHistory(context),
               ),
               const Divider(height: 1),
@@ -913,50 +972,126 @@ class _PersonalNotifications extends StatelessWidget {
   Widget build(BuildContext context) => Drawer(
     child: SafeArea(
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: membership == null
-            ? context.read<GymRepository>().fitnessRecords(
-                scope,
-                'notifications',
-                limit: 30,
-              )
-            : context.read<GymRepository>().notifications(
-                membership!.gymId,
-                membership!.uid,
-              ),
-        builder: (context, snapshot) {
-          final notifications = snapshot.data?.docs ?? const [];
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Text(
-                  membership == null
-                      ? 'Notifications'
-                      : '${membership!.gymName} notifications',
-                  style: Theme.of(context).textTheme.headlineSmall,
+        stream: context.read<GymRepository>().fitnessRecords(
+          scope,
+          'notifications',
+          limit: 30,
+        ),
+        builder: (context, personalSnapshot) => StreamBuilder<
+          QuerySnapshot<Map<String, dynamic>>
+        >(
+          stream: membership == null
+              ? null
+              : context.read<GymRepository>().notifications(
+                  membership!.gymId,
+                  membership!.uid,
                 ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: notifications.isEmpty
-                    ? const Center(child: Text('You’re all caught up'))
-                    : ListView.builder(
-                        itemCount: notifications.length,
-                        itemBuilder: (context, index) {
-                          final data = notifications[index].data();
-                          return ListTile(
-                            leading: const Icon(Icons.notifications_outlined),
-                            title: Text(data['title'] as String? ?? 'Update'),
-                            subtitle: Text(data['body'] as String? ?? ''),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          );
-        },
+          builder: (context, gymSnapshot) {
+            final notifications = <QueryDocumentSnapshot<Map<String, dynamic>>>[
+              ...?personalSnapshot.data?.docs,
+              ...?gymSnapshot.data?.docs,
+            ]..sort((left, right) {
+                final leftAt = left.data()['createdAt'] as Timestamp?;
+                final rightAt = right.data()['createdAt'] as Timestamp?;
+                return (rightAt?.millisecondsSinceEpoch ?? 0).compareTo(
+                  leftAt?.millisecondsSinceEpoch ?? 0,
+                );
+              });
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Text(
+                    'Notifications',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: notifications.isEmpty
+                      ? const Center(child: Text('You’re all caught up'))
+                      : ListView.builder(
+                          itemCount: notifications.length,
+                          itemBuilder: (context, index) {
+                            final data = notifications[index].data();
+                            final isSupport = data['type'] == 'support';
+                            final unread = data['read'] != true;
+                            return ListTile(
+                              leading: Icon(
+                                isSupport
+                                    ? Icons.support_agent_outlined
+                                    : Icons.notifications_outlined,
+                              ),
+                              title: Text(
+                                data['title'] as String? ?? 'Update',
+                                style: unread
+                                    ? const TextStyle(fontWeight: FontWeight.bold)
+                                    : null,
+                              ),
+                              subtitle: Text(data['body'] as String? ?? ''),
+                              trailing: isSupport
+                                  ? const Icon(Icons.chevron_right)
+                                  : unread
+                                  ? const Icon(Icons.circle, size: 9)
+                                  : null,
+                              onTap: () => _handleNotification(
+                                context,
+                                notifications[index],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     ),
   );
+
+  void _openSupportNotification(
+    BuildContext context,
+    Map<String, dynamic> notification,
+  ) {
+    final payload = Map<String, dynamic>.from(
+      notification['data'] as Map? ?? const {},
+    );
+    final threadId = payload['threadId'] as String?;
+    if (threadId == null) return;
+    final scopeType = payload['scopeType'] as String? ?? 'platform';
+    final gymId = payload['gymId'] as String?;
+    final navigator = Navigator.of(context);
+    navigator.pop();
+    navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => SupportConversationScreen(
+          scopeType: scopeType,
+          ownerUid: scope.uid,
+          gymId: gymId,
+          threadId: threadId,
+          subject: notification['title'] as String? ?? 'Support conversation',
+          initialStatus: 'open',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleNotification(
+    BuildContext context,
+    QueryDocumentSnapshot<Map<String, dynamic>> notification,
+  ) async {
+    final data = notification.data();
+    if (data['read'] != true) {
+      await notification.reference.update({
+        'read': true,
+        'readAt': FieldValue.serverTimestamp(),
+      }).catchError((_) {});
+    }
+    if (!context.mounted) return;
+    if (data['type'] == 'support') {
+      _openSupportNotification(context, data);
+    }
+  }
 }

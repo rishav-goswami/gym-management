@@ -15,6 +15,8 @@ import '../../../core/invitations/gym_invitation_link.dart';
 import '../../data/gym_repository.dart';
 import '../../data/gym_media_repository.dart';
 import '../../data/firebase_session_repository.dart';
+import '../../data/support_repository.dart';
+import '../../domain/member_gym_service.dart';
 import 'package:gym_core/gym_core.dart';
 import '../../logic/session_cubit.dart';
 import '../member/member_home_panel.dart';
@@ -22,6 +24,7 @@ import '../member/member_progress_panel.dart';
 import '../member/member_profile_panel.dart';
 import '../member/member_training_panel.dart';
 import '../shared/gym_brand_mark.dart';
+import '../support/gym_support_panel.dart';
 import 'billing_management_panel.dart';
 import 'member_billing_panel.dart';
 import 'platform_plan_banner.dart';
@@ -46,6 +49,7 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
     final content = _WorkspaceContent(
       destination: destinations[_index],
       membership: membership,
+      onSupportBack: () => _selectDestination(0, destinations, membership),
       onSwitchContext: () =>
           context.read<SessionCubit>().chooseAnotherContext(),
       onExportData: () => _accountAction('export'),
@@ -89,12 +93,11 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
               membership: membership,
               onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
             ),
-          ] else ...[
-            if (wide)
-              Chip(
-                avatar: Icon(_workspaceRoleIcon(membership.role), size: 17),
-                label: Text(_workspaceRoleLabel(membership.role)),
-              ),
+          ] else if (wide) ...[
+            Chip(
+              avatar: Icon(_workspaceRoleIcon(membership.role), size: 17),
+              label: Text(_workspaceRoleLabel(membership.role)),
+            ),
             IconButton(
               tooltip: 'Switch gym or role',
               onPressed: () =>
@@ -120,6 +123,9 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
           ],
         ],
       ),
+      drawer: !wide && membership.role != GymRole.member
+          ? _workspaceDrawer(membership, destinations)
+          : null,
       endDrawer: membership.role == GymRole.member
           ? _MemberNotificationDrawer(membership: membership)
           : null,
@@ -143,7 +149,7 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
           Expanded(child: content),
         ],
       ),
-      bottomNavigationBar: wide
+      bottomNavigationBar: wide || membership.role != GymRole.member
           ? null
           : NavigationBar(
               selectedIndex: _index < 4 ? _index : 4,
@@ -167,6 +173,80 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
     );
   }
 
+  Widget _workspaceDrawer(
+    GymMembership membership,
+    List<_Destination> destinations,
+  ) => SafeArea(
+    child: Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              GymBrandMark(membership: membership),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      membership.gymName,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(_workspaceRoleLabel(membership.role)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: destinations.length,
+            itemBuilder: (drawerContext, index) => ListTile(
+              leading: Icon(destinations[index].icon),
+              title: Text(destinations[index].label),
+              selected: _index == index,
+              onTap: () {
+                Navigator.pop(drawerContext);
+                _selectDestination(index, destinations, membership);
+              },
+            ),
+          ),
+        ),
+        const Divider(height: 1),
+        ListTile(
+          leading: const Icon(Icons.swap_horiz),
+          title: const Text('Switch gym or role'),
+          onTap: () {
+            Navigator.pop(context);
+            context.read<SessionCubit>().chooseAnotherContext();
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.ios_share_outlined),
+          title: const Text('Export my data'),
+          onTap: () {
+            Navigator.pop(context);
+            _accountAction('export');
+          },
+        ),
+        ListTile(
+          leading: const Icon(Icons.logout),
+          title: const Text('Log out'),
+          onTap: () {
+            Navigator.pop(context);
+            context.read<SessionCubit>().signOut();
+          },
+        ),
+        const SizedBox(height: 8),
+      ],
+    ),
+  );
+
   List<_Destination> _destinations(GymMembership membership) {
     final role = membership.role;
     if (role == GymRole.member) {
@@ -187,11 +267,11 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
             Icons.event_available,
             'class_sessions',
           ),
-        if (AppFeatureFlags.chat && membership.feature('chat'))
+        if (AppFeatureFlags.gymSupport && membership.feature('chat'))
           const _Destination(
             'Support',
             Icons.chat_bubble_outline,
-            'conversations',
+            'support_threads',
           ),
       ];
     }
@@ -210,11 +290,11 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
             Icons.event_available,
             'class_sessions',
           ),
-        if (AppFeatureFlags.chat && membership.feature('chat'))
+        if (AppFeatureFlags.gymSupport && membership.feature('chat'))
           const _Destination(
             'Support',
             Icons.chat_bubble_outline,
-            'conversations',
+            'support_threads',
           ),
       ];
     }
@@ -228,6 +308,16 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
       const _Destination('Payments', Icons.payments_outlined, 'payments'),
       const _Destination('Staff', Icons.badge_outlined, 'staff'),
       const _Destination('Notices', Icons.campaign_outlined, 'announcements'),
+      if (AppFeatureFlags.gymSupport &&
+          membership.feature('chat') &&
+          (membership.can('support.manage') ||
+              membership.can('support.billing') ||
+              membership.can('support.coaching')))
+        const _Destination(
+          'Support',
+          Icons.support_agent_outlined,
+          'support_threads',
+        ),
       if (membership.can('staff.manage'))
         const _Destination('Branding', Icons.palette_outlined, 'configuration'),
     ];
@@ -274,7 +364,8 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
       'measurements' => 'progress',
       'billing' || 'payments' => 'billing',
       'class_sessions' => 'classes',
-      'conversations' => 'chat',
+      'support_threads' =>
+        membership.can('support.coaching') ? 'supportTrainer' : 'supportGym',
       'configuration' => 'branding',
       final value => value,
     };
@@ -562,6 +653,7 @@ class _WorkspaceContent extends StatelessWidget {
   const _WorkspaceContent({
     required this.destination,
     required this.membership,
+    required this.onSupportBack,
     required this.onSwitchContext,
     required this.onExportData,
     required this.onDeleteAccount,
@@ -569,6 +661,7 @@ class _WorkspaceContent extends StatelessWidget {
   });
   final _Destination destination;
   final GymMembership membership;
+  final VoidCallback onSupportBack;
   final Future<void> Function() onSwitchContext;
   final Future<void> Function() onExportData;
   final Future<void> Function() onDeleteAccount;
@@ -605,8 +698,8 @@ class _WorkspaceContent extends StatelessWidget {
     if (destination.collection == 'billing') {
       return MemberBillingPanel(membership: membership);
     }
-    if (destination.collection == 'conversations') {
-      return _ConversationsPanel(membership: membership);
+    if (destination.collection == 'support_threads') {
+      return GymSupportPanel(membership: membership, onBack: onSupportBack);
     }
     if (destination.collection == 'profile') {
       return MemberProfilePanel(
@@ -936,6 +1029,18 @@ class _CollectionView extends StatelessWidget {
                 onChanged: (value) => setDialogState(() => status = value!),
                 decoration: const InputDecoration(labelText: 'Status'),
               ),
+              if (destination.collection == 'members' &&
+                  membership.can('staff.manage')) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(dialogContext, false);
+                    _assignTrainer(context, uid);
+                  },
+                  icon: const Icon(Icons.sports_gymnastics_outlined),
+                  label: const Text('Assign primary trainer'),
+                ),
+              ],
             ],
           ),
           actions: [
@@ -964,6 +1069,78 @@ class _CollectionView extends StatelessWidget {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('$error')));
+      }
+    }
+  }
+
+  Future<void> _assignTrainer(BuildContext context, String memberUid) async {
+    final firestore = context.read<GymRepository>().firestore;
+    final results = await Future.wait([
+      firestore
+          .collection('gyms/${membership.gymId}/staff')
+          .where('role', isEqualTo: 'trainer')
+          .where('status', isEqualTo: 'active')
+          .limit(100)
+          .get(),
+      firestore
+          .doc('gyms/${membership.gymId}/trainer_assignments/$memberUid')
+          .get(),
+    ]);
+    if (!context.mounted) return;
+    final trainers = results[0] as QuerySnapshot<Map<String, dynamic>>;
+    final assignment = results[1] as DocumentSnapshot<Map<String, dynamic>>;
+    String? selected = assignment.data()?['primaryTrainerUid'] as String?;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Primary trainer'),
+          content: DropdownButtonFormField<String?>(
+            initialValue: selected,
+            decoration: const InputDecoration(labelText: 'Trainer'),
+            items: [
+              const DropdownMenuItem<String?>(
+                value: null,
+                child: Text('No primary trainer · use team queue'),
+              ),
+              ...trainers.docs.map(
+                (trainer) => DropdownMenuItem<String?>(
+                  value: trainer.id,
+                  child: Text(
+                    trainer.data()['displayName'] as String? ??
+                        trainer.data()['email'] as String? ??
+                        'Trainer',
+                  ),
+                ),
+              ),
+            ],
+            onChanged: (value) => setDialogState(() => selected = value),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Save assignment'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await context.read<SupportRepository>().assignPrimaryTrainer(
+        gymId: membership.gymId,
+        memberUid: memberUid,
+        trainerUid: selected,
+      );
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to assign trainer: $error')),
+        );
       }
     }
   }
@@ -1693,6 +1870,109 @@ class _DirectoryStatusChip extends StatelessWidget {
   );
 }
 
+class MemberGymServicesScreen extends StatefulWidget {
+  const MemberGymServicesScreen({required this.membership, super.key});
+
+  final GymMembership membership;
+
+  @override
+  State<MemberGymServicesScreen> createState() =>
+      _MemberGymServicesScreenState();
+}
+
+class _MemberGymServicesScreenState extends State<MemberGymServicesScreen> {
+  late final List<MemberGymService> services = availableMemberGymServices(
+    membership: widget.membership,
+    attendancePlatformEnabled: AppFeatureFlags.attendanceQr,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (services.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _track(services[0]));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(widget.membership.gymName),
+          Text('Gym services', style: Theme.of(context).textTheme.labelMedium),
+        ],
+      ),
+    ),
+    body: services.isEmpty
+        ? const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Text(
+                'Your gym has not enabled attendance or classes on its current plan.',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          )
+        : services.length == 1
+        ? _panel(services.single)
+        : DefaultTabController(
+            length: services.length,
+            child: Column(
+              children: [
+                TabBar(
+                  onTap: (index) => _track(services[index]),
+                  tabs: [
+                    for (final service in services)
+                      Tab(
+                        icon: Icon(_serviceIcon(service)),
+                        text: _serviceLabel(service),
+                      ),
+                  ],
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [for (final service in services) _panel(service)],
+                  ),
+                ),
+              ],
+            ),
+          ),
+  );
+
+  Widget _panel(MemberGymService service) => switch (service) {
+    MemberGymService.attendance => _AttendancePanel(
+      membership: widget.membership,
+    ),
+    MemberGymService.classes => _ClassesPanel(membership: widget.membership),
+  };
+
+  IconData _serviceIcon(MemberGymService service) => switch (service) {
+    MemberGymService.attendance => Icons.qr_code_scanner,
+    MemberGymService.classes => Icons.event_available_outlined,
+  };
+
+  String _serviceLabel(MemberGymService service) => switch (service) {
+    MemberGymService.attendance => 'Check in',
+    MemberGymService.classes => 'Classes',
+  };
+
+  void _track(MemberGymService service) {
+    unawaited(
+      context
+          .read<GymRepository>()
+          .trackFeatureUsage(
+            gymId: widget.membership.gymId,
+            featureId: service == MemberGymService.attendance
+                ? 'attendance'
+                : 'classes',
+          )
+          .catchError((_) {}),
+    );
+  }
+}
+
 class _AttendancePanel extends StatefulWidget {
   const _AttendancePanel({required this.membership});
   final GymMembership membership;
@@ -1734,6 +2014,11 @@ class _AttendancePanelState extends State<_AttendancePanel> {
                 icon: const Icon(Icons.download),
                 label: const Text('Export attendance'),
               ),
+              OutlinedButton.icon(
+                onPressed: busy ? null : _correctAttendance,
+                icon: const Icon(Icons.edit_calendar_outlined),
+                label: const Text('Correct attendance'),
+              ),
             ],
           ),
           if (qr != null) ...[
@@ -1758,6 +2043,16 @@ class _AttendancePanelState extends State<_AttendancePanel> {
             icon: const Icon(Icons.qr_code_scanner),
             label: const Text('Scan check-in QR'),
           ),
+        const SizedBox(height: 28),
+        Text(
+          canManage ? 'Recent check-ins' : 'Your recent check-ins',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 8),
+        _AttendanceHistory(
+          membership: widget.membership,
+          showAllMembers: canManage,
+        ),
       ],
     );
   }
@@ -1794,10 +2089,19 @@ class _AttendancePanelState extends State<_AttendancePanel> {
       return;
     }
     setState(() => busy = true);
+    final repository = context.read<GymRepository>();
     try {
-      await context.read<GymRepository>().checkIn(
+      await repository.checkIn(
         gymId: widget.membership.gymId,
         token: parts.last,
+      );
+      unawaited(
+        repository
+            .trackFeatureUsage(
+              gymId: widget.membership.gymId,
+              featureId: 'attendance',
+            )
+            .catchError((_) {}),
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1839,6 +2143,287 @@ class _AttendancePanelState extends State<_AttendancePanel> {
         ).showSnackBar(SnackBar(content: Text('$error')));
       }
     }
+  }
+
+  Future<void> _correctAttendance() async {
+    setState(() => busy = true);
+    final repository = context.read<GymRepository>();
+    try {
+      final members = await repository.activeMembers(widget.membership.gymId);
+      if (!mounted) return;
+      if (members.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No active members are available.')),
+        );
+        return;
+      }
+      final correction = await showDialog<_AttendanceCorrection>(
+        context: context,
+        builder: (_) => _AttendanceCorrectionDialog(members: members),
+      );
+      if (correction == null || !mounted) return;
+      await repository.correctAttendance(
+        gymId: widget.membership.gymId,
+        memberUid: correction.memberUid,
+        date: correction.date,
+        present: correction.present,
+        reason: correction.reason,
+      );
+      unawaited(
+        repository
+            .trackFeatureUsage(
+              gymId: widget.membership.gymId,
+              featureId: 'attendance',
+            )
+            .catchError((_) {}),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              correction.present
+                  ? 'Attendance was recorded.'
+                  : 'Attendance entry was removed.',
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$error')));
+      }
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+}
+
+class _AttendanceCorrection {
+  const _AttendanceCorrection({
+    required this.memberUid,
+    required this.date,
+    required this.present,
+    required this.reason,
+  });
+
+  final String memberUid;
+  final DateTime date;
+  final bool present;
+  final String reason;
+}
+
+class _AttendanceCorrectionDialog extends StatefulWidget {
+  const _AttendanceCorrectionDialog({required this.members});
+
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> members;
+
+  @override
+  State<_AttendanceCorrectionDialog> createState() =>
+      _AttendanceCorrectionDialogState();
+}
+
+class _AttendanceCorrectionDialogState
+    extends State<_AttendanceCorrectionDialog> {
+  late String memberUid = widget.members.first.id;
+  DateTime date = DateTime.now();
+  bool present = true;
+  final reason = TextEditingController();
+
+  @override
+  void dispose() {
+    reason.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Correct attendance'),
+    content: SizedBox(
+      width: 480,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DropdownButtonFormField<String>(
+            initialValue: memberUid,
+            decoration: const InputDecoration(labelText: 'Member'),
+            items: [
+              for (final member in widget.members)
+                DropdownMenuItem(
+                  value: member.id,
+                  child: Text(_memberLabel(member)),
+                ),
+            ],
+            onChanged: (value) => setState(() => memberUid = value!),
+          ),
+          const SizedBox(height: 12),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.calendar_today_outlined),
+            title: const Text('Attendance date'),
+            subtitle: Text(DateFormat('EEE, d MMM yyyy').format(date)),
+            trailing: TextButton(
+              onPressed: _chooseDate,
+              child: const Text('Change'),
+            ),
+          ),
+          SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(
+                value: true,
+                icon: Icon(Icons.check_circle_outline),
+                label: Text('Present'),
+              ),
+              ButtonSegment(
+                value: false,
+                icon: Icon(Icons.remove_circle_outline),
+                label: Text('Remove'),
+              ),
+            ],
+            selected: {present},
+            onSelectionChanged: (value) =>
+                setState(() => present = value.first),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: reason,
+            maxLength: 240,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              labelText: 'Reason',
+              hintText: 'Example: Front desk correction',
+            ),
+          ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: reason.text.trim().length < 3
+            ? null
+            : () => Navigator.pop(
+                context,
+                _AttendanceCorrection(
+                  memberUid: memberUid,
+                  date: date,
+                  present: present,
+                  reason: reason.text.trim(),
+                ),
+              ),
+        child: const Text('Apply correction'),
+      ),
+    ],
+  );
+
+  Future<void> _chooseDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: date,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now(),
+    );
+    if (selected != null && mounted) setState(() => date = selected);
+  }
+
+  String _memberLabel(QueryDocumentSnapshot<Map<String, dynamic>> member) {
+    final data = member.data();
+    for (final key in ['displayName', 'email', 'phone']) {
+      final value = data[key] as String?;
+      if (value != null && value.trim().isNotEmpty) return value.trim();
+    }
+    return member.id.length <= 8 ? member.id : '${member.id.substring(0, 8)}…';
+  }
+}
+
+class _AttendanceHistory extends StatelessWidget {
+  const _AttendanceHistory({
+    required this.membership,
+    required this.showAllMembers,
+  });
+
+  final GymMembership membership;
+  final bool showAllMembers;
+
+  @override
+  Widget build(BuildContext context) =>
+      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: context.read<GymRepository>().attendanceHistory(
+          membership.gymId,
+          memberUid: showAllMembers ? null : membership.uid,
+        ),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Card(
+              child: ListTile(
+                leading: const Icon(Icons.error_outline),
+                title: const Text('Unable to load attendance'),
+                subtitle: Text('${snapshot.error}'),
+              ),
+            );
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final rows = snapshot.data!.docs;
+          if (rows.isEmpty) {
+            return const Card(
+              child: ListTile(
+                leading: Icon(Icons.event_busy_outlined),
+                title: Text('No check-ins yet'),
+                subtitle: Text('Your completed check-ins will appear here.'),
+              ),
+            );
+          }
+          if (!showAllMembers) return _rows(rows, const {});
+          return FutureBuilder<Map<String, String>>(
+            future: context.read<GymRepository>().memberDisplayNames(
+              membership.gymId,
+              rows.map((row) => '${row.data()['memberUid']}'),
+            ),
+            builder: (context, names) => _rows(rows, names.data ?? const {}),
+          );
+        },
+      );
+
+  Widget _rows(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> rows,
+    Map<String, String> names,
+  ) => Column(
+    children: [
+      for (final row in rows)
+        Card(
+          child: ListTile(
+            leading: const CircleAvatar(child: Icon(Icons.how_to_reg_outlined)),
+            title: Text(_attendanceDate(row.data())),
+            subtitle: Text(
+              showAllMembers
+                  ? '${names['${row.data()['memberUid']}'] ?? _shortUid(row.data()['memberUid'])} · ${_attendanceSource(row.data())}'
+                  : _attendanceSource(row.data()),
+            ),
+          ),
+        ),
+    ],
+  );
+
+  String _attendanceDate(Map<String, dynamic> data) {
+    final timestamp = data['checkedInAt'];
+    if (timestamp is Timestamp) {
+      return DateFormat('EEE, d MMM yyyy · h:mm a').format(timestamp.toDate());
+    }
+    return data['dateKey'] as String? ?? 'Recorded check-in';
+  }
+
+  String _attendanceSource(Map<String, dynamic> data) =>
+      data['source'] == 'manual' ? 'Added by gym staff' : 'QR check-in';
+
+  String _shortUid(Object? value) {
+    final uid = '$value';
+    return uid.length <= 8 ? uid : '${uid.substring(0, 8)}…';
   }
 }
 
@@ -1913,9 +2498,8 @@ class _ClassesPanel extends StatelessWidget {
         const SizedBox(height: 16),
         Expanded(
           child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: context.read<GymRepository>().recent(
+            stream: context.read<GymRepository>().scheduledClasses(
               membership.gymId,
-              'class_sessions',
             ),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
@@ -1925,26 +2509,44 @@ class _ClassesPanel extends StatelessWidget {
                 return const Center(child: CircularProgressIndicator());
               }
               if (snapshot.data!.docs.isEmpty) {
-                return const Center(child: Text('No classes scheduled'));
+                return const Center(
+                  child: Text('No upcoming classes scheduled'),
+                );
               }
-              return ListView(
-                children: snapshot.data!.docs.map((document) {
-                  final data = document.data();
-                  return Card(
-                    child: ListTile(
-                      title: Text(data['name'] as String? ?? 'Class'),
-                      subtitle: Text(
-                        '${data['bookedCount'] ?? 0}/${data['capacity'] ?? 0} booked',
-                      ),
-                      trailing: membership.role == GymRole.member
-                          ? FilledButton(
-                              onPressed: () => _book(context, document.id),
-                              child: const Text('Book'),
-                            )
-                          : Text(data['status'] as String? ?? 'scheduled'),
-                    ),
+              if (membership.role != GymRole.member) {
+                return _ClassSessionList(
+                  membership: membership,
+                  sessions: snapshot.data!.docs,
+                  bookedSessionIds: const {},
+                  onBook: _book,
+                  onCancel: _cancel,
+                );
+              }
+              return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: context.read<GymRepository>().memberClassBookings(
+                  membership.gymId,
+                  membership.uid,
+                ),
+                builder: (context, bookingSnapshot) {
+                  final bookedSessionIds =
+                      bookingSnapshot.data?.docs
+                          .where(
+                            (document) => document.data()['status'] == 'booked',
+                          )
+                          .map(
+                            (document) =>
+                                document.data()['sessionId'] as String,
+                          )
+                          .toSet() ??
+                      const <String>{};
+                  return _ClassSessionList(
+                    membership: membership,
+                    sessions: snapshot.data!.docs,
+                    bookedSessionIds: bookedSessionIds,
+                    onBook: _book,
+                    onCancel: _cancel,
                   );
-                }).toList(),
+                },
               );
             },
           ),
@@ -1954,15 +2556,38 @@ class _ClassesPanel extends StatelessWidget {
   );
 
   Future<void> _book(BuildContext context, String sessionId) async {
+    final repository = context.read<GymRepository>();
     try {
-      await context.read<GymRepository>().bookClass(
-        gymId: membership.gymId,
-        sessionId: sessionId,
+      await repository.bookClass(gymId: membership.gymId, sessionId: sessionId);
+      unawaited(
+        repository
+            .trackFeatureUsage(gymId: membership.gymId, featureId: 'classes')
+            .catchError((_) {}),
       );
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Class booked.')));
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$error')));
+      }
+    }
+  }
+
+  Future<void> _cancel(BuildContext context, String sessionId) async {
+    try {
+      await context.read<GymRepository>().cancelClassBooking(
+        gymId: membership.gymId,
+        sessionId: sessionId,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Class booking cancelled.')),
+        );
       }
     } catch (error) {
       if (context.mounted) {
@@ -2006,139 +2631,61 @@ class _ClassesPanel extends StatelessWidget {
         ],
       ),
     );
-    if (accepted != true || !context.mounted) return;
-    try {
-      await context.read<GymRepository>().createClassSession(
-        gymId: membership.gymId,
-        name: name.text.trim(),
-        capacity: int.parse(capacity.text),
-        trainerUid: membership.role == GymRole.trainer ? membership.uid : null,
-        startsAt: DateTime.now().add(const Duration(days: 1)),
-      );
-    } catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
-      }
+    if (accepted != true || !context.mounted) {
+      name.dispose();
+      capacity.dispose();
+      return;
     }
-  }
-}
-
-class _ConversationsPanel extends StatelessWidget {
-  const _ConversationsPanel({required this.membership});
-  final GymMembership membership;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.all(24),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Support conversations',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-            ),
-            FilledButton.icon(
-              onPressed: () => _start(context),
-              icon: const Icon(Icons.add_comment),
-              label: const Text('Start'),
-            ),
-          ],
-        ),
-        const Text(
-          'Direct chat is restricted to an active trainer/member pair.',
-        ),
-        const SizedBox(height: 16),
-        Expanded(
-          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: context.read<GymRepository>().conversations(
-              membership.gymId,
-              membership.uid,
-            ),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.data!.docs.isEmpty) {
-                return const Center(child: Text('No conversations yet'));
-              }
-              return ListView(
-                children: snapshot.data!.docs.map((document) {
-                  final data = document.data();
-                  final participants = List<String>.from(
-                    data['participantUids'] as List? ?? const [],
-                  );
-                  final other =
-                      participants
-                          .where((uid) => uid != membership.uid)
-                          .firstOrNull ??
-                      'Support';
-                  return ListTile(
-                    leading: const CircleAvatar(child: Icon(Icons.person)),
-                    title: Text(other),
-                    subtitle: Text(
-                      data['lastMessage'] as String? ??
-                          'Start the conversation',
-                    ),
-                    onTap: () => showDialog<void>(
-                      context: context,
-                      builder: (_) => _ChatDialog(
-                        membership: membership,
-                        conversationId: document.id,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              );
-            },
-          ),
-        ),
-      ],
-    ),
-  );
-
-  Future<void> _start(BuildContext context) async {
-    final target = TextEditingController();
-    final accepted = await showDialog<bool>(
+    final className = name.text.trim();
+    final classCapacity = int.tryParse(capacity.text);
+    name.dispose();
+    capacity.dispose();
+    if (className.length < 2 || classCapacity == null || classCapacity < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a class name and valid capacity.')),
+      );
+      return;
+    }
+    final date = await showDatePicker(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(
-          membership.role == GymRole.member
-              ? 'Contact trainer'
-              : 'Contact member',
-        ),
-        content: TextField(
-          controller: target,
-          decoration: const InputDecoration(labelText: 'Firebase UID'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Start'),
-          ),
-        ],
-      ),
+      initialDate: DateTime.now().add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (accepted != true || !context.mounted) return;
+    if (date == null || !context.mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 7, minute: 0),
+    );
+    if (time == null || !context.mounted) return;
+    final startsAt = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+    final repository = context.read<GymRepository>();
     try {
-      final id = await context.read<GymRepository>().createConversation(
+      await repository.createClassSession(
         gymId: membership.gymId,
-        targetUid: target.text.trim(),
+        name: className,
+        capacity: classCapacity,
+        trainerUid: membership.role == GymRole.trainer ? membership.uid : null,
+        startsAt: startsAt,
+      );
+      unawaited(
+        repository
+            .trackFeatureUsage(gymId: membership.gymId, featureId: 'classes')
+            .catchError((_) {}),
       );
       if (context.mounted) {
-        showDialog<void>(
-          context: context,
-          builder: (_) =>
-              _ChatDialog(membership: membership, conversationId: id),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '$className scheduled for ${DateFormat('d MMM · h:mm a').format(startsAt)}.',
+            ),
+          ),
         );
       }
     } catch (error) {
@@ -2151,99 +2698,66 @@ class _ConversationsPanel extends StatelessWidget {
   }
 }
 
-class _ChatDialog extends StatefulWidget {
-  const _ChatDialog({required this.membership, required this.conversationId});
+class _ClassSessionList extends StatelessWidget {
+  const _ClassSessionList({
+    required this.membership,
+    required this.sessions,
+    required this.bookedSessionIds,
+    required this.onBook,
+    required this.onCancel,
+  });
+
   final GymMembership membership;
-  final String conversationId;
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> sessions;
+  final Set<String> bookedSessionIds;
+  final Future<void> Function(BuildContext context, String sessionId) onBook;
+  final Future<void> Function(BuildContext context, String sessionId) onCancel;
 
   @override
-  State<_ChatDialog> createState() => _ChatDialogState();
-}
-
-class _ChatDialogState extends State<_ChatDialog> {
-  final message = TextEditingController();
-
-  @override
-  void dispose() {
-    message.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Dialog(
-    child: SizedBox(
-      width: 560,
-      height: 640,
-      child: Column(
-        children: [
-          ListTile(
-            title: const Text('Trainer support'),
-            trailing: IconButton(
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.close),
-            ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: context.read<GymRepository>().messages(
-                widget.membership.gymId,
-                widget.conversationId,
-              ),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                return ListView(
-                  reverse: true,
-                  padding: const EdgeInsets.all(16),
-                  children: snapshot.data!.docs.map((document) {
-                    final data = document.data();
-                    final mine = data['senderUid'] == widget.membership.uid;
-                    return Align(
-                      alignment: mine
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Text(data['text'] as String? ?? 'Attachment'),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                );
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: message,
-                    decoration: const InputDecoration(hintText: 'Message'),
-                  ),
-                ),
-                IconButton(onPressed: _send, icon: const Icon(Icons.send)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    ),
+  Widget build(BuildContext context) => ListView(
+    children: [for (final document in sessions) _classCard(context, document)],
   );
 
-  Future<void> _send() async {
-    final text = message.text.trim();
-    if (text.isEmpty) return;
-    message.clear();
-    await context.read<GymRepository>().sendMessage(
-      gymId: widget.membership.gymId,
-      conversationId: widget.conversationId,
-      senderUid: widget.membership.uid,
-      text: text,
+  Widget _classCard(
+    BuildContext context,
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+  ) {
+    final data = document.data();
+    final bookedCount = (data['bookedCount'] as num?)?.toInt() ?? 0;
+    final capacity = (data['capacity'] as num?)?.toInt() ?? 0;
+    final isBooked = bookedSessionIds.contains(document.id);
+    final isFull = capacity > 0 && bookedCount >= capacity;
+    final startsAt = data['startsAt'] is Timestamp
+        ? (data['startsAt'] as Timestamp).toDate()
+        : null;
+    return Card(
+      child: ListTile(
+        leading: CircleAvatar(
+          child: Icon(isBooked ? Icons.check : Icons.event_available_outlined),
+        ),
+        title: Text(data['name'] as String? ?? 'Class'),
+        subtitle: Text(
+          [
+            if (startsAt != null)
+              DateFormat('EEE, d MMM · h:mm a').format(startsAt),
+            '$bookedCount/$capacity booked',
+          ].join('\n'),
+        ),
+        isThreeLine: startsAt != null,
+        trailing: membership.role == GymRole.member
+            ? isBooked
+                  ? OutlinedButton(
+                      onPressed: () => onCancel(context, document.id),
+                      child: const Text('Cancel'),
+                    )
+                  : FilledButton(
+                      onPressed: isFull
+                          ? null
+                          : () => onBook(context, document.id),
+                      child: Text(isFull ? 'Full' : 'Book'),
+                    )
+            : Text('${capacity - bookedCount} spaces left'),
+      ),
     );
   }
 }

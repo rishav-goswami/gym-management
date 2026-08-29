@@ -17,6 +17,9 @@ export const ROLE_PERMISSIONS: Record<string, Record<string, boolean>> = {
     "classes.manage": true,
     "fitness.read": true,
     "fitness.manage": true,
+    "support.coaching": true,
+    "support.manage": true,
+    "support.billing": true,
     "announcements.manage": true,
     "audit.read": true
   },
@@ -35,6 +38,9 @@ export const ROLE_PERMISSIONS: Record<string, Record<string, boolean>> = {
     "classes.manage": true,
     "fitness.read": true,
     "fitness.manage": true,
+    "support.coaching": true,
+    "support.manage": true,
+    "support.billing": true,
     "announcements.manage": true,
     "audit.read": true
   },
@@ -47,7 +53,8 @@ export const ROLE_PERMISSIONS: Record<string, Record<string, boolean>> = {
     "payments.write": true,
     "attendance.read": true,
     "attendance.manage": true,
-    "classes.manage": true
+    "classes.manage": true,
+    "support.manage": true
   },
   trainer: {
     "dashboard.read": true,
@@ -55,13 +62,15 @@ export const ROLE_PERMISSIONS: Record<string, Record<string, boolean>> = {
     "attendance.read": true,
     "classes.manage": true,
     "fitness.read": true,
-    "fitness.manage": true
+    "fitness.manage": true,
+    "support.coaching": true
   },
   accountant: {
     "dashboard.read": true,
     "subscriptions.read": true,
     "payments.read": true,
     "payments.write": true,
+    "support.billing": true,
     "audit.read": true
   },
   member: {

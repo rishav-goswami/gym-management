@@ -15,6 +15,33 @@ void main() {
     expect(membership.can('staff.manage'), isFalse);
   });
 
+  test(
+    'legacy memberships inherit support defaults without bypassing overrides',
+    () {
+      const legacyOwner = GymMembership(
+        id: 'gym_owner',
+        gymId: 'gym',
+        uid: 'owner',
+        role: GymRole.owner,
+        status: 'active',
+        permissions: {'staff.manage': true},
+      );
+      const restrictedOwner = GymMembership(
+        id: 'gym_restricted',
+        gymId: 'gym',
+        uid: 'restricted',
+        role: GymRole.owner,
+        status: 'active',
+        permissions: {'support.manage': false},
+      );
+
+      expect(legacyOwner.can('support.coaching'), isTrue);
+      expect(legacyOwner.can('support.billing'), isTrue);
+      expect(legacyOwner.can('support.manage'), isTrue);
+      expect(restrictedOwner.can('support.manage'), isFalse);
+    },
+  );
+
   test('membership pricing uses integer minor units and expiry', () {
     final quote = MembershipQuote.create(
       amount: '1499.50',

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
@@ -10,10 +11,12 @@ import 'package:image_picker_platform_interface/image_picker_platform_interface.
 class PlatformGymRepository {
   PlatformGymRepository({
     FirebaseFunctions? functions,
+    FirebaseFirestore? firestore,
     FirebaseStorage? storage,
     ImagePicker? picker,
   }) : functions =
            functions ?? FirebaseFunctions.instanceFor(region: 'asia-south1'),
+       firestore = firestore ?? FirebaseFirestore.instance,
        storage = storage ?? FirebaseStorage.instance,
        picker = picker ?? ImagePicker() {
     // Register the browser implementation explicitly so an older cached web
@@ -24,6 +27,7 @@ class PlatformGymRepository {
   }
 
   final FirebaseFunctions functions;
+  final FirebaseFirestore firestore;
   final FirebaseStorage storage;
   final ImagePicker picker;
 
@@ -52,6 +56,127 @@ class PlatformGymRepository {
     'status': status,
     'reason': reason,
   });
+
+  Future<List<Map<String, dynamic>>> listSupportCases({int limit = 50}) async {
+    final response = await functions.httpsCallable('listPlatformSupportCases').call({
+      'limit': limit,
+    });
+    return (Map<String, dynamic>.from(response.data as Map)['cases'] as List? ?? const [])
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> supportMessages(
+    String targetUid,
+    String caseId,
+  ) => firestore
+      .collection('users/$targetUid/support_cases/$caseId/messages')
+      .orderBy('createdAt', descending: true)
+      .limit(50)
+      .snapshots();
+
+  Future<String> createSupportCase({
+    required String targetUid,
+    required String category,
+    required String subject,
+    required String message,
+    required String reason,
+  }) async => (Map<String, dynamic>.from(
+    (await functions.httpsCallable('createPlatformSupportCase').call({
+      'targetUid': targetUid,
+      'category': category,
+      'subject': subject,
+      'message': message,
+      'reason': reason,
+    })).data as Map,
+  )['caseId'] as String);
+
+  Future<void> replyToSupportCase({
+    required String targetUid,
+    required String caseId,
+    required String message,
+    String? attachmentPath,
+  }) => functions.httpsCallable('sendSupportMessage').call<void>({
+    'scopeType': 'platform',
+    'targetUid': targetUid,
+    'threadId': caseId,
+    'text': message.trim(),
+    'attachmentPath': ?attachmentPath,
+  });
+
+  Future<String?> pickAndUploadSupportImage({
+    required String targetUid,
+    required String caseId,
+    ValueChanged<double>? onProgress,
+  }) async {
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: kIsWeb ? null : 82,
+      maxWidth: kIsWeb ? null : 1600,
+      maxHeight: kIsWeb ? null : 1600,
+    );
+    if (image == null) return null;
+    final bytes = await image.readAsBytes().timeout(const Duration(seconds: 20));
+    if (bytes.length >= 5 * 1024 * 1024) {
+      throw StateError('Support images must be smaller than 5 MB.');
+    }
+    final contentType = image.mimeType ?? 'image/jpeg';
+    if (!const ['image/jpeg', 'image/png', 'image/webp'].contains(contentType)) {
+      throw StateError('Use a JPEG, PNG, or WebP image.');
+    }
+    final extension = switch (contentType) {
+      'image/png' => 'png',
+      'image/webp' => 'webp',
+      _ => 'jpg',
+    };
+    final path =
+        'users/$targetUid/support/$caseId/${DateTime.now().millisecondsSinceEpoch}.$extension';
+    final upload = storage.ref(path).putData(
+      bytes,
+      SettableMetadata(
+        contentType: contentType,
+        cacheControl: 'private,max-age=3600',
+      ),
+    );
+    final progress = upload.snapshotEvents.listen((snapshot) {
+      if (snapshot.totalBytes > 0) {
+        onProgress?.call(snapshot.bytesTransferred / snapshot.totalBytes);
+      }
+    });
+    try {
+      await upload.timeout(const Duration(seconds: 60));
+      onProgress?.call(1);
+      return path;
+    } finally {
+      await progress.cancel();
+    }
+  }
+
+  Future<String> supportImageUrl(String path) =>
+      storage.ref(path).getDownloadURL();
+
+  Future<void> resolveSupportCase({
+    required String targetUid,
+    required String caseId,
+    required String status,
+  }) => functions.httpsCallable('updateSupportThreadStatus').call<void>({
+    'scopeType': 'platform',
+    'targetUid': targetUid,
+    'threadId': caseId,
+    'status': status,
+  });
+
+  Future<Map<String, dynamic>> sendServiceNotice({
+    required String audience,
+    required String title,
+    required String body,
+  }) async => Map<String, dynamic>.from(
+    (await functions.httpsCallable('sendPlatformServiceNotice').call({
+      'audience': audience,
+      'title': title.trim(),
+      'body': body.trim(),
+    })).data as Map,
+  );
 
   Future<void> setConsumerEntitlementOverrides({
     required String uid,

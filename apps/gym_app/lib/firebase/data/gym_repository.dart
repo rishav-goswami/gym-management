@@ -5,6 +5,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:csv/csv.dart';
 import 'package:gym_core/gym_core.dart';
+import 'package:intl/intl.dart';
 
 class GymRepository {
   GymRepository({FirebaseFirestore? firestore, FirebaseFunctions? functions})
@@ -469,11 +470,95 @@ class GymRepository {
         'token': token,
       });
 
+  Future<void> correctAttendance({
+    required String gymId,
+    required String memberUid,
+    required DateTime date,
+    required bool present,
+    required String reason,
+  }) => functions.httpsCallable('correctAttendance').call<void>({
+    'gymId': gymId,
+    'memberUid': memberUid,
+    'dateKey': DateFormat('yyyy-MM-dd').format(date),
+    'present': present,
+    'reason': reason.trim(),
+  });
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> attendanceHistory(
+    String gymId, {
+    String? memberUid,
+    int limit = 30,
+  }) {
+    Query<Map<String, dynamic>> query = firestore.collection(
+      'gyms/$gymId/attendance',
+    );
+    if (memberUid != null) {
+      query = query.where('memberUid', isEqualTo: memberUid);
+    }
+    return query
+        .orderBy('checkedInAt', descending: true)
+        .limit(limit)
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> scheduledClasses(
+    String gymId, {
+    int limit = 50,
+  }) => firestore
+      .collection('gyms/$gymId/class_sessions')
+      .where('status', isEqualTo: 'scheduled')
+      .orderBy('startsAt')
+      .limit(limit)
+      .snapshots();
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> memberClassBookings(
+    String gymId,
+    String uid, {
+    int limit = 50,
+  }) => firestore
+      .collection('gyms/$gymId/class_bookings')
+      .where('memberUid', isEqualTo: uid)
+      .limit(limit)
+      .snapshots();
+
+  Future<Map<String, String>> memberDisplayNames(
+    String gymId,
+    Iterable<String> memberUids,
+  ) async {
+    final unique = memberUids.toSet().take(30).toList(growable: false);
+    final snapshots = await Future.wait(
+      unique.map((uid) => firestore.doc('gyms/$gymId/members/$uid').get()),
+    );
+    return {
+      for (var index = 0; index < unique.length; index++)
+        unique[index]: _memberDisplayName(
+          snapshots[index].data(),
+          unique[index],
+        ),
+    };
+  }
+
+  String _memberDisplayName(Map<String, dynamic>? data, String uid) {
+    for (final key in ['displayName', 'email', 'phone']) {
+      final value = data?[key] as String?;
+      if (value != null && value.trim().isNotEmpty) return value.trim();
+    }
+    return uid.length <= 8 ? uid : '${uid.substring(0, 8)}…';
+  }
+
   Future<void> bookClass({required String gymId, required String sessionId}) =>
       functions.httpsCallable('bookClass').call<void>({
         'gymId': gymId,
         'sessionId': sessionId,
       });
+
+  Future<void> cancelClassBooking({
+    required String gymId,
+    required String sessionId,
+  }) => functions.httpsCallable('cancelClassBooking').call<void>({
+    'gymId': gymId,
+    'sessionId': sessionId,
+  });
 
   Future<void> createClassSession({
     required String gymId,

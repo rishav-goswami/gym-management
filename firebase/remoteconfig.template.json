@@ -6,6 +6,21 @@
       "valueType": "BOOLEAN",
       "description": "Emergency platform-level switch for direct chat."
     },
+    "gym_support_enabled": {
+      "defaultValue": { "value": "true" },
+      "valueType": "BOOLEAN",
+      "description": "Emergency switch for trainer coaching and gym operations support."
+    },
+    "platform_support_enabled": {
+      "defaultValue": { "value": "true" },
+      "valueType": "BOOLEAN",
+      "description": "Emergency switch for consumer account and product support cases."
+    },
+    "support_images_enabled": {
+      "defaultValue": { "value": "true" },
+      "valueType": "BOOLEAN",
+      "description": "Controls private image attachments in support cases."
+    },
     "attendance_qr_enabled": {
       "defaultValue": { "value": "true" },
       "valueType": "BOOLEAN",

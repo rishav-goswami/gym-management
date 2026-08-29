@@ -23,10 +23,11 @@ Preview pending migrations:
 npm run migrate:data -- --project demo-gym-dev --dry-run
 ```
 
-Dry-run output includes candidate Auth users, member memberships and legacy
-progress-photo documents for the personal-space migrations. Migration 003 uses
+Dry-run output includes candidate Auth users, member memberships, legacy
+progress-photo documents and legacy trainer conversations. Migration 003 uses
 deterministic IDs and migration 004 copies media while preserving tenant
-originals, so interrupted runs are resumable.
+originals. Migration 005 copies conversations into deterministic `legacy_*`
+support threads and preserves the old paths, so interrupted runs are resumable.
 
 Apply after checking the exact project:
 

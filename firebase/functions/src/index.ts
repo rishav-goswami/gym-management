@@ -25,13 +25,17 @@ import {
   bookingDocumentId,
   canSelfServiceReactivateMembership,
   expiryReminderWindow,
+  GYM_SUPPORT_CATEGORIES,
   hashToken,
   membershipDocumentId,
   normalizeEmail,
   normalizePhone,
   renewalWindow,
   secureToken,
+  supportPermissionForCategory,
+  supportRetentionMillis,
   usageFieldForRole,
+  type GymSupportCategory,
   type UsageField
 } from "./domain";
 
@@ -151,6 +155,9 @@ const featureIdSchema = z.enum([
   "attendance",
   "classes",
   "chat",
+  "supportTrainer",
+  "supportGym",
+  "supportPlatform",
   "members",
   "payments",
   "staff",
@@ -568,6 +575,9 @@ export const acceptInvitation = onCall(
     } catch (error) {
       quotaError(error);
     }
+    if (acceptedRole === "member") {
+      await restoreGymSupportInbox(request.auth.uid, gymId);
+    }
     await recordPlatformMilestone("invitationAcceptance", acceptedRole, "gym", gymId);
     return { gymId };
   }
@@ -928,6 +938,54 @@ async function recordPlatformMilestone(
   await batch.commit();
 }
 
+async function recordSupportOutcome(
+  featureId: "supportTrainer" | "supportGym" | "supportPlatform",
+  audience: string,
+  scopeType: "personal" | "gym",
+  category: string,
+  outcomes: Array<"created" | "routed" | "claimed" | "firstResponse" | "resolved" | "reopened">,
+  gymId?: string
+) {
+  const update: Record<string, unknown> = {
+    featureId,
+    [`category_${category}`]: FieldValue.increment(1),
+    updatedAt: FieldValue.serverTimestamp()
+  };
+  outcomes.forEach((outcome) => {
+    update[`outcome_${outcome}`] = FieldValue.increment(1);
+    update[`outcome_${outcome}_audience_${audience}`] = FieldValue.increment(1);
+    update[`outcome_${outcome}_scope_${scopeType}`] = FieldValue.increment(1);
+  });
+  const batch = db.batch();
+  batch.set(db.doc(`platform_feature_metrics/${featureId}`), update, { merge: true });
+  if (gymId) {
+    batch.set(db.doc(`gyms/${gymId}/feature_metrics/${featureId}`), {
+      ...update,
+      gymId,
+      scopeType: "gym"
+    }, { merge: true });
+  }
+  await batch.commit();
+}
+
+async function audienceForConsumer(uid: string): Promise<string> {
+  const memberships = await db.collection("gym_memberships")
+    .where("uid", "==", uid)
+    .where("status", "==", "active")
+    .limit(20)
+    .get();
+  const roles = memberships.docs.map((item) => String(item.get("role")));
+  return roles.includes("owner")
+    ? "owner"
+    : roles.includes("trainer")
+    ? "trainer"
+    : roles.includes("member")
+    ? "member"
+    : roles.length > 0
+    ? "staff"
+    : "standalone";
+}
+
 export const trackFeatureUsage = onCall(
   { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
@@ -1024,14 +1082,59 @@ export const submitFeatureFeedback = onCall(
   async (request) => {
     requireAuth(request);
     const input = z.object({
-      gymId: z.string().min(1),
+      scopeType: z.enum(["personal", "gym"]).default("gym"),
+      gymId: z.string().min(1).optional(),
       featureId: featureIdSchema,
       rating: z.number().int().min(1).max(5),
       message: z.string().trim().min(3).max(1000)
+    }).refine((value) => value.scopeType === "personal" || Boolean(value.gymId), {
+      message: "gymId is required for gym feedback."
     }).parse(request.data);
+    if (input.scopeType === "personal") {
+      const account = await db.doc(`users/${request.auth.uid}`).get();
+      if (account.get("status") === "suspended") {
+        throw new HttpsError("permission-denied", "This account is suspended.");
+      }
+      const role = await audienceForConsumer(request.auth.uid);
+      const feedback = db.collection("platform_feedback").doc();
+      const throttleRef = db.doc(
+        `users/${request.auth.uid}/feedback_state/personal_${input.featureId}`
+      );
+      await db.runTransaction(async (tx) => {
+        const state = await tx.get(throttleRef);
+        const lastSubmittedAt = state.get("lastSubmittedAt") as Timestamp | undefined;
+        if (lastSubmittedAt && lastSubmittedAt.toMillis() > Date.now() - 5 * 60 * 1000) {
+          throw new HttpsError("resource-exhausted", "Please wait before submitting more feedback.");
+        }
+        const now = FieldValue.serverTimestamp();
+        tx.set(throttleRef, {
+          scopeType: "personal",
+          featureId: input.featureId,
+          lastSubmittedAt: now
+        });
+        tx.create(feedback, {
+          scopeType: "personal",
+          uid: request.auth!.uid,
+          role,
+          featureId: input.featureId,
+          rating: input.rating,
+          message: input.message,
+          status: "new",
+          createdAt: now
+        });
+        tx.set(db.doc(`platform_feature_metrics/${input.featureId}`), {
+          featureId: input.featureId,
+          feedbackCount: FieldValue.increment(1),
+          ratingTotal: FieldValue.increment(input.rating),
+          updatedAt: now
+        }, { merge: true });
+      });
+      return { submitted: true };
+    }
+    const gymId = input.gymId!;
     const [membership, gym] = await Promise.all([
-      db.doc(`gym_memberships/${input.gymId}_${request.auth.uid}`).get(),
-      db.doc(`gyms/${input.gymId}`).get()
+      db.doc(`gym_memberships/${gymId}_${request.auth.uid}`).get(),
+      db.doc(`gyms/${gymId}`).get()
     ]);
     if (!membership.exists || membership.get("status") !== "active") {
       throw new HttpsError("permission-denied", "Active gym membership is required.");
@@ -1045,7 +1148,7 @@ export const submitFeatureFeedback = onCall(
     const role = String(membership.get("role") ?? "member");
     const feedback = db.collection("platform_feedback").doc();
     const throttleRef = db.doc(
-      `users/${request.auth.uid}/feedback_state/${input.gymId}_${input.featureId}`
+      `users/${request.auth.uid}/feedback_state/${gymId}_${input.featureId}`
     );
     await db.runTransaction(async (tx) => {
       const state = await tx.get(throttleRef);
@@ -1055,12 +1158,12 @@ export const submitFeatureFeedback = onCall(
       }
       const now = FieldValue.serverTimestamp();
       tx.set(throttleRef, {
-        gymId: input.gymId,
+        gymId,
         featureId: input.featureId,
         lastSubmittedAt: now
       });
       tx.create(feedback, {
-        gymId: input.gymId,
+        gymId,
         uid: request.auth.uid,
         role,
         featureId: input.featureId,
@@ -1647,6 +1750,783 @@ export const onMessageCreated = onDocumentCreated(
   }
 );
 
+const gymSupportCategorySchema = z.enum(GYM_SUPPORT_CATEGORIES);
+const platformSupportCategorySchema = z.enum([
+  "account", "privacy", "bug", "exerciseContent", "onboarding", "other"
+]);
+const supportStatusSchema = z.enum([
+  "open", "waitingOnSupport", "waitingOnUser", "resolved", "closed"
+]);
+const supportContextSchema = z.object({
+  type: z.enum(["exercise", "routine", "assignment"]),
+  id: z.string().trim().min(1).max(160),
+  label: z.string().trim().min(1).max(160),
+  catalogVersion: z.string().trim().max(80).optional()
+}).optional();
+
+function membershipPermission(
+  membership: FirebaseFirestore.DocumentData,
+  permission: string
+): boolean {
+  const role = String(membership.role ?? "member");
+  const permissions = (membership.permissions ?? {}) as Record<string, boolean>;
+  return permissions[permission] ?? ROLE_PERMISSIONS[role]?.[permission] ?? false;
+}
+
+function canHandleGymSupport(
+  membership: FirebaseFirestore.DocumentData,
+  category: GymSupportCategory
+): boolean {
+  const required = supportPermissionForCategory(category);
+  return membershipPermission(membership, required);
+}
+
+async function activeGymMembership(gymId: string, uid: string) {
+  const [membership, account, gym] = await Promise.all([
+    db.doc(`gym_memberships/${gymId}_${uid}`).get(),
+    db.doc(`users/${uid}`).get(),
+    db.doc(`gyms/${gymId}`).get()
+  ]);
+  const planEndsAt = gym.get("platformPlanEndsAt") as Timestamp | undefined;
+  return membership.exists && membership.get("status") === "active" &&
+    account.get("status") !== "suspended" && gym.exists &&
+    ["trial", "active"].includes(String(gym.get("status"))) &&
+    (!planEndsAt || planEndsAt.toMillis() > Date.now())
+    ? membership
+    : null;
+}
+
+async function eligibleGymSupportRecipients(
+  gymId: string,
+  category: GymSupportCategory
+): Promise<string[]> {
+  const memberships = await db.collection("gym_memberships")
+    .where("gymId", "==", gymId)
+    .limit(100)
+    .get();
+  const candidates = memberships.docs.filter((item) =>
+    item.get("status") === "active" && canHandleGymSupport(item.data(), category)
+  );
+  const accounts = await Promise.all(candidates.map((item) =>
+    db.doc(`users/${String(item.get("uid"))}`).get()
+  ));
+  return candidates
+    .filter((_, index) => accounts[index].get("status") !== "suspended")
+    .map((item) => String(item.get("uid")));
+}
+
+async function writeSupportNotification(input: {
+  uid: string;
+  title: string;
+  body: string;
+  threadId: string;
+  scopeType: "gym" | "platform";
+  gymId?: string;
+}) {
+  const collection = input.gymId
+    ? db.collection(`gyms/${input.gymId}/notifications`)
+    : db.collection(`users/${input.uid}/notifications`);
+  await collection.add({
+    ...(input.gymId ? { gymId: input.gymId } : {}),
+    recipientUid: input.uid,
+    type: "support",
+    title: input.title,
+    body: input.body,
+    data: {
+      scopeType: input.scopeType,
+      threadId: input.threadId,
+      ...(input.gymId ? { gymId: input.gymId } : {})
+    },
+    read: false,
+    createdAt: FieldValue.serverTimestamp()
+  });
+  await sendPush(input.uid, input.title, input.body, {
+    type: "support",
+    scopeType: input.scopeType,
+    threadId: input.threadId,
+    ...(input.gymId ? { gymId: input.gymId } : {})
+  }).catch((error) => logger.warn("Support push delivery failed", {
+    uid: input.uid,
+    threadId: input.threadId,
+    error: String(error)
+  }));
+}
+
+function safeSupportPreview(text: string, hasAttachment = false): string {
+  const value = text.trim();
+  if (value) return value.slice(0, 160);
+  return hasAttachment ? "Image attachment" : "Support update";
+}
+
+async function validateSupportAttachment(path: string) {
+  try {
+    const [metadata] = await getStorage().bucket().file(path).getMetadata();
+    const size = Number(metadata.size ?? 0);
+    const contentType = String(metadata.contentType ?? "");
+    if (size <= 0 || size >= 5 * 1024 * 1024 ||
+        !["image/jpeg", "image/png", "image/webp"].includes(contentType)) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Support attachments must be JPEG, PNG, or WebP images smaller than 5 MB."
+      );
+    }
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("invalid-argument", "The support attachment was not found.");
+  }
+}
+
+export const assignPrimaryTrainer = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requireAuth(request);
+    const input = z.object({
+      gymId: z.string().min(1),
+      memberUid: z.string().min(1),
+      trainerUid: z.string().min(1).nullable()
+    }).parse(request.data);
+    await requireGymPermission(request, input.gymId, "staff.manage");
+    const member = await activeGymMembership(input.gymId, input.memberUid);
+    if (!member || member.get("role") !== "member") {
+      throw new HttpsError("not-found", "An active member was not found.");
+    }
+    if (input.trainerUid) {
+      const trainer = await activeGymMembership(input.gymId, input.trainerUid);
+      if (!trainer || trainer.get("role") !== "trainer" ||
+          !membershipPermission(trainer.data()!, "support.coaching")) {
+        throw new HttpsError("failed-precondition", "Select an active trainer with coaching access.");
+      }
+    }
+    const ref = db.doc(`gyms/${input.gymId}/trainer_assignments/${input.memberUid}`);
+    if (input.trainerUid) {
+      const trainerIdentity = await userIdentity(input.trainerUid);
+      await ref.set({
+        gymId: input.gymId,
+        memberUid: input.memberUid,
+        primaryTrainerUid: input.trainerUid,
+        primaryTrainerIdentity: trainerIdentity,
+        status: "active",
+        assignedBy: request.auth.uid,
+        assignedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+    } else {
+      await ref.set({
+        gymId: input.gymId,
+        memberUid: input.memberUid,
+        primaryTrainerUid: null,
+        primaryTrainerIdentity: null,
+        status: "unassigned",
+        assignedBy: request.auth.uid,
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
+    await writeAudit(db, input.gymId, request.auth.uid, "trainer.assignment_updated", {
+      memberUid: input.memberUid,
+      trainerUid: input.trainerUid
+    });
+    return { memberUid: input.memberUid, trainerUid: input.trainerUid };
+  }
+);
+
+export const createSupportThread = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requireAuth(request);
+    const input = z.discriminatedUnion("scopeType", [
+      z.object({
+        scopeType: z.literal("gym"),
+        gymId: z.string().min(1),
+        category: gymSupportCategorySchema,
+        memberUid: z.string().min(1).optional(),
+        reason: z.string().trim().min(12).max(500).optional(),
+        subject: z.string().trim().min(3).max(120),
+        message: z.string().trim().min(1).max(2000),
+        context: supportContextSchema
+      }),
+      z.object({
+        scopeType: z.literal("platform"),
+        category: platformSupportCategorySchema,
+        subject: z.string().trim().min(3).max(120),
+        message: z.string().trim().min(1).max(2000),
+        context: supportContextSchema
+      })
+    ]).parse(request.data);
+    const uid = request.auth.uid;
+    const identity = await userIdentity(uid, request.auth.token);
+
+    if (input.scopeType === "platform") {
+      const account = await db.doc(`users/${uid}`).get();
+      if (account.get("status") === "suspended") {
+        throw new HttpsError("permission-denied", "This account is suspended.");
+      }
+      const caseRef = db.collection(`users/${uid}/support_cases`).doc();
+      const messageRef = caseRef.collection("messages").doc();
+      const now = FieldValue.serverTimestamp();
+      const batch = db.batch();
+      batch.create(caseRef, {
+        caseId: caseRef.id,
+        scopeType: "platform",
+        targetUid: uid,
+        requesterUid: uid,
+        category: input.category,
+        subject: input.subject,
+        status: "waitingOnSupport",
+        context: input.context ?? null,
+        requesterIdentity: identity,
+        lastMessage: safeSupportPreview(input.message),
+        lastMessageAt: now,
+        lastSenderUid: uid,
+        createdAt: now,
+        updatedAt: now
+      });
+      batch.create(messageRef, {
+        senderUid: uid,
+        senderType: "consumer",
+        text: input.message,
+        attachmentPath: null,
+        createdAt: now
+      });
+      batch.set(db.doc(`users/${uid}/support_inbox/platform_${caseRef.id}`), {
+        scopeType: "platform",
+        threadId: caseRef.id,
+        subject: input.subject,
+        category: input.category,
+        status: "waitingOnSupport",
+        lastMessage: safeSupportPreview(input.message),
+        lastMessageAt: now,
+        unread: false,
+        updatedAt: now
+      });
+      await batch.commit();
+      const audience = await audienceForConsumer(uid);
+      await Promise.all([
+        recordPlatformMilestone("supportPlatform", audience, "personal"),
+        recordSupportOutcome(
+          "supportPlatform", audience, "personal", input.category,
+          ["created", "routed"]
+        )
+      ]).catch(() => undefined);
+      return { threadId: caseRef.id, scopeType: "platform" };
+    }
+
+    const actorMembership = await activeGymMembership(input.gymId, uid);
+    if (!actorMembership) throw new HttpsError("permission-denied", "Active gym membership is required.");
+    const actorRole = String(actorMembership.get("role"));
+    const memberUid = actorRole === "member" ? uid : input.memberUid;
+    if (!memberUid) throw new HttpsError("invalid-argument", "Choose the member who needs support.");
+    const memberMembership = await activeGymMembership(input.gymId, memberUid);
+    if (!memberMembership || memberMembership.get("role") !== "member") {
+      throw new HttpsError("not-found", "An active member was not found.");
+    }
+    if (actorRole !== "member") {
+      if (!canHandleGymSupport(actorMembership.data()!, input.category)) {
+        throw new HttpsError("permission-denied", "Your gym role cannot open this support category.");
+      }
+      if (!input.reason) {
+        throw new HttpsError("invalid-argument", "A reason is required when staff starts a member case.");
+      }
+    }
+
+    let assignedUid: string | null = actorRole === "member" ? null : uid;
+    if (input.category === "coaching" && actorRole === "member") {
+      const assignment = await db.doc(
+        `gyms/${input.gymId}/trainer_assignments/${memberUid}`
+      ).get();
+      const primaryUid = assignment.get("primaryTrainerUid") as string | undefined;
+      if (primaryUid) {
+        const trainer = await activeGymMembership(input.gymId, primaryUid);
+        if (trainer && membershipPermission(trainer.data()!, "support.coaching")) {
+          assignedUid = primaryUid;
+        }
+      }
+    }
+    const memberIdentity = await userIdentity(memberUid);
+    const threadRef = db.collection(`gyms/${input.gymId}/support_threads`).doc();
+    const messageRef = threadRef.collection("messages").doc();
+    const now = FieldValue.serverTimestamp();
+    const participantUids = [...new Set([memberUid, assignedUid].filter(Boolean) as string[])];
+    const batch = db.batch();
+    batch.create(threadRef, {
+      gymId: input.gymId,
+      scopeType: "gym",
+      kind: input.category === "coaching" ? "coaching" : "operations",
+      category: input.category,
+      memberUid,
+      requesterUid: uid,
+      createdByUid: uid,
+      createdByRole: actorRole,
+      staffReason: actorRole === "member" ? null : input.reason,
+      assignedUid,
+      participantUids,
+      memberIdentity,
+      subject: input.subject,
+      context: input.context ?? null,
+      status: actorRole === "member" ? "waitingOnSupport" : "waitingOnUser",
+      lastMessage: safeSupportPreview(input.message),
+      lastMessageAt: now,
+      lastSenderUid: uid,
+      createdAt: now,
+      updatedAt: now
+    });
+    batch.create(messageRef, {
+      gymId: input.gymId,
+      threadId: threadRef.id,
+      senderUid: uid,
+      senderType: actorRole === "member" ? "member" : "gymStaff",
+      text: input.message,
+      attachmentPath: null,
+      createdAt: now
+    });
+    batch.set(db.doc(`users/${memberUid}/support_inbox/gym_${input.gymId}_${threadRef.id}`), {
+      scopeType: "gym",
+      gymId: input.gymId,
+      threadId: threadRef.id,
+      subject: input.subject,
+      category: input.category,
+      status: actorRole === "member" ? "waitingOnSupport" : "waitingOnUser",
+      lastMessage: safeSupportPreview(input.message),
+      lastMessageAt: now,
+      unread: actorRole !== "member",
+      updatedAt: now
+    });
+    await batch.commit();
+
+    const recipients = actorRole === "member"
+      ? assignedUid ? [assignedUid] : await eligibleGymSupportRecipients(input.gymId, input.category)
+      : [memberUid];
+    await Promise.all(recipients.filter((recipient) => recipient !== uid).map((recipient) =>
+      writeSupportNotification({
+        uid: recipient,
+        gymId: input.gymId,
+        scopeType: "gym",
+        threadId: threadRef.id,
+        title: actorRole === "member" ? "New support request" : "Message from your gym",
+        body: input.subject
+      })
+    ));
+    await recordPlatformMilestone(
+      input.category === "coaching" ? "supportTrainer" : "supportGym",
+      actorRole,
+      "gym",
+      input.gymId
+    ).catch(() => undefined);
+    await recordSupportOutcome(
+      input.category === "coaching" ? "supportTrainer" : "supportGym",
+      actorRole,
+      "gym",
+      input.category,
+      ["created", "routed"],
+      input.gymId
+    ).catch(() => undefined);
+    return { threadId: threadRef.id, scopeType: "gym", assignedUid };
+  }
+);
+
+async function requireGymThreadAccess(
+  gymId: string,
+  threadId: string,
+  uid: string
+) {
+  const [thread, membership] = await Promise.all([
+    db.doc(`gyms/${gymId}/support_threads/${threadId}`).get(),
+    activeGymMembership(gymId, uid)
+  ]);
+  if (!thread.exists) throw new HttpsError("not-found", "Support conversation was not found.");
+  if (!membership) throw new HttpsError("permission-denied", "Active gym membership is required.");
+  const category = gymSupportCategorySchema.parse(thread.get("category"));
+  if (thread.get("memberUid") !== uid && !canHandleGymSupport(membership.data()!, category)) {
+    throw new HttpsError("permission-denied", "You cannot access this support conversation.");
+  }
+  return { thread, membership, category };
+}
+
+export const sendSupportMessage = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requireAuth(request);
+    const input = z.object({
+      scopeType: z.enum(["gym", "platform"]),
+      gymId: z.string().min(1).optional(),
+      targetUid: z.string().min(1).optional(),
+      threadId: z.string().min(1),
+      text: z.string().trim().max(2000).default(""),
+      attachmentPath: z.string().trim().max(500).nullable().optional()
+    }).refine((value) => value.text.length > 0 || Boolean(value.attachmentPath), {
+      message: "Enter a message or attach an image."
+    }).parse(request.data);
+    const uid = request.auth.uid;
+    const now = FieldValue.serverTimestamp();
+    const preview = safeSupportPreview(input.text, Boolean(input.attachmentPath));
+
+    if (input.scopeType === "platform") {
+      let targetUid = uid;
+      if (request.auth.token.platformAdmin === true) {
+        if (!input.targetUid) throw new HttpsError("invalid-argument", "targetUid is required.");
+        targetUid = input.targetUid;
+      }
+      const threadRef = db.doc(`users/${targetUid}/support_cases/${input.threadId}`);
+      const thread = await threadRef.get();
+      let senderType = "consumer";
+      if (!thread.exists) throw new HttpsError("not-found", "Support case was not found.");
+      const isOperator = request.auth.token.platformAdmin === true;
+      if (!isOperator && targetUid !== uid) {
+        throw new HttpsError("permission-denied", "You cannot access this support case.");
+      }
+      if (["resolved", "closed"].includes(String(thread.get("status")))) {
+        throw new HttpsError("failed-precondition", "Reopen this support case before replying.");
+      }
+      senderType = isOperator ? "platform" : "consumer";
+      const firstResponse = isOperator && !thread.get("firstResponseAt");
+      if (input.attachmentPath && !input.attachmentPath.startsWith(
+        `users/${targetUid}/support/${input.threadId}/`
+      )) {
+        throw new HttpsError("invalid-argument", "Attachment path does not belong to this case.");
+      }
+      if (input.attachmentPath) await validateSupportAttachment(input.attachmentPath);
+      const messageRef = thread.ref.collection("messages").doc();
+      const nextStatus = isOperator ? "waitingOnUser" : "waitingOnSupport";
+      const batch = db.batch();
+      batch.create(messageRef, {
+        senderUid: isOperator ? "platform-support" : uid,
+        senderType,
+        text: input.text,
+        attachmentPath: input.attachmentPath ?? null,
+        createdAt: now
+      });
+      batch.update(thread.ref, {
+        status: nextStatus,
+        lastMessage: preview,
+        lastMessageAt: now,
+        lastSenderUid: isOperator ? "platform-support" : uid,
+        ...(firstResponse ? { firstResponseAt: now } : {}),
+        resolvedAt: null,
+        retentionDeleteAt: null,
+        updatedAt: now
+      });
+      batch.set(db.doc(`users/${targetUid}/support_inbox/platform_${input.threadId}`), {
+        scopeType: "platform",
+        threadId: input.threadId,
+        subject: thread.get("subject"),
+        category: thread.get("category"),
+        status: nextStatus,
+        lastMessage: preview,
+        lastMessageAt: now,
+        unread: isOperator,
+        updatedAt: now
+      }, { merge: true });
+      await batch.commit();
+      if (isOperator) {
+        await db.collection("platform_support_audit").add({
+          action: "support.reply_sent",
+          targetUid,
+          administratorUid: uid,
+          caseId: input.threadId,
+          createdAt: FieldValue.serverTimestamp()
+        });
+        await writeSupportNotification({
+          uid: targetUid,
+          scopeType: "platform",
+          threadId: input.threadId,
+          title: "Gym Management Support replied",
+          body: preview
+        });
+        if (firstResponse) {
+          const audience = await audienceForConsumer(targetUid);
+          await recordSupportOutcome(
+            "supportPlatform",
+            audience,
+            "personal",
+            String(thread.get("category") ?? "other"),
+            ["firstResponse"]
+          ).catch(() => undefined);
+        }
+      }
+      return { sent: true, status: nextStatus };
+    }
+
+    if (!input.gymId) throw new HttpsError("invalid-argument", "gymId is required.");
+    const access = await requireGymThreadAccess(input.gymId, input.threadId, uid);
+    const memberUid = String(access.thread.get("memberUid"));
+    const isMember = memberUid === uid;
+    if (["resolved", "closed"].includes(String(access.thread.get("status")))) {
+      throw new HttpsError("failed-precondition", "Reopen this conversation before replying.");
+    }
+    const firstResponse = !isMember && !access.thread.get("firstResponseAt");
+    if (input.attachmentPath && !input.attachmentPath.startsWith(
+      `gyms/${input.gymId}/support/${input.threadId}/`
+    )) {
+      throw new HttpsError("invalid-argument", "Attachment path does not belong to this conversation.");
+    }
+    if (input.attachmentPath) await validateSupportAttachment(input.attachmentPath);
+    const messageRef = access.thread.ref.collection("messages").doc();
+    const nextStatus = isMember ? "waitingOnSupport" : "waitingOnUser";
+    const batch = db.batch();
+    batch.create(messageRef, {
+      gymId: input.gymId,
+      threadId: input.threadId,
+      senderUid: uid,
+      senderType: isMember ? "member" : "gymStaff",
+      text: input.text,
+      attachmentPath: input.attachmentPath ?? null,
+      createdAt: now
+    });
+    batch.update(access.thread.ref, {
+      status: nextStatus,
+      lastMessage: preview,
+      lastMessageAt: now,
+      lastSenderUid: uid,
+      ...(firstResponse ? { firstResponseAt: now } : {}),
+      resolvedAt: null,
+      retentionDeleteAt: null,
+      updatedAt: now
+    });
+    batch.set(db.doc(`users/${memberUid}/support_inbox/gym_${input.gymId}_${input.threadId}`), {
+      status: nextStatus,
+      lastMessage: preview,
+      lastMessageAt: now,
+      unread: !isMember,
+      updatedAt: now
+    }, { merge: true });
+    await batch.commit();
+    const recipients = isMember
+      ? access.thread.get("assignedUid")
+        ? [String(access.thread.get("assignedUid"))]
+        : await eligibleGymSupportRecipients(input.gymId, access.category)
+      : [memberUid];
+    await Promise.all(recipients.filter((recipient) => recipient !== uid).map((recipient) =>
+      writeSupportNotification({
+        uid: recipient,
+        gymId: input.gymId,
+        scopeType: "gym",
+        threadId: input.threadId,
+        title: isMember ? "Member support reply" : "Your gym replied",
+        body: preview
+      })
+    ));
+    if (firstResponse) {
+      await recordSupportOutcome(
+        access.category === "coaching" ? "supportTrainer" : "supportGym",
+        String(access.membership.get("role") ?? "staff"),
+        "gym",
+        access.category,
+        ["firstResponse"],
+        input.gymId
+      ).catch(() => undefined);
+    }
+    return { sent: true, status: nextStatus };
+  }
+);
+
+export const claimGymSupportThread = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requireAuth(request);
+    const input = z.object({ gymId: z.string().min(1), threadId: z.string().min(1) })
+      .parse(request.data);
+    const access = await requireGymThreadAccess(input.gymId, input.threadId, request.auth.uid);
+    if (!canHandleGymSupport(access.membership.data()!, access.category)) {
+      throw new HttpsError("permission-denied", "You cannot claim this support category.");
+    }
+    const newlyClaimed = await db.runTransaction(async (tx) => {
+      const current = await tx.get(access.thread.ref);
+      const assignedUid = current.get("assignedUid") as string | null | undefined;
+      if (assignedUid && assignedUid !== request.auth!.uid) {
+        throw new HttpsError("already-exists", "Another team member has claimed this conversation.");
+      }
+      if (assignedUid === request.auth!.uid) return false;
+      tx.update(access.thread.ref, {
+        assignedUid: request.auth!.uid,
+        participantUids: FieldValue.arrayUnion(request.auth!.uid),
+        claimedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+      });
+      return true;
+    });
+    if (newlyClaimed) {
+      await recordSupportOutcome(
+        access.category === "coaching" ? "supportTrainer" : "supportGym",
+        String(access.membership.get("role") ?? "staff"),
+        "gym",
+        access.category,
+        ["claimed"],
+        input.gymId
+      ).catch(() => undefined);
+    }
+    return { assignedUid: request.auth.uid };
+  }
+);
+
+export const assignGymSupportThread = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requireAuth(request);
+    const input = z.object({
+      gymId: z.string().min(1),
+      threadId: z.string().min(1),
+      assigneeUid: z.string().min(1)
+    }).parse(request.data);
+    const access = await requireGymThreadAccess(input.gymId, input.threadId, request.auth.uid);
+    await requireGymPermission(
+      request,
+      input.gymId,
+      access.category === "coaching" ? "staff.manage" : "support.manage"
+    );
+    const assignee = await activeGymMembership(input.gymId, input.assigneeUid);
+    if (!assignee || !canHandleGymSupport(assignee.data()!, access.category)) {
+      throw new HttpsError("failed-precondition", "The selected teammate cannot handle this category.");
+    }
+    await access.thread.ref.update({
+      assignedUid: input.assigneeUid,
+      participantUids: FieldValue.arrayUnion(input.assigneeUid),
+      assignedBy: request.auth.uid,
+      updatedAt: FieldValue.serverTimestamp()
+    });
+    return { assignedUid: input.assigneeUid };
+  }
+);
+
+export const updateSupportThreadStatus = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requireAuth(request);
+    const input = z.object({
+      scopeType: z.enum(["gym", "platform"]),
+      gymId: z.string().min(1).optional(),
+      targetUid: z.string().min(1).optional(),
+      threadId: z.string().min(1),
+      status: supportStatusSchema
+    }).parse(request.data);
+    const uid = request.auth.uid;
+    let threadRef;
+    let memberUid = uid;
+    let isSupport = false;
+    let supportCategory = "other";
+    let actorAudience = "member";
+    if (input.scopeType === "gym") {
+      if (!input.gymId) throw new HttpsError("invalid-argument", "gymId is required.");
+      const access = await requireGymThreadAccess(input.gymId, input.threadId, uid);
+      threadRef = access.thread.ref;
+      memberUid = String(access.thread.get("memberUid"));
+      isSupport = memberUid !== uid;
+      supportCategory = access.category;
+      actorAudience = String(access.membership.get("role") ?? "member");
+    } else {
+      if (request.auth.token.platformAdmin === true) {
+        if (!input.targetUid) throw new HttpsError("invalid-argument", "targetUid is required.");
+        threadRef = db.doc(`users/${input.targetUid}/support_cases/${input.threadId}`);
+        memberUid = input.targetUid;
+        isSupport = true;
+      } else {
+        threadRef = db.doc(`users/${uid}/support_cases/${input.threadId}`);
+      }
+      if (!(await threadRef.get()).exists) throw new HttpsError("not-found", "Support case was not found.");
+    }
+    if (!isSupport && input.status !== "open") {
+      throw new HttpsError("permission-denied", "Members can only reopen a resolved conversation.");
+    }
+    const current = await threadRef.get();
+    if (input.scopeType === "platform") {
+      supportCategory = String(current.get("category") ?? "other");
+      actorAudience = await audienceForConsumer(memberUid);
+    }
+    if (!isSupport && !["resolved", "closed"].includes(String(current.get("status")))) {
+      throw new HttpsError("failed-precondition", "Only a resolved conversation can be reopened.");
+    }
+    const resolved = input.status === "resolved" || input.status === "closed";
+    if (resolved && ["resolved", "closed"].includes(String(current.get("status")))) {
+      throw new HttpsError("failed-precondition", "This conversation is already resolved.");
+    }
+    const nowMillis = Date.now();
+    await threadRef.update({
+      status: input.status,
+      resolvedAt: resolved ? Timestamp.fromMillis(nowMillis) : null,
+      retentionDeleteAt: resolved
+        ? Timestamp.fromMillis(supportRetentionMillis(nowMillis))
+        : null,
+      updatedAt: FieldValue.serverTimestamp()
+    });
+    const inboxId = input.scopeType === "gym"
+      ? `gym_${input.gymId}_${input.threadId}`
+      : `platform_${input.threadId}`;
+    await db.doc(`users/${memberUid}/support_inbox/${inboxId}`).set({
+      status: input.status,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+    const featureId = input.scopeType === "platform"
+      ? "supportPlatform"
+      : supportCategory === "coaching"
+      ? "supportTrainer"
+      : "supportGym";
+    if (input.status === "open") {
+      await recordSupportOutcome(
+        featureId,
+        actorAudience,
+        input.scopeType === "gym" ? "gym" : "personal",
+        supportCategory,
+        ["reopened"],
+        input.gymId
+      ).catch(() => undefined);
+    } else if (resolved) {
+      await recordSupportOutcome(
+        featureId,
+        actorAudience,
+        input.scopeType === "gym" ? "gym" : "personal",
+        supportCategory,
+        ["resolved"],
+        input.gymId
+      ).catch(() => undefined);
+    }
+    return { status: input.status };
+  }
+);
+
+export const markSupportThreadRead = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requireAuth(request);
+    const input = z.object({
+      scopeType: z.enum(["gym", "platform"]),
+      gymId: z.string().min(1).optional(),
+      targetUid: z.string().min(1).optional(),
+      threadId: z.string().min(1)
+    }).parse(request.data);
+    const uid = request.auth.uid;
+    let threadRef;
+    let inboxRef = db.doc(`users/${uid}/support_inbox/platform_${input.threadId}`);
+    if (input.scopeType === "gym") {
+      if (!input.gymId) throw new HttpsError("invalid-argument", "gymId is required.");
+      const access = await requireGymThreadAccess(input.gymId, input.threadId, uid);
+      threadRef = access.thread.ref;
+      if (access.thread.get("memberUid") === uid) {
+        inboxRef = db.doc(`users/${uid}/support_inbox/gym_${input.gymId}_${input.threadId}`);
+      } else {
+        inboxRef = db.doc(`users/${uid}/support_inbox/gym_staff_${input.gymId}_${input.threadId}`);
+      }
+    } else {
+      const targetUid = request.auth.token.platformAdmin === true ? input.targetUid : uid;
+      if (!targetUid) throw new HttpsError("invalid-argument", "targetUid is required.");
+      threadRef = db.doc(`users/${targetUid}/support_cases/${input.threadId}`);
+      if (!(await threadRef.get()).exists) throw new HttpsError("not-found", "Support case was not found.");
+      if (request.auth.token.platformAdmin === true) {
+        inboxRef = db.doc(`users/${uid}/support_inbox/platform_staff_${input.threadId}`);
+      }
+    }
+    const batch = db.batch();
+    batch.set(threadRef, {
+      [`lastReadBy.${uid}`]: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+    batch.set(inboxRef, {
+      unread: false,
+      readAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+    await batch.commit();
+    return { read: true };
+  }
+);
+
 export const sendExpiryReminders = onSchedule(
   { region: REGION, schedule: "every day 09:00", timeZone: "Asia/Kolkata" },
   async () => {
@@ -1787,7 +2667,7 @@ export const exportMyData = onCall(
     const personalCollections = [
       "fitness_profile", "routines", "workout_logs", "measurements", "goals",
       "personal_records", "progress_photos", "notifications", "gym_shares",
-      "entitlements", "support_history"
+      "entitlements", "support_history", "support_inbox"
     ];
     const personalData: Record<string, unknown[]> = {};
     for (const collection of personalCollections) {
@@ -1798,6 +2678,17 @@ export const exportMyData = onCall(
         ...document.data()
       }));
     }
+    const supportCases = await db.collection(`users/${request.auth.uid}/support_cases`)
+      .limit(500).get();
+    personalData.support_cases = await Promise.all(supportCases.docs.map(async (supportCase) => {
+      const messages = await supportCase.ref.collection("messages")
+        .orderBy("createdAt", "asc").limit(1000).get();
+      return {
+        id: supportCase.id,
+        ...supportCase.data(),
+        messages: messages.docs.map((message) => ({ id: message.id, ...message.data() }))
+      };
+    }));
     const gymData = [];
     const memberCollections = [
       "subscriptions", "payments", "attendance", "class_bookings",
@@ -1819,6 +2710,19 @@ export const exportMyData = onCall(
         records[collection] = snapshot.docs.map((document) => ({
           id: document.id,
           ...document.data()
+        }));
+      }
+      if (role === "member") {
+        const supportThreads = await db.collection(`gyms/${gymId}/support_threads`)
+          .where("memberUid", "==", request.auth.uid).limit(500).get();
+        records.support_threads = await Promise.all(supportThreads.docs.map(async (thread) => {
+          const messages = await thread.ref.collection("messages")
+            .orderBy("createdAt", "asc").limit(1000).get();
+          return {
+            id: thread.id,
+            ...thread.data(),
+            messages: messages.docs.map((message) => ({ id: message.id, ...message.data() }))
+          };
         }));
       }
       gymData.push({ gymId, role, profile: ownProfile.data() ?? {}, records });
@@ -2057,6 +2961,50 @@ async function deleteSharingProjection(uid: string, gymId: string) {
   await root.delete();
 }
 
+async function deleteGymSupportInboxProjection(uid: string, gymId: string) {
+  const entries = await db.collection(`users/${uid}/support_inbox`)
+    .where("gymId", "==", gymId)
+    .limit(500)
+    .get();
+  if (entries.empty) return;
+  const batch = db.batch();
+  entries.docs.forEach((entry) => batch.delete(entry.ref));
+  await batch.commit();
+}
+
+async function restoreGymSupportInbox(uid: string, gymId: string) {
+  const threads = await db.collection(`gyms/${gymId}/support_threads`)
+    .where("memberUid", "==", uid)
+    .orderBy("lastMessageAt", "desc")
+    .limit(100)
+    .get();
+  if (threads.empty) return;
+  const batch = db.batch();
+  threads.docs.forEach((thread) => {
+    batch.set(db.doc(`users/${uid}/support_inbox/gym_${gymId}_${thread.id}`), {
+      scopeType: "gym",
+      gymId,
+      threadId: thread.id,
+      subject: thread.get("subject"),
+      category: thread.get("category"),
+      status: thread.get("status"),
+      lastMessage: thread.get("lastMessage"),
+      lastMessageAt: thread.get("lastMessageAt"),
+      unread: false,
+      restoredAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+  });
+  await batch.commit();
+}
+
+async function deleteMemberGymClientProjections(uid: string, gymId: string) {
+  await Promise.all([
+    deleteSharingProjection(uid, gymId),
+    deleteGymSupportInboxProjection(uid, gymId)
+  ]);
+}
+
 async function refreshSharingProjection(
   uid: string,
   gymId: string,
@@ -2233,7 +3181,7 @@ export const leaveGymMembership = onCall(
 
     let cleanupPending = false;
     try {
-      await deleteSharingProjection(uid, input.gymId);
+      await deleteMemberGymClientProjections(uid, input.gymId);
       await cleanupRef.delete();
     } catch (error) {
       cleanupPending = true;
@@ -2280,7 +3228,7 @@ export const retryPrivacyCleanup = onSchedule(
         continue;
       }
       try {
-        await deleteSharingProjection(uid, gymId);
+        await deleteMemberGymClientProjections(uid, gymId);
         await job.ref.delete();
       } catch (error) {
         logger.error("Scheduled privacy cleanup failed.", {
@@ -2363,6 +3311,9 @@ export const startConsumerSupportSession = onCall(
     }).parse(request.data);
     const target = await db.doc(`users/${input.targetUid}`).get();
     if (!target.exists) throw new HttpsError("not-found", "Consumer was not found.");
+    if (target.get("status") === "suspended") {
+      throw new HttpsError("failed-precondition", "This consumer account is suspended.");
+    }
     const grant = db.collection("platform_consumer_support_grants").doc();
     const expiresAt = Timestamp.fromMillis(Date.now() + 15 * 60_000);
     await grant.create({
@@ -2479,6 +3430,170 @@ export const listConsumers = onCall(
   }
 );
 
+export const listPlatformSupportCases = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requirePlatformAdmin(request);
+    const input = z.object({ limit: z.number().int().min(1).max(100).default(50) })
+      .parse(request.data ?? {});
+    const cases = await db.collectionGroup("support_cases")
+      .orderBy("lastMessageAt", "desc")
+      .limit(input.limit)
+      .get();
+    return {
+      cases: cases.docs.map((document) => ({
+        id: document.id,
+        targetUid: document.ref.parent.parent?.id ?? document.get("targetUid"),
+        category: document.get("category"),
+        subject: document.get("subject"),
+        status: document.get("status"),
+        lastMessage: document.get("lastMessage"),
+        lastMessageAt: document.get("lastMessageAt") ?? null,
+        requesterIdentity: document.get("requesterIdentity") ?? null,
+        operatorReason: document.get("operatorReason") ?? null
+      }))
+    };
+  }
+);
+
+export const createPlatformSupportCase = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requirePlatformAdmin(request);
+    const input = z.object({
+      targetUid: z.string().min(1),
+      category: platformSupportCategorySchema,
+      subject: z.string().trim().min(3).max(120),
+      message: z.string().trim().min(1).max(2000),
+      reason: z.string().trim().min(12).max(500)
+    }).parse(request.data);
+    const target = await db.doc(`users/${input.targetUid}`).get();
+    if (!target.exists) throw new HttpsError("not-found", "Consumer was not found.");
+    if (target.get("status") === "suspended") {
+      throw new HttpsError("failed-precondition", "This consumer account is suspended.");
+    }
+    const caseRef = db.collection(`users/${input.targetUid}/support_cases`).doc();
+    const messageRef = caseRef.collection("messages").doc();
+    const now = FieldValue.serverTimestamp();
+    const batch = db.batch();
+    batch.create(caseRef, {
+      caseId: caseRef.id,
+      scopeType: "platform",
+      targetUid: input.targetUid,
+      requesterUid: input.targetUid,
+      category: input.category,
+      subject: input.subject,
+      status: "waitingOnUser",
+      initiatedBy: "platform",
+      requesterIdentity: {
+        displayName: target.get("displayName") ?? null,
+        email: target.get("email") ?? null,
+        phone: target.get("phone") ?? null
+      },
+      lastMessage: safeSupportPreview(input.message),
+      lastMessageAt: now,
+      lastSenderUid: "platform-support",
+      createdAt: now,
+      updatedAt: now
+    });
+    batch.create(messageRef, {
+      senderUid: "platform-support",
+      senderType: "platform",
+      text: input.message,
+      attachmentPath: null,
+      createdAt: now
+    });
+    batch.set(db.doc(`users/${input.targetUid}/support_inbox/platform_${caseRef.id}`), {
+      scopeType: "platform",
+      threadId: caseRef.id,
+      subject: input.subject,
+      category: input.category,
+      status: "waitingOnUser",
+      lastMessage: safeSupportPreview(input.message),
+      lastMessageAt: now,
+      unread: true,
+      updatedAt: now
+    });
+    batch.create(db.collection("platform_support_audit").doc(), {
+      action: "support.case_opened",
+      targetUid: input.targetUid,
+      administratorUid: request.auth!.uid,
+      reason: input.reason,
+      caseId: caseRef.id,
+      category: input.category,
+      createdAt: now
+    });
+    await batch.commit();
+    await writeSupportNotification({
+      uid: input.targetUid,
+      scopeType: "platform",
+      threadId: caseRef.id,
+      title: "Gym Management Support",
+      body: input.subject
+    });
+    const audience = await audienceForConsumer(input.targetUid);
+    await Promise.all([
+      recordPlatformMilestone("supportPlatform", audience, "personal"),
+      recordSupportOutcome(
+        "supportPlatform", audience, "personal", input.category,
+        ["created", "routed"]
+      )
+    ]).catch(() => undefined);
+    return { caseId: caseRef.id };
+  }
+);
+
+export const sendPlatformServiceNotice = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requirePlatformAdmin(request);
+    const input = z.object({
+      audience: z.enum(["all", "standalone", "gymConnected", "owners"]),
+      title: z.string().trim().min(3).max(100),
+      body: z.string().trim().min(3).max(500)
+    }).parse(request.data);
+    const snapshot = await db.collection("users").limit(500).get();
+    const recipients = snapshot.docs.filter((document) => {
+      if (document.get("status") === "suspended") return false;
+      if (input.audience === "standalone") return document.get("hasGymConnection") !== true;
+      if (input.audience === "gymConnected") return document.get("hasGymConnection") === true;
+      if (input.audience === "owners") return document.get("ownsGym") === true;
+      return true;
+    });
+    const noticeRef = db.collection("platform_service_notices").doc();
+    await noticeRef.create({
+      audience: input.audience,
+      title: input.title,
+      body: input.body,
+      recipientCount: recipients.length,
+      createdBy: request.auth!.uid,
+      createdAt: FieldValue.serverTimestamp()
+    });
+    for (let offset = 0; offset < recipients.length; offset += 400) {
+      const batch = db.batch();
+      for (const recipient of recipients.slice(offset, offset + 400)) {
+        batch.create(db.collection(`users/${recipient.id}/notifications`).doc(), {
+          recipientUid: recipient.id,
+          type: "platformNotice",
+          title: input.title,
+          body: input.body,
+          data: { noticeId: noticeRef.id },
+          read: false,
+          createdAt: FieldValue.serverTimestamp()
+        });
+      }
+      await batch.commit();
+    }
+    await Promise.all(recipients.map((recipient) => sendPush(
+      recipient.id,
+      input.title,
+      input.body,
+      { type: "platformNotice", noticeId: noticeRef.id }
+    ).catch(() => undefined)));
+    return { noticeId: noticeRef.id, recipientCount: recipients.length, truncated: snapshot.size === 500 };
+  }
+);
+
 export const setConsumerStatus = onCall(
   { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
   async (request) => {
@@ -2564,22 +3679,62 @@ export const updatePlatformBranding = onCall(
 
 async function deleteConsumerData(uid: string) {
   const userRef = db.doc(`users/${uid}`);
-  const collections = await userRef.listCollections();
-  for (const collection of collections) {
-    while (true) {
-      const snapshot = await collection.limit(400).get();
-      if (snapshot.empty) break;
-      const batch = db.batch();
-      snapshot.docs.forEach((document) => batch.delete(document.ref));
-      await batch.commit();
-    }
-  }
+  await db.recursiveDelete(userRef);
   await getStorage().bucket().deleteFiles({ prefix: `users/${uid}/` });
-  await userRef.delete();
   await getAuth().deleteUser(uid).catch((error: unknown) => {
     logger.warn("Auth user deletion failed after data deletion", { uid, error });
   });
 }
+
+export const purgeExpiredSupportContent = onSchedule(
+  { region: REGION, schedule: "every day 03:15", timeZone: "Asia/Kolkata" },
+  async () => {
+    const now = Timestamp.now();
+    const [gymThreads, platformCases] = await Promise.all([
+      db.collectionGroup("support_threads")
+        .where("retentionDeleteAt", "<=", now).limit(50).get(),
+      db.collectionGroup("support_cases")
+        .where("retentionDeleteAt", "<=", now).limit(50).get()
+    ]);
+    for (const document of [...gymThreads.docs, ...platformCases.docs]) {
+      const parts = document.ref.path.split("/");
+      const isGym = parts[0] === "gyms";
+      const ownerId = parts[1];
+      const prefix = isGym
+        ? `gyms/${ownerId}/support/${document.id}/`
+        : `users/${ownerId}/support/${document.id}/`;
+      await db.collection("platform_support_audit").add({
+        action: "support.content_purged",
+        scopeType: isGym ? "gym" : "platform",
+        subjectId: ownerId,
+        threadId: document.id,
+        category: document.get("category") ?? null,
+        resolvedAt: document.get("resolvedAt") ?? null,
+        createdAt: FieldValue.serverTimestamp()
+      });
+      const memberUid = isGym ? String(document.get("memberUid") ?? "") : ownerId;
+      const inboxId = isGym
+        ? `gym_${ownerId}_${document.id}`
+        : `platform_${document.id}`;
+      await Promise.all([
+        db.recursiveDelete(document.ref),
+        memberUid
+          ? db.doc(`users/${memberUid}/support_inbox/${inboxId}`).delete()
+            .catch(() => undefined)
+          : Promise.resolve(),
+        getStorage().bucket().deleteFiles({ prefix }).catch((error) =>
+          logger.warn("Support attachment cleanup failed", {
+            prefix,
+            error: String(error)
+          }))
+      ]);
+    }
+    logger.info("Expired support content purged", {
+      gymThreads: gymThreads.size,
+      platformCases: platformCases.size
+    });
+  }
+);
 
 export const purgeExpiredConsumerDeletionRequests = onSchedule(
   { region: REGION, schedule: "every day 02:30", timeZone: "Asia/Kolkata" },

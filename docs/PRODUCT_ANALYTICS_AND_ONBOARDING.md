@@ -35,6 +35,21 @@ A private server-owned throttle document limits the same user, gym and feature
 to one counted open per 15 minutes. It is not readable or writable by clients
 and prevents accidental navigation loops from distorting the counters.
 
+The merged member gym-services surface reuses the stable `attendance` and
+`classes` identifiers. Opening an enabled service and successful check-in,
+booking or scheduling actions feed the same throttled gym-scoped adoption
+counter; QR contents, class names, attendance records and booking details are
+never included in analytics metadata. The platform console therefore measures
+feature adoption without becoming a source of member activity history.
+
+The support hub uses stable `supportTrainer`, `supportGym` and
+`supportPlatform` identifiers. The server derives gym/personal scope, audience
+and category and records bounded outcomes for case creation/routing, claim,
+first response, resolution and reopen. Message text, attachments, exercise
+labels, workout records and health content are never analytics metadata.
+Resolution feedback is optional and must use the existing bounded rating/text
+contract without copying conversation content.
+
 ## New feature observability checklist
 
 Feature monitoring is part of the implementation, not a follow-up task. For

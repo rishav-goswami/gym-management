@@ -117,6 +117,9 @@ Sign in as `platform.admin@example.com` and open **Platform administration**.
 - Open **Platform brand**, edit introduction copy/colors, save, and verify a
   fresh installation loads it. Keep `personalSpacesV1` disabled until the
   migration/security checklist passes in non-local environments.
+- Open **Support inbox**, confirm cases are ordered newest first, reply as Gym
+  Management Support, and resolve/reopen one case. The screen must show a
+  retryable product message rather than a raw callable/internal error.
 - Temporarily selecting suspended should block normal tenant access. Restore the
   tenant to active before testing other roles.
 - To test provisioning, copy an Auth UID from the Emulator UI, select
@@ -135,8 +138,10 @@ Sign in as `owner@pilotgym.example.com` and select Pilot Gym.
   raw Firebase UID, search by name/email/phone, inspect plan and profile status,
   then open a row and change only an intended
   role/status value. Test CSV export.
-- **Attendance:** generate a 60-second QR and confirm it renders. Attendance CSV
-  export should complete even when the list is small.
+- **Attendance:** generate a 60-second QR and confirm it renders. Confirm recent
+  check-ins show member names instead of raw UIDs. Use **Correct attendance** to
+  add and then remove one dated entry with a reason, and verify the audit event.
+  Attendance CSV export should complete even when the list is small.
 - **Classes:** schedule a class with a positive capacity and confirm it appears.
 - **Payments:** open **Plans** and confirm the three seeded offerings. Use
   **Record renewal** to select the seeded member and a plan, then enter the
@@ -146,8 +151,18 @@ Sign in as `owner@pilotgym.example.com` and select Pilot Gym.
   invitation-ready sheet offers the native share action and a copy-link
   fallback. Only the token hash is stored by the backend.
 - **Notices:** publish a notice and confirm it appears in the bounded list.
+- **Support:** open the helper inbox and confirm owner/manager accounts see all
+  categories, trainers see coaching only, reception sees operational topics,
+  and accountants see payment topics. Open a request, reply, resolve/reopen it,
+  and use the back arrow to return to the dashboard. Repeat with a legacy role
+  snapshot that has no `support.*` keys and with an explicit false override.
 - **Settings:** change the gym name or primary color, save it, switch context,
   and reopen Pilot Gym to reload runtime branding.
+
+At phone widths, owner, trainer, reception and accounting workspaces use the
+app-bar menu and side drawer for all operational destinations; they must not
+fall back to a truncated bottom bar. The consumer/member shell keeps its
+fitness-first bottom navigation.
 
 Do not use production personal data during local testing.
 
@@ -254,9 +269,36 @@ merged into the same Home/Training/Progress/Profile shell. Open
   a permanent public URL.
 - **Check in:** scan the owner's current QR before its 60-second expiry. Confirm
   the attendance document. A second scan must not create a duplicate check-in.
-- **Classes:** book a scheduled class and confirm its booked count changes. A
-  full class must reject another booking atomically.
-- **Support:** create/open the trainer conversation and exchange a message.
+  In the merged member app, confirm **Home → At Pilot Gym → Check in** shows
+  only that member's bounded attendance history. A standalone user must not see
+  the gym-services card.
+- **Classes:** confirm **Home → At Pilot Gym → Classes** lists upcoming sessions
+  in chronological order. Book a scheduled class, confirm the button changes to
+  **Cancel** and the booked count changes, then cancel and confirm capacity is
+  restored. A full class must reject another booking atomically. Disable the
+  tenant's `classes` entitlement and confirm the service disappears without
+  affecting personal Training or Progress.
+- **Support:** open **Profile → Help & Support**. Verify a connected member sees
+  **Ask your trainer**, **Contact Pilot Gym**, and **App support**, while a
+  standalone consumer sees only exercise/content and platform routes. From an
+  exercise, routine and gym assignment choose **Ask trainer** and confirm only
+  the safe reference appears. Create a coaching request with and without a
+  primary trainer; verify direct routing or the claimable queue. Exchange text
+  and a JPEG/PNG/WebP image under 5 MB, test unread badges and a notification
+  deep link, then resolve and reopen the case. The screen must state that it is
+  not an emergency service.
+- **Gym support permissions:** as trainer read/claim coaching only; as
+  receptionist handle membership/attendance/classes/facilities but not payment;
+  as accountant handle payment only; as owner/manager read and reassign every
+  category. Confirm an owner membership created before support rollout sees
+  **Support** after refreshing. Apply an explicit `false` override and confirm
+  that category disappears immediately. Staff-started cases require a member
+  and written reason. Cross-gym reads and forged client writes must fail.
+- **Platform support:** as the platform administrator, reply to a consumer case,
+  open one with a mandatory reason, and send each Service notice audience.
+  Confirm the user sees **Gym Management Support**, receives only the intended
+  notice, and the console cannot query private fitness subcollections. Ordinary
+  support must not create a private-data support grant.
 - Open the account menu and test **Export my data**. For **Delete my account**,
   cancel at the confirmation dialog unless deletion behavior is the test target.
 

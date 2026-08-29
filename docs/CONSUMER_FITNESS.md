@@ -89,6 +89,17 @@ section; selecting one opens the tenant-branded Profile/Membership/Settings view
 inside the current app rather than navigating to a separate member workspace.
 Sharing controls remain a separate, clearly labelled privacy area.
 
+The merged member Home also exposes an **At _gym name_** card whenever the
+tenant plan enables attendance and/or classes. It opens a branded gym-services
+screen without adding a permanent fifth navigation tab. Members can scan the
+rotating attendance QR, review their own bounded check-in history, see upcoming
+classes, book an available place and cancel an active booking. Standalone users
+never see this card. Owners and authorized staff retain the operational
+Attendance and Classes destinations for QR generation, bounded attendance
+history/CSV export, scheduling, capacity and trainer workflows. Tenant feature
+entitlements and the platform attendance emergency switch control visibility;
+fitness-data sharing consent does not.
+
 Active member affiliation is a presentation and authorization overlay, not a
 fitness-data scope switch. Guided and self-created workouts continue writing to
 `users/{uid}`. Trainer assignments are read from the gym and their results enter
@@ -153,6 +164,31 @@ queries fitness subcollections directly. A support operator must enter a reason
 to obtain a 15-minute grant. Every category view creates platform audit data and
 a user-visible `support_history` entry.
 
+Ordinary product support is separate from that private-data grant. Profile,
+Home and contextual training actions open **Help & Support**. Standalone users
+can report exercise content or contact **Gym Management Support** about account,
+privacy, onboarding and app issues. Connected members also receive **Ask your
+trainer** plus **Contact _gym_** for membership, payment, attendance, classes
+and facilities. Exercise/routine/assignment actions attach only a stable ID,
+label and optional catalog version; workout logs, measurements and health notes
+are never attached automatically.
+
+Support records use `users/{uid}/support_cases`,
+`gyms/{gymId}/support_threads` and a server-owned
+`users/{uid}/support_inbox` projection. Messages are callable-only, unread
+counters/status transitions are server-owned, and JPEG/PNG/WebP attachments are
+private and limited to 5 MB after client compression. Push and notification
+drawer taps deep-link into the conversation. Cases use `open`,
+`waitingOnSupport`, `waitingOnUser`, `resolved` and `closed`; resolved/closed
+content and attachments receive a 12-month deletion timestamp while
+content-free audit events remain. Support is asynchronous and is explicitly not
+an emergency or medical service.
+
+Leaving a gym removes that gym's support inbox projections together with
+fitness-sharing projections, while the tenant keeps its operational support
+history. A later approved rejoin restores bounded inbox entries from the same
+tenant threads.
+
 Suspension revokes refresh tokens and rules deny personal data/media. Account
 deletion immediately revokes sharing, disables the Auth user and schedules
 personal Firestore and Storage deletion after 30 days. Tenant operational data
@@ -172,6 +208,11 @@ deterministic `gym_<gymId>_<sourceId>` IDs and `legacyGym` source metadata.
 Migration `004_personal_progress_media` copies eligible progress images into
 private user paths without deleting originals. Both are resumable and are
 recorded in `_schema_migrations` only after success.
+
+Migration `005_unified_support_hub` copies legacy trainer conversations into
+deterministic `legacy_<conversationId>` support threads/messages and creates the
+member inbox projection. It preserves every legacy document during rollout and
+is safe to resume without duplicate threads.
 
 After backup and staging verification, apply with the exact-project guard:
 

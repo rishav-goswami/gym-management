@@ -91,6 +91,9 @@ class FirebaseBootstrap {
   static Future<void> _setRemoteConfigDefaults() =>
       FirebaseRemoteConfig.instance.setDefaults(const {
         'chat_enabled': true,
+        'gym_support_enabled': true,
+        'platform_support_enabled': true,
+        'support_images_enabled': true,
         'attendance_qr_enabled': true,
         'progress_photos_enabled': true,
         'personal_spaces_v1': false,

@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { assertFails, assertSucceeds, initializeTestEnvironment, RulesTestEnvironment } from "@firebase/rules-unit-testing";
-import { deleteDoc, doc, getDoc, setDoc, Timestamp, updateDoc } from "firebase/firestore";
+import {
+  collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query,
+  setDoc, Timestamp, updateDoc, where, type Firestore
+} from "firebase/firestore";
 import { getBytes, ref, uploadBytes } from "firebase/storage";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
@@ -54,6 +57,10 @@ beforeEach(async () => {
     await setDoc(doc(store, "gym_memberships/gym-a_member-a"), {
       gymId: "gym-a", uid: "member-a", role: "member", status: "active", permissions: { "fitness.read": true }
     });
+    await setDoc(doc(store, "gym_memberships/gym-a_suspended-user"), {
+      gymId: "gym-a", uid: "suspended-user", role: "member", status: "active",
+      permissions: { "fitness.read": true }
+    });
     await setDoc(doc(store, "gym_memberships/gym-b_member-b"), {
       gymId: "gym-b", uid: "member-b", role: "member", status: "active", permissions: { "fitness.read": true }
     });
@@ -65,11 +72,25 @@ beforeEach(async () => {
     });
     await setDoc(doc(store, "gym_memberships/gym-a_owner-a"), {
       gymId: "gym-a", uid: "owner-a", role: "owner", status: "active",
-      permissions: { "plans.manage": true, "payments.write": true, "payments.read": true }
+      permissions: {
+        "plans.manage": true, "payments.write": true, "payments.read": true
+      }
+    });
+    await setDoc(doc(store, "gym_memberships/gym-a_restricted-owner"), {
+      gymId: "gym-a", uid: "restricted-owner", role: "owner", status: "active",
+      permissions: { "support.manage": false }
     });
     await setDoc(doc(store, "gym_memberships/gym-a_trainer-a"), {
       gymId: "gym-a", uid: "trainer-a", role: "trainer", status: "active",
-      permissions: { "fitness.manage": true }
+      permissions: { "fitness.manage": true, "support.coaching": true }
+    });
+    await setDoc(doc(store, "gym_memberships/gym-a_reception-a"), {
+      gymId: "gym-a", uid: "reception-a", role: "receptionist", status: "active",
+      permissions: { "support.manage": true }
+    });
+    await setDoc(doc(store, "gym_memberships/gym-a_accountant-a"), {
+      gymId: "gym-a", uid: "accountant-a", role: "accountant", status: "active",
+      permissions: { "support.billing": true }
     });
     await setDoc(doc(store, "gyms/gym-a/members/member-a"), { memberUid: "member-a", name: "A" });
     await setDoc(doc(store, "gyms/gym-b/members/member-b"), { memberUid: "member-b", name: "B" });
@@ -107,6 +128,33 @@ beforeEach(async () => {
     });
     await setDoc(doc(store, "platform_feedback/feedback-a"), {
       gymId: "gym-a", uid: "member-a", rating: 5, message: "Useful"
+    });
+    await setDoc(doc(store, "gyms/gym-a/trainer_assignments/member-a"), {
+      gymId: "gym-a", memberUid: "member-a", primaryTrainerUid: "trainer-a", status: "active"
+    });
+    await setDoc(doc(store, "gyms/gym-a/support_threads/coaching-a"), {
+      gymId: "gym-a", memberUid: "member-a", category: "coaching", status: "open",
+      lastMessageAt: Timestamp.now()
+    });
+    await setDoc(doc(store, "gyms/gym-a/support_threads/operations-a"), {
+      gymId: "gym-a", memberUid: "member-a", category: "attendance", status: "open",
+      lastMessageAt: Timestamp.now()
+    });
+    await setDoc(doc(store, "gyms/gym-a/support_threads/payment-a"), {
+      gymId: "gym-a", memberUid: "member-a", category: "payment", status: "open",
+      lastMessageAt: Timestamp.now()
+    });
+    await setDoc(doc(store, "gyms/gym-a/support_threads/coaching-a/messages/message-a"), {
+      gymId: "gym-a", threadId: "coaching-a", senderUid: "member-a", text: "Help"
+    });
+    await setDoc(doc(store, "users/member-a/support_cases/case-a"), {
+      caseId: "case-a", targetUid: "member-a", category: "account", subject: "Login", status: "open"
+    });
+    await setDoc(doc(store, "users/member-a/support_cases/case-a/messages/message-a"), {
+      senderUid: "member-a", text: "Help"
+    });
+    await setDoc(doc(store, "users/member-a/support_inbox/platform_case-a"), {
+      scopeType: "platform", threadId: "case-a", unread: true
     });
   });
 });
@@ -157,6 +205,7 @@ describe("Firestore tenant isolation", () => {
   it("exposes server-owned projections only inside the active gym", async () => {
     const trainer = environment.authenticatedContext("trainer-a").firestore();
     const outsider = environment.authenticatedContext("member-b").firestore();
+    const suspended = environment.authenticatedContext("suspended-user").firestore();
     const path = "gyms/gym-a/shared_fitness/member-a/workout_logs/log-a";
     await assertSucceeds(getDoc(doc(trainer, path)));
     await assertFails(getDoc(doc(outsider, path)));
@@ -307,6 +356,85 @@ describe("Firestore tenant isolation", () => {
     await assertSucceeds(getDoc(doc(admin, "platform_feature_metrics/training")));
     await assertSucceeds(getDoc(doc(admin, "platform_feedback/feedback-a")));
   });
+
+  it("routes gym support reads by member identity and staff permissions", async () => {
+    const member = environment.authenticatedContext("member-a").firestore();
+    const trainer = environment.authenticatedContext("trainer-a").firestore();
+    const reception = environment.authenticatedContext("reception-a").firestore();
+    const accountant = environment.authenticatedContext("accountant-a").firestore();
+    const owner = environment.authenticatedContext("owner-a").firestore();
+    const restrictedOwner = environment
+      .authenticatedContext("restricted-owner")
+      .firestore();
+    const outsider = environment.authenticatedContext("member-b").firestore();
+    const suspended = environment
+      .authenticatedContext("suspended-user")
+      .firestore();
+    await assertSucceeds(getDoc(doc(member, "gyms/gym-a/support_threads/coaching-a")));
+    await assertSucceeds(getDoc(doc(trainer, "gyms/gym-a/support_threads/coaching-a")));
+    await assertFails(getDoc(doc(trainer, "gyms/gym-a/support_threads/operations-a")));
+    await assertSucceeds(getDoc(doc(reception, "gyms/gym-a/support_threads/operations-a")));
+    await assertFails(getDoc(doc(reception, "gyms/gym-a/support_threads/payment-a")));
+    await assertSucceeds(getDoc(doc(accountant, "gyms/gym-a/support_threads/payment-a")));
+    await assertFails(getDoc(doc(accountant, "gyms/gym-a/support_threads/coaching-a")));
+    await assertSucceeds(getDoc(doc(owner, "gyms/gym-a/support_threads/coaching-a")));
+    await assertSucceeds(getDoc(doc(owner, "gyms/gym-a/support_threads/operations-a")));
+    await assertSucceeds(getDoc(doc(owner, "gyms/gym-a/support_threads/payment-a")));
+    await assertFails(getDoc(doc(
+      restrictedOwner,
+      "gyms/gym-a/support_threads/operations-a"
+    )));
+    await assertFails(getDoc(doc(outsider, "gyms/gym-a/support_threads/coaching-a")));
+    await assertFails(getDoc(doc(suspended, "gyms/gym-a/support_threads/coaching-a")));
+    await assertFails(setDoc(doc(member, "gyms/gym-a/support_threads/forged"), {
+      gymId: "gym-a", memberUid: "member-a", category: "coaching"
+    }));
+    await assertFails(setDoc(doc(
+      member,
+      "gyms/gym-a/support_threads/coaching-a/messages/forged"
+    ), { senderUid: "member-a", text: "Bypass" }));
+  });
+
+  it("allows bounded inbox queries only for categories the helper can handle", async () => {
+    const owner = environment.authenticatedContext("owner-a").firestore();
+    const trainer = environment.authenticatedContext("trainer-a").firestore();
+    const reception = environment.authenticatedContext("reception-a").firestore();
+    const accountant = environment.authenticatedContext("accountant-a").firestore();
+    const bounded = (store: Firestore, categories: string[]) => query(
+      collection(store, "gyms/gym-a/support_threads"),
+      where("category", "in", categories),
+      orderBy("lastMessageAt", "desc"),
+      limit(50)
+    );
+
+    await assertSucceeds(getDocs(bounded(owner, [
+      "coaching", "payment", "membership", "attendance", "classes", "facility", "other"
+    ])));
+    await assertSucceeds(getDocs(bounded(trainer, ["coaching"])));
+    await assertSucceeds(getDocs(bounded(reception, [
+      "membership", "attendance", "classes", "facility", "other"
+    ])));
+    await assertSucceeds(getDocs(bounded(accountant, ["payment"])));
+    await assertFails(getDocs(bounded(trainer, ["coaching", "attendance"])));
+  });
+
+  it("keeps platform cases user-scoped while allowing audited operator work", async () => {
+    const owner = environment.authenticatedContext("member-a").firestore();
+    const other = environment.authenticatedContext("member-b").firestore();
+    const admin = environment.authenticatedContext(
+      "platform-admin", { platformAdmin: true }
+    ).firestore();
+    await assertSucceeds(getDoc(doc(owner, "users/member-a/support_cases/case-a")));
+    await assertSucceeds(getDoc(doc(owner, "users/member-a/support_inbox/platform_case-a")));
+    await assertSucceeds(getDoc(doc(admin, "users/member-a/support_cases/case-a")));
+    await assertFails(getDoc(doc(other, "users/member-a/support_cases/case-a")));
+    await assertFails(setDoc(doc(owner, "users/member-a/support_cases/forged"), {
+      targetUid: "member-a", status: "open"
+    }));
+    await assertFails(setDoc(doc(admin, "users/member-a/support_cases/forged"), {
+      targetUid: "member-a", status: "open"
+    }));
+  });
 });
 
 describe("Storage tenant isolation", () => {
@@ -353,6 +481,29 @@ describe("Storage tenant isolation", () => {
       ref(memberStorage, "gyms/gym-a/branding/member-logo.png"), image,
       { contentType: "image/png" }
     ));
+  });
+
+  it("limits support attachments to authorized images under five megabytes", async () => {
+    const image = new Uint8Array([137, 80, 78, 71]);
+    const member = environment.authenticatedContext("member-a").storage();
+    const trainer = environment.authenticatedContext("trainer-a").storage();
+    const legacyOwner = environment.authenticatedContext("owner-a").storage();
+    const outsider = environment.authenticatedContext("member-b").storage();
+    const admin = environment.authenticatedContext(
+      "platform-admin", { platformAdmin: true }
+    ).storage();
+    const gymPath = "gyms/gym-a/support/coaching-a/photo.png";
+    const platformPath = "users/member-a/support/case-a/screenshot.png";
+    await assertSucceeds(uploadBytes(ref(member, gymPath), image, { contentType: "image/png" }));
+    await assertSucceeds(getBytes(ref(trainer, gymPath)));
+    await assertSucceeds(getBytes(ref(legacyOwner, gymPath)));
+    await assertFails(getBytes(ref(outsider, gymPath)));
+    await assertFails(uploadBytes(ref(member, gymPath.replace(".png", ".mp4")), image, {
+      contentType: "video/mp4"
+    }));
+    await assertSucceeds(uploadBytes(ref(member, platformPath), image, { contentType: "image/png" }));
+    await assertSucceeds(getBytes(ref(admin, platformPath)));
+    await assertFails(getBytes(ref(outsider, platformPath)));
   });
 
   it("allows signed-in reads but no client writes for platform exercise media", async () => {

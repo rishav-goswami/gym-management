@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gym_core/gym_core.dart';
 
+import '../../../core/config/app_feature_flags.dart';
 import '../../data/gym_repository.dart';
 import '../../domain/exercise_guide.dart';
+import '../../domain/member_gym_service.dart';
 import '../workspace/member_billing_panel.dart';
 import 'exercise_media_image.dart';
 import 'member_training_panel.dart';
@@ -13,11 +15,15 @@ class MemberHomePanel extends StatefulWidget {
   const MemberHomePanel({
     required this.membership,
     this.fitnessScope,
+    this.onOpenGymServices,
+    this.onOpenSupport,
     super.key,
   });
 
   final GymMembership membership;
   final FitnessScope? fitnessScope;
+  final VoidCallback? onOpenGymServices;
+  final VoidCallback? onOpenSupport;
 
   @override
   State<MemberHomePanel> createState() => _MemberHomePanelState();
@@ -61,6 +67,10 @@ class _MemberHomePanelState extends State<MemberHomePanel>
         final profileLoaded = snapshot.hasData;
         final goal = _recommendedGoal(profile);
         final plan = exercisesForGoal(goal, limit: 5);
+        final gymServices = availableMemberGymServices(
+          membership: membership,
+          attendancePlatformEnabled: AppFeatureFlags.attendanceQr,
+        );
         return ListView(
           key: PageStorageKey(
             'member-home-${membership.gymId}-${membership.uid}',
@@ -84,6 +94,14 @@ class _MemberHomePanelState extends State<MemberHomePanel>
               ),
             const SizedBox(height: 16),
             MemberSubscriptionBanner(membership: membership),
+            if (widget.onOpenGymServices != null && gymServices.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              _GymServicesCard(
+                membership: membership,
+                services: gymServices,
+                onOpen: widget.onOpenGymServices!,
+              ),
+            ],
             const SizedBox(height: 20),
             _TodayWorkoutCard(
               exercises: plan,
@@ -106,6 +124,8 @@ class _MemberHomePanelState extends State<MemberHomePanel>
                 subtitle: const Text(
                   'Open Support to message your trainer or gym team before changing a prescribed routine.',
                 ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: widget.onOpenSupport,
               ),
             ),
           ],
@@ -123,6 +143,74 @@ class _MemberHomePanelState extends State<MemberHomePanel>
     }
     return TrainingGoal.improveFitness;
   }
+}
+
+class _GymServicesCard extends StatelessWidget {
+  const _GymServicesCard({
+    required this.membership,
+    required this.services,
+    required this.onOpen,
+  });
+
+  final GymMembership membership;
+  final List<MemberGymService> services;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    color: Theme.of(context).colorScheme.secondaryContainer,
+    child: InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onOpen,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              child: const Icon(Icons.storefront_outlined),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'At ${membership.gymName}',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      for (final service in services)
+                        Chip(
+                          avatar: Icon(
+                            service == MemberGymService.attendance
+                                ? Icons.qr_code_scanner
+                                : Icons.event_available_outlined,
+                            size: 17,
+                          ),
+                          label: Text(
+                            service == MemberGymService.attendance
+                                ? 'Check in'
+                                : 'Classes',
+                          ),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _TodayWorkoutCard extends StatelessWidget {

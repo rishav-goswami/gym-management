@@ -21,8 +21,19 @@ the product boundaries, verification baseline, and canonical project documents.
 - Firestore tenant data under `gyms/{gymId}` and memberships at `gym_memberships/{gymId_uid}`.
 - Runtime gym logo, name, tagline and color branding with responsive staff,
   trainer, and member workspaces.
+- Gym-connected members keep the four-tab consumer shell and receive a branded
+  **At your gym** service area for QR attendance history and upcoming class
+  booking/cancellation; owners and authorized staff manage the same features
+  from their operational workspace.
+- A routed **Help & Support** hub separates trainer coaching, gym operations,
+  and Gym Management platform support. It includes permission-scoped staff
+  inboxes, primary-trainer assignment/queue fallback, private image attachments,
+  unread notifications/deep links, service notices, and 12-month resolved-case
+  retention.
 - A separately deployed platform console for tenant provisioning and status control, with no public registration or customer-app route.
-- Callable Functions for gym provisioning, invitations, recorded renewals, rotating QR attendance, atomic class booking, safe chat creation, export/deletion requests, FCM notifications, and expiry reminders.
+- Callable Functions for gym provisioning, invitations, recorded renewals,
+  rotating QR attendance, atomic class booking, routed support, export/deletion
+  requests, FCM notifications, and expiry reminders.
 - Verified self-service owner trials with versioned SaaS plans, transactional usage limits, upgrade requests, and platform-admin approval.
 - Firestore and Storage rules that deny cross-gym access and stop access to suspended gyms.
 - Development/staging/production aliases, tracked rules/indexes, Emulator Suite configuration, and a repeatable pilot seed.
@@ -396,6 +407,24 @@ overwrite console-edited rules, so make the repository the source of truth:
 firebase deploy --project createmix-in \
   --only firestore:rules,firestore:indexes,storage,functions,remoteconfig
 ```
+
+Firebase CLI login does not authenticate the numbered Admin SDK migrations.
+Install the Google Cloud CLI once, then create local Application Default
+Credentials without downloading or committing a service-account key:
+
+```sh
+gcloud auth application-default login
+npm run migrate:data -- --project createmix-in --dry-run
+npm run migrate:data -- \
+  --project createmix-in \
+  --bucket createmix-in.firebasestorage.app \
+  --confirm createmix-in
+```
+
+Review the dry-run before applying. Applied migrations are recorded under
+`_schema_migrations`, skipped on later runs, and must never be edited in place.
+For migration `005_unified_support_hub`, legacy conversations are copied to
+deterministic support threads and retained at their original paths for rollback.
 
 Build and deploy both Hosting targets:
 

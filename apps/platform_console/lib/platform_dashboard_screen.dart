@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'platform_insights_panel.dart';
+import 'platform_support_panel.dart';
 import 'consumer_management_panel.dart';
 import 'platform_branding_panel.dart';
 import 'tenant_branding_dialog.dart';
@@ -16,6 +17,8 @@ enum _ConsoleSection {
   plans('Plans & upgrades', Icons.workspace_premium_outlined),
   analytics('Feature analytics', Icons.query_stats_outlined),
   feedback('Feedback', Icons.forum_outlined),
+  support('Support inbox', Icons.support_agent_outlined),
+  notices('Service notices', Icons.campaign_outlined),
   platformBrand('Platform brand', Icons.palette_outlined);
 
   const _ConsoleSection(this.label, this.icon);
@@ -162,6 +165,17 @@ class _PlatformDashboardScreenState extends State<PlatformDashboardScreen> {
       title: 'Product feedback',
       description: 'Review member, trainer and owner ratings and comments.',
       child: PlatformInsightsPanel(view: PlatformInsightsView.feedback),
+    ),
+    _ConsoleSection.support => const _ConsolePage(
+      title: 'Platform support',
+      description:
+          'Reply to consumer cases without browsing private fitness data.',
+      child: PlatformSupportPanel(),
+    ),
+    _ConsoleSection.notices => const _ConsolePage(
+      title: 'Service notices',
+      description: 'Send bounded operational updates to consumer audiences.',
+      child: PlatformServiceNoticesPanel(),
     ),
     _ConsoleSection.platformBrand => const _ConsolePage(
       title: 'Platform branding',

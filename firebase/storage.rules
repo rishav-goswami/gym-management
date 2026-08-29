@@ -11,6 +11,9 @@ service firebase.storage {
     }
     function activeGym(gymId) {
       return signedIn() &&
+        (!firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) ||
+         !('status' in firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data) ||
+         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.status == 'active') &&
         firestore.exists(/databases/(default)/documents/gym_memberships/$(gymId + '_' + request.auth.uid)) &&
         membership(gymId).status == 'active' &&
         firestore.get(/databases/(default)/documents/gyms/$(gymId)).data.status in ['trial', 'active'];
@@ -20,6 +23,18 @@ service firebase.storage {
     }
     function brandingManager(gymId) {
       return activeGym(gymId) && membership(gymId).role in ['owner', 'manager'];
+    }
+    function legacySupportPermission(gymId, key) {
+      let currentRole = membership(gymId).role;
+      return (key == 'support.coaching' && currentRole in ['owner', 'manager', 'trainer']) ||
+        (key == 'support.billing' && currentRole in ['owner', 'manager', 'accountant']) ||
+        (key == 'support.manage' && currentRole in ['owner', 'manager', 'receptionist']);
+    }
+    function permission(gymId, key) {
+      return activeGym(gymId) &&
+        ((key in membership(gymId).permissions &&
+          membership(gymId).permissions[key] == true) ||
+         (!(key in membership(gymId).permissions) && legacySupportPermission(gymId, key)));
     }
     function conversationParticipant(gymId, conversationId) {
       return activeGym(gymId) && request.auth.uid in
@@ -31,6 +46,20 @@ service firebase.storage {
     function safeMedia() {
       return request.resource.size < 50 * 1024 * 1024 &&
         request.resource.contentType.matches('(image|video)/.*');
+    }
+    function safeSupportImage() {
+      return request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+    function gymSupportAllowed(gymId, threadId) {
+      let support = firestore.get(
+        /databases/(default)/documents/gyms/$(gymId)/support_threads/$(threadId)
+      ).data;
+      return activeGym(gymId) &&
+        (support.memberUid == request.auth.uid ||
+         (support.category == 'coaching' && permission(gymId, 'support.coaching')) ||
+         (support.category == 'payment' && permission(gymId, 'support.billing')) ||
+         (!(support.category in ['coaching', 'payment']) && permission(gymId, 'support.manage')));
     }
     function activeConsumer(uid) {
       return signedIn() && request.auth.uid == uid &&
@@ -71,6 +100,13 @@ service firebase.storage {
       allow write: if consentedConsumer(uid) && safeImage();
     }
 
+    match /users/{uid}/support/{caseId}/{fileName} {
+      allow read: if activeConsumer(uid) || platformAdmin();
+      allow write: if (activeConsumer(uid) || platformAdmin()) &&
+        firestore.exists(/databases/(default)/documents/users/$(uid)/support_cases/$(caseId)) &&
+        safeSupportImage();
+    }
+
     match /gyms/{gymId}/branding/{fileName} {
       allow read: if true;
       allow write: if (platformAdmin() || brandingManager(gymId)) && safeImage();
@@ -94,6 +130,11 @@ service firebase.storage {
     match /gyms/{gymId}/chat/{conversationId}/{fileName} {
       allow read: if conversationParticipant(gymId, conversationId);
       allow write: if conversationParticipant(gymId, conversationId) && safeMedia();
+    }
+
+    match /gyms/{gymId}/support/{threadId}/{fileName} {
+      allow read: if gymSupportAllowed(gymId, threadId);
+      allow write: if gymSupportAllowed(gymId, threadId) && safeSupportImage();
     }
   }
 }

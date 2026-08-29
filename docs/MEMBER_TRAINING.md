@@ -30,6 +30,16 @@ app's visual design or proprietary media:
 7. Trainer-authored `workout_assignments` remain visible above self-guided
    workouts. The next trainer iteration should replace free-text routines with
    structured exercises and revisions.
+8. Exercise details, personal routines and gym assignments expose **Ask
+   trainer** when the consumer has a connected gym. The support request includes
+   only the stable exercise/routine/assignment reference. A primary trainer is
+   shown in the gym profile; when none is available, the request enters a
+   permission-scoped trainer queue that one trainer can claim atomically.
+
+Technique support remains asynchronous general coaching. Trainers do not
+receive private workout logs, measurements, limitations or progress photos from
+opening a request. A member may voluntarily describe or attach relevant context
+and can stop sharing any personal projection independently of the support case.
 
 ### Member-created routines and free logging
 

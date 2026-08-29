@@ -8,6 +8,8 @@ import 'package:gym_core/gym_core.dart';
 import '../../data/gym_repository.dart';
 import '../../domain/custom_workout.dart';
 import '../../domain/exercise_guide.dart';
+import '../../logic/session_cubit.dart';
+import '../support/support_hub_screen.dart';
 
 Future<void> openMemberWorkoutLogger(
   BuildContext context,
@@ -37,6 +39,12 @@ class MemberRoutinesSection extends StatelessWidget {
   ) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
     stream: context.read<GymRepository>().fitnessRoutines(scope, limit: 30),
     builder: (context, snapshot) {
+      final connectedGym = context
+          .watch<SessionCubit>()
+          .state
+          .memberships
+          .where((membership) => membership.role == GymRole.member)
+          .firstOrNull;
       final routines =
           snapshot.data?.docs
               .map(
@@ -186,6 +194,26 @@ class MemberRoutinesSection extends StatelessWidget {
                         icon: const Icon(Icons.play_arrow),
                         label: const Text('Start and log'),
                       ),
+                      if (connectedGym != null) ...[
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => SupportHubScreen(
+                                membership: connectedGym,
+                                initialRoute: 'trainer',
+                                supportContext: {
+                                  'type': 'routine',
+                                  'id': routine.id,
+                                  'label': routine.name,
+                                },
+                              ),
+                            ),
+                          ),
+                          icon: const Icon(Icons.chat_bubble_outline),
+                          label: const Text('Ask trainer'),
+                        ),
+                      ],
                     ],
                   ),
                 ),

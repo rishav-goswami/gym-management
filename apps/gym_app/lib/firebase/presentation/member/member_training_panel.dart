@@ -11,6 +11,7 @@ import '../../domain/exercise_guide.dart';
 import '../../domain/workout_draft.dart';
 import 'member_custom_workouts.dart';
 import 'exercise_media_image.dart';
+import '../support/support_hub_screen.dart';
 
 Future<void> openGuidedWorkout(
   BuildContext context, {
@@ -262,6 +263,27 @@ class _MemberTrainingPanelState extends State<MemberTrainingPanel> {
         showDragHandle: true,
         builder: (sheetContext) => _ExerciseDetails(
           exercise: exercise,
+          onAskSupport: () {
+            Navigator.pop(sheetContext);
+            final membership = context
+                .read<SessionCubit>()
+                .state
+                .memberAppMembership;
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => SupportHubScreen(
+                  membership: membership,
+                  initialRoute: membership == null ? 'platform' : 'trainer',
+                  supportContext: {
+                    'type': 'exercise',
+                    'id': exercise.id,
+                    'label': exercise.name,
+                    'catalogVersion': 'v1',
+                  },
+                ),
+              ),
+            );
+          },
           onVariationTap: (variation) {
             Navigator.pop(sheetContext);
             Future<void>.delayed(Duration.zero, () {
@@ -378,6 +400,26 @@ class _TrainerAssignments extends StatelessWidget {
                       data['routine'] as String? ?? 'No notes supplied.',
                     ),
                     actions: [
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => SupportHubScreen(
+                                membership: membership,
+                                initialRoute: 'trainer',
+                                supportContext: {
+                                  'type': 'assignment',
+                                  'id': document.id,
+                                  'label': data['title'] ?? 'Trainer workout',
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.chat_bubble_outline),
+                        label: const Text('Ask trainer'),
+                      ),
                       TextButton(
                         onPressed: () => Navigator.pop(context),
                         child: const Text('Close'),
@@ -443,8 +485,11 @@ class _ConnectedGymAssignments extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                           trailing: const Icon(Icons.play_arrow),
-                          onTap: () =>
-                              _startAssignment(context, membership, document),
+                          onTap: () => _showAssignmentActions(
+                            context,
+                            membership,
+                            document,
+                          ),
                         ),
                       ),
                     )
@@ -454,6 +499,64 @@ class _ConnectedGymAssignments extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  Future<void> _showAssignmentActions(
+    BuildContext context,
+    GymMembership membership,
+    QueryDocumentSnapshot<Map<String, dynamic>> assignment,
+  ) async {
+    final data = assignment.data();
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                data['title'] as String? ?? 'Trainer workout',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 6),
+              Text(data['routine'] as String? ?? 'No trainer notes supplied.'),
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: () => Navigator.pop(sheetContext, 'start'),
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Start workout'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.pop(sheetContext, 'ask'),
+                icon: const Icon(Icons.chat_bubble_outline),
+                label: const Text('Ask trainer about this plan'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!context.mounted) return;
+    if (action == 'start') {
+      await _startAssignment(context, membership, assignment);
+    } else if (action == 'ask') {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => SupportHubScreen(
+            membership: membership,
+            initialRoute: 'trainer',
+            supportContext: {
+              'type': 'assignment',
+              'id': assignment.id,
+              'label': data['title'] ?? 'Trainer workout',
+            },
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _startAssignment(
@@ -574,10 +677,12 @@ class _ExerciseDetails extends StatelessWidget {
   const _ExerciseDetails({
     required this.exercise,
     required this.onVariationTap,
+    required this.onAskSupport,
   });
 
   final ExerciseGuide exercise;
   final ValueChanged<ExerciseGuide> onVariationTap;
+  final VoidCallback onAskSupport;
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -732,6 +837,12 @@ class _ExerciseDetails extends StatelessWidget {
                   .toList(growable: false),
             ),
           ],
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: onAskSupport,
+            icon: const Icon(Icons.support_agent_outlined),
+            label: const Text('Ask for help with this exercise'),
+          ),
           const SizedBox(height: 10),
           const _TrainingSafetyNote(),
         ],

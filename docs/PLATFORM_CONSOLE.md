@@ -26,6 +26,19 @@ Firebase Web App registration and Hosting target.
   average submitted ratings.
 - **Product feedback** has response/rating summaries plus audience and feature
   filters. It is visible only to platform administrators.
+- **Support inbox** lists consumer-created app/account/content cases and lets an
+  operator reply or resolve them as **Gym Management Support**. An operator may
+  open a visible case only after selecting a consumer and entering a mandatory
+  reason; the real administrator identity and reason are retained in immutable
+  audit data.
+- The support list is ordered by `lastMessageAt` through the tracked
+  `support_cases` collection-group index. Deploy Firestore indexes with the
+  Functions/rules release; omitting that index makes the callable fail closed
+  instead of returning an incomplete inbox.
+- **Service notices** sends bounded notices to standalone consumers,
+  gym-connected members, owners, or all active consumers. Delivery creates
+  private user notifications and push attempts without exposing audience lists
+  in customer clients.
 - **SaaS plans** define versioned quotas and included feature bundles.
 - The subscription action on each tenant applies a plan, access duration,
   status and optional per-gym feature overrides atomically.
@@ -38,6 +51,11 @@ Firebase Web App registration and Hosting target.
 
 Feature counters are directional product signals, not financial or compliance
 records. See `docs/PRODUCT_ANALYTICS_AND_ONBOARDING.md` for the data boundary.
+
+The support inbox only exposes content a consumer voluntarily placed in that
+case. It does not grant access to personal routines, workouts, measurements or
+progress. The 15-minute audited private-data support session remains a separate
+workflow and must not be used as a shortcut for ordinary chat.
 
 ## Access model
 
@@ -91,6 +109,14 @@ npm run console:analyze
 npm run console:test
 npm run console:build:web
 firebase deploy --project createmix-in --only hosting:platform-console
+```
+
+Support releases must also deploy the tracked index and Functions before the
+console Hosting build:
+
+```sh
+firebase deploy --project createmix-in \
+  --only firestore:indexes,firestore:rules,storage,functions
 ```
 
 `npm run deploy:web` builds and deploys both web applications.

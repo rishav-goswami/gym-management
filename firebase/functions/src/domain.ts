@@ -32,6 +32,28 @@ export function bookingDocumentId(sessionId: string, uid: string): string {
   return `${sessionId}_${uid}`;
 }
 
+export const GYM_SUPPORT_CATEGORIES = [
+  "coaching",
+  "membership",
+  "payment",
+  "attendance",
+  "classes",
+  "facility",
+  "other"
+] as const;
+
+export type GymSupportCategory = typeof GYM_SUPPORT_CATEGORIES[number];
+
+export function supportPermissionForCategory(category: GymSupportCategory): string {
+  if (category === "coaching") return "support.coaching";
+  if (category === "payment") return "support.billing";
+  return "support.manage";
+}
+
+export function supportRetentionMillis(resolvedAtMillis: number): number {
+  return resolvedAtMillis + 365 * 24 * 60 * 60 * 1000;
+}
+
 export function renewalWindow(
   requestedStartMillis: number,
   currentEndMillis: number | null,

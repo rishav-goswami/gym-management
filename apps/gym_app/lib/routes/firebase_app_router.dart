@@ -13,6 +13,7 @@ import '../firebase/presentation/member/personal_workspace_screen.dart';
 import '../firebase/presentation/onboarding/consumer_intro_screen.dart';
 import '../firebase/presentation/onboarding/consumer_onboarding_screen.dart';
 import '../firebase/presentation/onboarding/start_gym_trial_screen.dart';
+import '../firebase/presentation/support/support_hub_screen.dart';
 import '../firebase/presentation/workspace/gym_workspace_screen.dart';
 
 GoRouter createFirebaseRouter(SessionCubit session) => GoRouter(
@@ -49,6 +50,24 @@ GoRouter createFirebaseRouter(SessionCubit session) => GoRouter(
     GoRoute(
       path: '/personal',
       builder: (_, _) => const PersonalWorkspaceScreen(),
+    ),
+    GoRoute(
+      path: '/support',
+      builder: (_, state) {
+        final threadId = state.uri.queryParameters['threadId'];
+        if (threadId == null || threadId.isEmpty) {
+          return const SupportHubScreen();
+        }
+        return SupportConversationScreen(
+          scopeType: state.uri.queryParameters['scope'] ?? 'platform',
+          ownerUid: session.state.user!.uid,
+          gymId: state.uri.queryParameters['gymId'],
+          threadId: threadId,
+          subject:
+              state.uri.queryParameters['title'] ?? 'Support conversation',
+          initialStatus: 'open',
+        );
+      },
     ),
     GoRoute(path: '/workspace', builder: (_, _) => const GymWorkspaceScreen()),
   ],
@@ -109,6 +128,7 @@ String? _readyRedirect(
       queryParameters: next == null ? null : {'next': next},
     ).toString();
   }
+  if (location == '/support') return null;
   if (location == '/join' || location == '/start-gym') {
     return null;
   }

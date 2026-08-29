@@ -11,6 +11,8 @@ import {
   normalizePhone,
   renewalWindow,
   secureToken,
+  supportPermissionForCategory,
+  supportRetentionMillis,
   usageFieldForRole
 } from "./domain";
 
@@ -24,6 +26,19 @@ describe("tenant domain identifiers", () => {
     expect(membershipDocumentId("gym-a", "user-1")).toBe("gym-a_user-1");
     expect(attendanceDocumentId("user-1", "2026-08-25")).toBe("2026-08-25_user-1");
     expect(bookingDocumentId("morning-yoga", "user-1")).toBe("morning-yoga_user-1");
+  });
+
+  it("routes gym support categories through the least privileged inbox", () => {
+    expect(supportPermissionForCategory("coaching")).toBe("support.coaching");
+    expect(supportPermissionForCategory("payment")).toBe("support.billing");
+    expect(supportPermissionForCategory("attendance")).toBe("support.manage");
+  });
+
+  it("retains resolved support content for twelve months", () => {
+    const resolvedAt = Date.UTC(2026, 7, 29);
+    expect(supportRetentionMillis(resolvedAt)).toBe(
+      resolvedAt + 365 * 24 * 60 * 60 * 1000
+    );
   });
 
   it("only permits self-service reactivation after a voluntary leave", () => {

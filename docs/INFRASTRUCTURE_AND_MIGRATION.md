@@ -181,7 +181,7 @@ rules own access.
 - FCM registration tokens are tied to the Firebase project. Do not trust copied
   tokens; clients must register fresh destination tokens.
 - Validate login, multi-gym switching, invitations, tenant isolation, media,
-  payments, attendance, chat, notifications, and scheduled Functions.
+  payments, attendance, routed support, notifications, and scheduled Functions.
 - Compare counts and samples, then switch DNS/traffic. Retain the source in a
   protected read-only state for the agreed rollback period.
 
@@ -192,3 +192,12 @@ Functions, Remote Config, App Check, secrets, IAM, billing, Hosting releases,
 Analytics history, Crashlytics history, or mobile-store configuration. This is
 why provisioning code, Firebase CLI configuration, data migrations, and the
 operational runbook are all required.
+
+Migration `005_unified_support_hub` is part of the portable schema sequence. It
+uses deterministic thread/inbox IDs, preserves legacy conversations, and may be
+resumed after interruption. The tracked Remote Config defaults
+`gym_support_enabled`, `platform_support_enabled`, and
+`support_images_enabled`, Firestore/Storage rules, indexes, Functions, and the
+12-month purge scheduler must move with it. `firebase.test.json` provides
+isolated Emulator Suite ports so rule tests can run while the normal local
+development emulators are already active.

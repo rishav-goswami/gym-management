@@ -1,6 +1,7 @@
 import 'package:gym_core/gym_core.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gym_management/firebase/logic/session_cubit.dart';
+import 'package:gym_management/firebase/domain/member_gym_service.dart';
 
 void main() {
   test('consumer routing waits for public branding configuration', () {
@@ -45,6 +46,49 @@ void main() {
     );
     expect(membership.can('payments.write'), isTrue);
     expect(membership.can('staff.manage'), isFalse);
+  });
+
+  test('member gym services follow tenant and platform entitlements', () {
+    const enabled = GymMembership(
+      id: 'gym_uid',
+      gymId: 'gym',
+      uid: 'uid',
+      role: GymRole.member,
+      status: 'active',
+      permissions: {},
+      features: {'attendanceQr': true, 'classes': true},
+    );
+    expect(
+      availableMemberGymServices(
+        membership: enabled,
+        attendancePlatformEnabled: true,
+      ),
+      [MemberGymService.attendance, MemberGymService.classes],
+    );
+    expect(
+      availableMemberGymServices(
+        membership: enabled,
+        attendancePlatformEnabled: false,
+      ),
+      [MemberGymService.classes],
+    );
+
+    const disabled = GymMembership(
+      id: 'gym_uid',
+      gymId: 'gym',
+      uid: 'uid',
+      role: GymRole.member,
+      status: 'active',
+      permissions: {},
+      features: {'attendanceQr': false, 'classes': false},
+    );
+    expect(
+      availableMemberGymServices(
+        membership: disabled,
+        attendancePlatformEnabled: true,
+      ),
+      isEmpty,
+    );
   });
 
   test('role personalization prefers the highest operational role', () {

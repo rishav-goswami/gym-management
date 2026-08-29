@@ -156,7 +156,8 @@ class GymMembership extends Equatable {
   final String? website;
   final Map<String, bool> features;
 
-  bool can(String permission) => permissions[permission] == true;
+  bool can(String permission) =>
+      permissions[permission] ?? _legacySupportPermission(role, permission);
   bool feature(String name, {bool defaultValue = true}) =>
       features[name] ?? defaultValue;
 
@@ -209,3 +210,24 @@ class GymMembership extends Equatable {
     features,
   ];
 }
+
+/// Compatibility fallback for memberships created before routed support was
+/// introduced. A stored true/false value always wins, so per-user overrides
+/// remain authoritative while old role snapshots receive the new template
+/// defaults until the numbered backfill migration runs.
+bool _legacySupportPermission(GymRole role, String permission) =>
+    switch (permission) {
+      'support.coaching' =>
+        role == GymRole.owner ||
+            role == GymRole.manager ||
+            role == GymRole.trainer,
+      'support.billing' =>
+        role == GymRole.owner ||
+            role == GymRole.manager ||
+            role == GymRole.accountant,
+      'support.manage' =>
+        role == GymRole.owner ||
+            role == GymRole.manager ||
+            role == GymRole.receptionist,
+      _ => false,
+    };

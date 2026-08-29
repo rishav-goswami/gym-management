@@ -7,7 +7,9 @@ import 'package:gym_core/gym_core.dart';
 
 import '../../data/gym_media_repository.dart';
 import '../../data/gym_repository.dart';
+import '../../data/support_repository.dart';
 import '../../logic/session_cubit.dart';
+import '../support/support_hub_screen.dart';
 import '../workspace/member_billing_panel.dart';
 
 enum _ProfileSection { profile, membership, settings }
@@ -188,6 +190,8 @@ class _ProfileDetails extends StatelessWidget {
           const SizedBox(height: 16),
           _ProfileSummary(profile: profile),
           const SizedBox(height: 16),
+          _PrimaryTrainerCard(membership: membership),
+          const SizedBox(height: 16),
           Card(
             child: ListTile(
               leading: const Icon(Icons.rate_review_outlined),
@@ -203,6 +207,64 @@ class _ProfileDetails extends StatelessWidget {
             ),
           ),
         ],
+      );
+    },
+  );
+}
+
+class _PrimaryTrainerCard extends StatelessWidget {
+  const _PrimaryTrainerCard({required this.membership});
+
+  final GymMembership membership;
+
+  @override
+  Widget build(BuildContext context) => StreamBuilder<
+    DocumentSnapshot<Map<String, dynamic>>
+  >(
+    stream: context.read<SupportRepository>().trainerAssignment(
+      membership.gymId,
+      membership.uid,
+    ),
+    builder: (context, snapshot) {
+      final assignment = snapshot.data?.data() ?? const <String, dynamic>{};
+      final identity = Map<String, dynamic>.from(
+        assignment['primaryTrainerIdentity'] as Map? ?? const {},
+      );
+      final assigned = assignment['primaryTrainerUid'] != null;
+      final trainerName = identity['displayName'] as String? ??
+          identity['email'] as String? ??
+          'Your trainer';
+      return Card(
+        child: Column(
+          children: [
+            ListTile(
+              leading: const CircleAvatar(
+                child: Icon(Icons.sports_gymnastics_outlined),
+              ),
+              title: Text(assigned ? trainerName : 'Trainer team'),
+              subtitle: Text(
+                assigned
+                    ? 'Your primary trainer at ${membership.gymName}'
+                    : 'Coaching questions will enter ${membership.gymName}’s trainer queue.',
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.chat_bubble_outline),
+              title: const Text('Ask for training help'),
+              subtitle: const Text('Exercise, routine, or assignment guidance'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => SupportHubScreen(
+                    membership: membership,
+                    initialRoute: 'trainer',
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       );
     },
   );

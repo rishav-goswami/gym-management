@@ -4,6 +4,7 @@ import * as foundationMetadata from "./001_foundation_metadata.mjs";
 import * as memberIdentity from "./002_backfill_member_identity.mjs";
 import * as personalFitnessSpaces from "./003_personal_fitness_spaces.mjs";
 import * as personalProgressMedia from "./004_personal_progress_media.mjs";
+import * as unifiedSupportHub from "./005_unified_support_hub.mjs";
 
 const require = createRequire(new URL("../functions/package.json", import.meta.url));
 const { applicationDefault, getApps, initializeApp } = require("firebase-admin/app");
@@ -16,6 +17,7 @@ const migrations = [
   memberIdentity,
   personalFitnessSpaces,
   personalProgressMedia,
+  unifiedSupportHub,
 ];
 const args = new Map();
 for (let index = 2; index < process.argv.length; index += 1) {
