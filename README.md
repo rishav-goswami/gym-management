@@ -2,7 +2,7 @@
 
 Two independently built Flutter clients use Firebase as their shared system of record:
 
-- `apps/gym_app`: the consumer fitness product with optional gym spaces for members, trainers, staff, and owners on iOS, Android, and web.
+- `apps/gym_app`: the consumer fitness product with a dynamically merged gym-member overlay plus operational owner/staff/trainer consoles on iOS, Android, and web.
 - `apps/platform_console`: a web-only control plane for trusted Gym Management platform operators.
 
 Platform code is not imported into the customer application. A separate Firebase Web App registration and Hosting target are used for each web client. Actual authorization remains enforced by the `platformAdmin` custom claim, Cloud Functions, and Firestore rules.

@@ -61,6 +61,33 @@ void main() {
     expect(preferredOperationalMembership([member]), isNull);
   });
 
+  test(
+    'member affiliation selects one branded overlay without changing scope',
+    () {
+      const alpha = GymMembership(
+        id: 'alpha_uid',
+        gymId: 'alpha',
+        uid: 'uid',
+        role: GymRole.member,
+        status: 'active',
+        permissions: {},
+        gymName: 'Alpha Gym',
+      );
+      const beta = GymMembership(
+        id: 'beta_uid',
+        gymId: 'beta',
+        uid: 'uid',
+        role: GymRole.member,
+        status: 'active',
+        permissions: {},
+        gymName: 'Beta Gym',
+      );
+
+      expect(preferredMemberMembership([beta, alpha]), alpha);
+      expect(preferredMemberMembership(const []), isNull);
+    },
+  );
+
   test('membership pricing uses integer minor units and calculates expiry', () {
     final quote = MembershipQuote.create(
       amount: '1499.50',

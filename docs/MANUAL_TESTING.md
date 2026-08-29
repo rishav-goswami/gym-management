@@ -160,13 +160,29 @@ Do not use production personal data during local testing.
 3. Log out, then open the shared link in a new browser or on another device.
 4. Register or sign in with the invited identity. Confirm the invitation gym
    and role remain visible through authentication.
-5. Tap **Join gym** without manually entering a gym ID or token.
-6. Keep every sharing category off. Confirm the person appears in the owner's
+5. Confirm the invitation page contains only the gym, invited role, matched
+   identity and **Join gym** action. It must not show **My Fitness**, existing
+   spaces, **Own a gym**, or a gym-ID/token input.
+6. Tap **Join gym** and confirm the success view says member services are active
+   while personal fitness remains private. Continue without choosing sharing.
+7. Confirm the existing customer shell now uses the gym logo/colors and merges
+   gym content into Home and Training without changing personal workout paths.
+   From **Profile → My gym membership**, open the gym profile and confirm the
+   Profile/Membership/Settings view opens inside the current app—not a separate
+   member workspace.
+8. Confirm the person appears in the owner's
    member/staff list but their personal workouts are absent from gym projections.
-7. Enable only workout summaries from **Profile → Fitness data sharing**, log a
+9. Enable only workout summaries from **Profile → Fitness data sharing**. Confirm
+   the UI explains that consent affects authorized staff visibility, not member
+   feature access. Log a
    personal workout, verify its bounded projection, then revoke it and confirm
    the projection is removed without changing payments or attendance.
-8. Try reusing the link and confirm it is rejected.
+10. Try reusing the link and confirm it is rejected.
+11. From the gym membership Settings, choose **Leave gym**. Confirm the app
+    returns to platform branding, personal workouts/progress remain, sharing
+    projections are deleted, the deterministic membership/member profile has
+    status `left`, and tenant payments/attendance/audits remain. Create a fresh
+    invitation and confirm the same membership record can be reactivated.
 
 There is no customer-facing gym-ID/token form. Owners distribute a branded
 universal link or QR; support staff must not ask users to copy technical IDs.
@@ -192,8 +208,9 @@ this pass verifies.
 
 ## 8. Personal fitness and member gym workspace
 
-Sign in as `member@pilotgym.example.com`. Test the personal flow first, then
-open Pilot Gym through **Profile → My gyms & spaces** for tenant-only services.
+Sign in as `member@pilotgym.example.com`. Confirm the gym brand and services are
+merged into the same Home/Training/Progress/Profile shell. Open
+**Profile → My gym membership** for the gym-owned profile and billing details.
 
 - **Home:** confirm the tenant-branded summary and five-day expiry banner load.
 - **Exercise media:** confirm the recommended workout and Training catalog show

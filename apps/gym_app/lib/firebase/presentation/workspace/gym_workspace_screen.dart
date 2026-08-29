@@ -27,7 +27,9 @@ import 'member_billing_panel.dart';
 import 'platform_plan_banner.dart';
 
 class GymWorkspaceScreen extends StatefulWidget {
-  const GymWorkspaceScreen({super.key});
+  const GymWorkspaceScreen({super.key, this.initialSection});
+
+  final String? initialSection;
 
   @override
   State<GymWorkspaceScreen> createState() => _GymWorkspaceScreenState();
@@ -36,11 +38,19 @@ class GymWorkspaceScreen extends StatefulWidget {
 class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   int _index = 0;
+  String? _appliedInitialSection;
 
   @override
   Widget build(BuildContext context) {
     final membership = context.watch<SessionCubit>().state.activeMembership!;
     final destinations = _destinations(membership);
+    if (_appliedInitialSection != widget.initialSection) {
+      final requestedIndex = destinations.indexWhere(
+        (destination) => destination.collection == widget.initialSection,
+      );
+      if (requestedIndex >= 0) _index = requestedIndex;
+      _appliedInitialSection = widget.initialSection;
+    }
     if (_index >= destinations.length) _index = 0;
     final wide = MediaQuery.sizeOf(context).width >= 840;
     final content = _WorkspaceContent(

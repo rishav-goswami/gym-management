@@ -34,6 +34,18 @@ GymMembership? preferredOperationalMembership(
   return operational.firstOrNull;
 }
 
+GymMembership? preferredMemberMembership(Iterable<GymMembership> memberships) {
+  final members =
+      memberships
+          .where((membership) => membership.role == GymRole.member)
+          .toList()
+        ..sort(
+          (left, right) =>
+              left.gymName.toLowerCase().compareTo(right.gymName.toLowerCase()),
+        );
+  return members.firstOrNull;
+}
+
 class SessionState extends Equatable {
   const SessionState({
     this.status = SessionStatus.initializing,
@@ -66,15 +78,21 @@ class SessionState extends Equatable {
       platformBranding['_configurationLoaded'] == true;
   GymMembership? get primaryOperationalMembership =>
       preferredOperationalMembership(memberships);
+  GymMembership? get primaryMemberMembership =>
+      preferredMemberMembership(memberships);
+  GymMembership? get memberAppMembership =>
+      activeMembership?.role == GymRole.member
+      ? activeMembership
+      : primaryMemberMembership;
 
   FitnessScope? get activeFitnessScope => user == null
       ? null
-      : activeMembership == null
+      : activeMembership == null || activeMembership!.role == GymRole.member
       ? FitnessScope.personal(user!.uid)
       : FitnessScope.gym(activeMembership!);
   AppSpace? get activeSpace => user == null
       ? null
-      : activeMembership == null
+      : activeMembership == null || activeMembership!.role == GymRole.member
       ? PersonalSpace(uid: user!.uid)
       : GymSpace(membership: activeMembership!);
 
@@ -152,10 +170,14 @@ class SessionCubit extends Cubit<SessionState> {
         status: SessionStatus.ready,
         user: user,
         memberships: memberships,
+        activeMembership: preferredMemberMembership(memberships),
         account: account,
         platformBranding: state.platformBranding,
       );
       emit(nextState);
+      if (nextState.activeMembership != null) {
+        await _watchGym(nextState.activeMembership!);
+      }
     } catch (error) {
       emit(
         SessionState(
@@ -273,15 +295,18 @@ class SessionCubit extends Cubit<SessionState> {
   Future<void> choosePersonalSpace() async {
     await _gymSubscription?.cancel();
     _gymSubscription = null;
+    final memberMembership = preferredMemberMembership(state.memberships);
     emit(
       SessionState(
         status: SessionStatus.ready,
         user: state.user,
         memberships: state.memberships,
+        activeMembership: memberMembership,
         account: state.account,
         platformBranding: state.platformBranding,
       ),
     );
+    if (memberMembership != null) await _watchGym(memberMembership);
   }
 
   Future<void> chooseAnotherContext() async {

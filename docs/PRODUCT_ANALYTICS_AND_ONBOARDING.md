@@ -20,7 +20,9 @@ increments:
 Platform metrics segment `scope_personal`/`scope_gym` and bounded audiences such
 as standalone, member, trainer and owner. Funnel milestones cover registration,
 onboarding, first routine, first workout, first progress entry, invitation
-acceptance and gym creation. These remain directional counters rather than a
+acceptance, membership leave and gym creation. `membershipLeave` is recorded
+server-side only after a successful deactivation and contains no reason, health
+data or tenant history. These remain directional counters rather than a
 health-data event stream.
 
 Counters identify the gym and audience role, but platform aggregates do not
@@ -93,11 +95,13 @@ Profile images use `gyms/{gymId}/profiles/{uid}/...` in Firebase Storage. Only
 the member can write their path; active tenant users can read it so authorized
 staff and trainers can identify the member.
 
-The member's primary navigation keeps **Profile** in the fourth mobile slot.
-Inside it, **Profile**, **Membership**, and **Settings** group personal details,
-billing/reminders, gym switching, export, logout, and account deletion. Owners
-see a searchable member directory with the member's name, contact, onboarding
-state, account state, plan, and expiry instead of raw Firebase user IDs.
+The member's merged customer navigation keeps **Profile** in the fourth mobile
+slot. Personal account/preferences and sharing stay in that screen. Opening
+**My gym membership** presents the tenant Profile/Membership/Settings view
+inside the same shell for gym-owned details, billing/reminders and the secure
+leave action. Owners see a searchable member directory with the member's name,
+contact, onboarding state, account state, plan, and expiry instead of raw
+Firebase user IDs.
 
 Invitation acceptance snapshots the verified Firebase Auth name, email and
 phone into the tenant member profile. `hydrateMemberProfiles` is a bounded,

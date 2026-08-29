@@ -8,6 +8,9 @@ import 'package:gym_core/gym_core.dart';
 import '../../data/gym_repository.dart';
 import '../../data/firebase_session_repository.dart';
 import '../../logic/session_cubit.dart';
+import '../shared/gym_brand_mark.dart';
+import 'member_home_panel.dart';
+import 'member_profile_panel.dart';
 import 'member_progress_panel.dart';
 import 'member_training_panel.dart';
 
@@ -30,15 +33,19 @@ class _PersonalWorkspaceScreenState extends State<PersonalWorkspaceScreen> {
     if (user == null) return const SizedBox.shrink();
     final scope = FitnessScope.personal(user.uid);
     final operationalMembership = session.primaryOperationalMembership;
+    final memberMembership = session.memberAppMembership;
     final pages = [
-      _PersonalHome(
-        scope: scope,
-        operationalMembership: operationalMembership,
-        onOpenWorkspace: operationalMembership == null
-            ? null
-            : () => _openWorkspace(operationalMembership),
-        onTrain: () => setState(() => _index = 1),
-      ),
+      if (memberMembership == null)
+        _PersonalHome(
+          scope: scope,
+          operationalMembership: operationalMembership,
+          onOpenWorkspace: operationalMembership == null
+              ? null
+              : () => _openWorkspace(operationalMembership),
+          onTrain: () => setState(() => _index = 1),
+        )
+      else
+        MemberHomePanel(membership: memberMembership, fitnessScope: scope),
       MemberTrainingPanel(scope: scope),
       MemberProgressPanel(scope: scope),
       _PersonalProfile(scope: scope),
@@ -51,9 +58,17 @@ class _PersonalWorkspaceScreenState extends State<PersonalWorkspaceScreen> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.fitness_center),
+            if (memberMembership == null)
+              const Icon(Icons.fitness_center)
+            else
+              GymBrandMark(membership: memberMembership, size: 32),
             const SizedBox(width: 10),
-            Text(operationalMembership == null ? 'My Fitness' : 'My workouts'),
+            Text(
+              memberMembership?.gymName ??
+                  (operationalMembership == null
+                      ? 'My Fitness'
+                      : 'My workouts'),
+            ),
           ],
         ),
         actions: [
@@ -72,7 +87,10 @@ class _PersonalWorkspaceScreenState extends State<PersonalWorkspaceScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      endDrawer: _PersonalNotifications(scope: scope),
+      endDrawer: _PersonalNotifications(
+        scope: scope,
+        membership: memberMembership,
+      ),
       body: Row(
         children: [
           if (wide)
@@ -310,6 +328,9 @@ class _PersonalProfile extends StatelessWidget {
     final user = session.user!;
     final name = session.account['displayName'] as String? ?? 'Fitness user';
     final operationalMembership = session.primaryOperationalMembership;
+    final memberMemberships = session.memberships
+        .where((membership) => membership.role == GymRole.member)
+        .toList();
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -354,6 +375,13 @@ class _PersonalProfile extends StatelessWidget {
           ),
           const SizedBox(height: 14),
         ],
+        if (memberMemberships.isNotEmpty) ...[
+          _ConnectedGymServices(
+            memberships: memberMemberships,
+            onOpen: (membership) => _openMemberProfile(context, membership),
+          ),
+          const SizedBox(height: 14),
+        ],
         Card(
           child: Column(
             children: [
@@ -385,9 +413,9 @@ class _PersonalProfile extends StatelessWidget {
             ],
           ),
         ),
-        if (session.memberships.isNotEmpty) ...[
+        if (memberMemberships.isNotEmpty) ...[
           const SizedBox(height: 14),
-          _GymSharingSection(memberships: session.memberships),
+          _GymSharingSection(memberships: memberMemberships),
         ],
         const SizedBox(height: 14),
         Card(
@@ -435,6 +463,81 @@ class _PersonalProfile extends StatelessWidget {
   ) async {
     await context.read<SessionCubit>().selectMembership(membership);
     if (context.mounted) context.go('/workspace');
+  }
+
+  Future<void> _openMemberProfile(
+    BuildContext context,
+    GymMembership membership,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      useSafeArea: false,
+      builder: (dialogContext) => Dialog.fullscreen(
+        child: SafeArea(
+          child: MemberProfilePanel(
+            membership: membership,
+            mergedApp: true,
+            onClose: () => Navigator.pop(dialogContext),
+            onSwitchContext: () async =>
+                context.read<SessionCubit>().chooseAnotherContext(),
+            onExportData: () => _exportData(context),
+            onDeleteAccount: () => _requestDeletion(context),
+            onSignOut: context.read<SessionCubit>().signOut,
+            onLeaveGym: () => _leaveGym(context, dialogContext, membership),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _leaveGym(
+    BuildContext context,
+    BuildContext dialogContext,
+    GymMembership membership,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: dialogContext,
+      builder: (confirmationContext) => AlertDialog(
+        title: Text('Leave ${membership.gymName}?'),
+        content: const Text(
+          'Gym branding and member services will be removed from your app. Your personal workouts and progress stay with you. The gym retains its membership, payment and attendance history.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(confirmationContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(confirmationContext, true),
+            child: const Text('Leave gym'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await context.read<FirebaseSessionRepository>().leaveGymMembership(
+        membership.gymId,
+      );
+      if (!context.mounted) return;
+      await context.read<SessionCubit>().refreshContexts();
+      if (dialogContext.mounted) Navigator.pop(dialogContext);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'You left ${membership.gymName}. Your personal fitness data is unchanged.',
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (dialogContext.mounted) {
+        ScaffoldMessenger.of(
+          dialogContext,
+        ).showSnackBar(SnackBar(content: Text('Unable to leave gym: $error')));
+      }
+    }
   }
 
   Future<void> _editPreferences(BuildContext context) async {
@@ -592,6 +695,44 @@ class _PersonalProfile extends StatelessWidget {
   }
 }
 
+class _ConnectedGymServices extends StatelessWidget {
+  const _ConnectedGymServices({
+    required this.memberships,
+    required this.onOpen,
+  });
+
+  final List<GymMembership> memberships;
+  final Future<void> Function(GymMembership membership) onOpen;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Column(
+      children: [
+        const ListTile(
+          leading: Icon(Icons.business_outlined),
+          title: Text('My gym membership'),
+          subtitle: Text(
+            'Open your member profile and the services provided by your gym.',
+          ),
+        ),
+        const Divider(height: 1),
+        for (final membership in memberships)
+          ListTile(
+            leading: CircleAvatar(
+              child: Text(membership.gymName.characters.first.toUpperCase()),
+            ),
+            title: Text(membership.gymName),
+            subtitle: const Text(
+              'Profile, membership plan, payments and available gym services',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => onOpen(membership),
+          ),
+      ],
+    ),
+  );
+}
+
 class _GymSharingSection extends StatelessWidget {
   const _GymSharingSection({required this.memberships});
   final List<GymMembership> memberships;
@@ -603,7 +744,9 @@ class _GymSharingSection extends StatelessWidget {
         const ListTile(
           leading: Icon(Icons.privacy_tip_outlined),
           title: Text('Fitness data sharing'),
-          subtitle: Text('Every category starts private and can be revoked.'),
+          subtitle: Text(
+            'This controls what authorized gym staff can view. It does not unlock or remove member features.',
+          ),
         ),
         const Divider(height: 1),
         for (final membership in memberships)
@@ -617,6 +760,10 @@ class _GymSharingSection extends StatelessWidget {
                 snapshot.data?.data()?['categories'] as Map? ?? const {},
               );
               final count = categories.values.where((value) => value).length;
+              final shared = categories.entries
+                  .where((entry) => entry.value)
+                  .map((entry) => _sharingCategoryLabel(entry.key))
+                  .toList();
               return ListTile(
                 leading: CircleAvatar(
                   child: Text(
@@ -625,7 +772,7 @@ class _GymSharingSection extends StatelessWidget {
                 ),
                 title: Text(membership.gymName),
                 subtitle: Text(
-                  count == 0 ? 'Nothing shared' : '$count categories shared',
+                  count == 0 ? 'Nothing shared' : shared.join(', '),
                 ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _edit(context, membership, categories),
@@ -656,23 +803,23 @@ class _GymSharingSection extends StatelessWidget {
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              children: values.entries
-                  .map(
-                    (entry) => SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: entry.value,
-                      title: Text(switch (entry.key) {
-                        'profile' => 'Profile basics',
-                        'goals' => 'Fitness goals',
-                        'workoutSummaries' => 'Workout summaries',
-                        'measurements' => 'Body measurements',
-                        _ => 'Progress records',
-                      }),
-                      onChanged: (value) =>
-                          update(() => values[entry.key] = value),
-                    ),
-                  )
-                  .toList(),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Sharing helps authorized staff or trainers support you. Your membership features work even when every option is off.',
+                ),
+                const SizedBox(height: 12),
+                ...values.entries.map(
+                  (entry) => SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: entry.value,
+                    title: Text(_sharingCategoryLabel(entry.key)),
+                    subtitle: Text(_sharingCategoryDescription(entry.key)),
+                    onChanged: (value) =>
+                        update(() => values[entry.key] = value),
+                  ),
+                ),
+              ],
             ),
           ),
           actions: [
@@ -693,9 +840,40 @@ class _GymSharingSection extends StatelessWidget {
         gymId: membership.gymId,
         categories: values,
       );
+      if (context.mounted) {
+        final count = values.values.where((value) => value).length;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              count == 0
+                  ? 'Fitness data is private. Your member services are unchanged.'
+                  : '$count sharing ${count == 1 ? 'category' : 'categories'} updated. Your member services are unchanged.',
+            ),
+          ),
+        );
+      }
     }
   }
 }
+
+String _sharingCategoryLabel(String key) => switch (key) {
+  'profile' => 'Profile basics',
+  'goals' => 'Fitness goals',
+  'workoutSummaries' => 'Workout summaries',
+  'measurements' => 'Body measurements',
+  'progress' => 'Progress records',
+  _ => key,
+};
+
+String _sharingCategoryDescription(String key) => switch (key) {
+  'profile' => 'Basic identity and fitness preferences for member support.',
+  'goals' => 'Your selected goals for relevant plans and guidance.',
+  'workoutSummaries' =>
+    'Completion and adherence summaries, not private notes.',
+  'measurements' => 'Selected body measurements and their changes over time.',
+  'progress' => 'Personal records and progress entries covered by this grant.',
+  _ => '',
+};
 
 String _roleTitle(GymRole role) => switch (role) {
   GymRole.owner => 'Owner',
@@ -725,18 +903,24 @@ IconData _roleIcon(GymRole role) => switch (role) {
 };
 
 class _PersonalNotifications extends StatelessWidget {
-  const _PersonalNotifications({required this.scope});
+  const _PersonalNotifications({required this.scope, this.membership});
   final FitnessScope scope;
+  final GymMembership? membership;
 
   @override
   Widget build(BuildContext context) => Drawer(
     child: SafeArea(
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: context.read<GymRepository>().fitnessRecords(
-          scope,
-          'notifications',
-          limit: 30,
-        ),
+        stream: membership == null
+            ? context.read<GymRepository>().fitnessRecords(
+                scope,
+                'notifications',
+                limit: 30,
+              )
+            : context.read<GymRepository>().notifications(
+                membership!.gymId,
+                membership!.uid,
+              ),
         builder: (context, snapshot) {
           final notifications = snapshot.data?.docs ?? const [];
           return Column(
@@ -745,7 +929,9 @@ class _PersonalNotifications extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.all(20),
                 child: Text(
-                  'Notifications',
+                  membership == null
+                      ? 'Notifications'
+                      : '${membership!.gymName} notifications',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
               ),

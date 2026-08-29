@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gym_core/gym_core.dart';
 
 import '../core/invitations/gym_invitation_link.dart';
 import '../firebase/logic/session_cubit.dart';
@@ -49,7 +50,12 @@ GoRouter createFirebaseRouter(SessionCubit session) => GoRouter(
       path: '/personal',
       builder: (_, _) => const PersonalWorkspaceScreen(),
     ),
-    GoRoute(path: '/workspace', builder: (_, _) => const GymWorkspaceScreen()),
+    GoRoute(
+      path: '/workspace',
+      builder: (_, state) => GymWorkspaceScreen(
+        initialSection: state.uri.queryParameters['section'],
+      ),
+    ),
   ],
   redirect: (_, routerState) {
     final state = session.state;
@@ -115,6 +121,9 @@ String? _readyRedirect(
     return invitation.routeLocation;
   }
   if (state.activeMembership != null) {
+    if (state.activeMembership!.role == GymRole.member) {
+      return location == '/personal' ? null : '/personal';
+    }
     return location == '/workspace' ? null : '/workspace';
   }
   if (location == '/spaces') return null;

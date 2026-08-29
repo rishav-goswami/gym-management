@@ -2,11 +2,17 @@
 
 ## Product boundary
 
-Every authenticated identity has a permanent **My Fitness** space. It is not a
-hidden gym tenant and does not require a role or membership. Regular launches
-open this personal space for consumers, members and operational users alike.
-Gym spaces add tenant services such as membership billing, trainers, classes,
-attendance, announcements and gym assignments.
+Every authenticated identity has a permanent private fitness data layer. It is
+not a hidden gym tenant and does not require a role or membership. A standalone
+consumer sees the platform-branded fitness app. When that person has an active
+member affiliation, the same shell dynamically adopts the gym logo/colors and
+merges membership billing, trainers, classes, attendance, announcements and gym
+assignments into their existing Home, Training, Progress and Profile journey.
+Members do not enter a second workspace and do not maintain duplicate workouts.
+
+Owner, manager, receptionist, accountant and trainer operational consoles remain
+distinct business contexts. Those roles do not change ownership of personal
+workouts or silently create a billable member record.
 
 The remote `platform_public/app_branding.consumerFeatures.personalSpacesV1`
 switch gates the new routing. Keep it disabled in an existing environment until
@@ -67,26 +73,42 @@ Accepting an expiring invitation creates a gym membership but shares no personal
 fitness data. The user explicitly controls five categories: profile basics,
 goals, workout summaries, measurements and progress.
 
-Opening a connected gym is an explicit, temporary context switch. Member gym
-screens must provide a visible **Back to My Fitness** action and describe the
-gym card as services/operations so users do not mistake tenant branding for a
-replacement of their personal account. Operational users see an explicit role
-label such as **Owner console** or **Trainer workspace** after opening the gym.
-Personal mode keeps a role banner and one-step return to the operational
-workspace; it never relabels an owner or trainer as a member. The gym toolbar
-does not add a second workout shortcut because personal fitness remains the
-default landing and is already available through the spaces/profile flow.
-The **Your fitness spaces** screen makes the complete card actionable: an owner,
-manager or trainer sees an explicit **Open dashboard** action, while selecting
-any connected gym opens its role-aware workspace. **Start my gym** opens trial
-provisioning. **Join a gym** scans the secure invitation QR and also accepts a
-complete invitation link copied from email or messaging; raw gym IDs and tokens
-are never requested.
+An invitation link or QR opens a focused confirmation page containing only the
+gym, invited role, matched identity and one **Join gym** action. It must not show
+the general space selector, **My Fitness**, **Own a gym**, or other acquisition
+choices. After acceptance, the app confirms that member services are active,
+applies the gym overlay to the same customer shell and keeps personal fitness
+private. Choosing fitness sharing is optional and must never block joining or
+using the merged app.
+
+Sharing consent changes only which bounded personal summaries authorized gym
+staff can view. It does not enable or disable membership, payments, trainer
+assignment, classes, attendance, notices or other tenant services. The personal
+Profile exposes connected member gyms in a prominent **My gym membership**
+section; selecting one opens the tenant-branded Profile/Membership/Settings view
+inside the current app rather than navigating to a separate member workspace.
+Sharing controls remain a separate, clearly labelled privacy area.
+
+Active member affiliation is a presentation and authorization overlay, not a
+fitness-data scope switch. Guided and self-created workouts continue writing to
+`users/{uid}`. Trainer assignments are read from the gym and their results enter
+the personal log; only consented summaries are projected back to the gym.
+
+The **Your fitness spaces** screen is retained for operational roles and the
+uncommon multiple-gym case. Selecting a member gym changes the active branding
+overlay but returns to the same personal shell. An owner, manager or trainer
+sees an explicit **Open dashboard** action because their business workspace is
+genuinely separate. **Start my gym** opens trial provisioning. **Join a gym**
+scans the secure invitation QR and also accepts a complete invitation link
+copied from email or messaging; raw gym IDs and tokens are never requested.
 
 Space-selector taps are intentionally not counted as a separate feature metric:
 they are navigation rather than a meaningful outcome, and destination features
 already record bounded, server-validated usage. Invitation acceptance and gym
-creation remain the privacy-safe conversion milestones.
+creation remain the privacy-safe conversion milestones. The focused invitation
+confirmation, post-join destination choice and member-profile shortcut do not
+add noisy tap analytics; they use the existing invitation-acceptance outcome and
+the destination feature outcomes.
 
 Operational role and fitness identity are orthogonal. An owner or trainer can
 use personal routines, workout logs and progress without creating a tenant
@@ -97,6 +119,14 @@ supporting a billable owner/member combination will require a separately
 reviewed multi-role migration, rules and Functions change. The app must not
 silently convert staff into members or expose their private workouts to the
 gym.
+
+Leaving is a privileged callable transition, never a client-side delete.
+`leaveGymMembership` changes the membership and gym member profile to `left`,
+decrements bounded active-member counters, revokes the sharing grant and deletes
+server-owned projections. It does not delete tenant payments, subscriptions,
+attendance or audits, and it does not touch personal fitness collections. A
+later invitation may reactivate the same deterministic membership record so the
+gym retains continuity without duplicating history.
 
 `updateGymSharing` verifies the active membership and maintains server-owned,
 bounded projections under `gyms/{gymId}/shared_fitness/{uid}`. Clients cannot

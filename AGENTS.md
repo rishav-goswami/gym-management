@@ -7,9 +7,15 @@ linked canonical documents.
 ## Product and architecture
 
 - The product is a consumer-first fitness platform with optional multi-tenant
-  gym spaces: one Flutter customer app and a separate Flutter web console.
+  gym affiliation: one Flutter customer app and a separate Flutter web console.
 - Every identity owns a permanent private **My Fitness** space. Do not require a
   gym role or invent a tenant for standalone workouts, routines, or progress.
+- An active member gym dynamically brands and enriches that same customer app;
+  never route ordinary members into a second app/workspace. Keep the personal
+  data scope user-owned while merging tenant services into the shared shell.
+- Leaving a gym removes its branding and access, revokes sharing projections,
+  and preserves personal fitness. Tenant-authored membership, payment and
+  attendance history remains with the gym for retention and reactivation.
 - Personal data is user-owned and never enters a gym projection without an
   explicit per-category sharing grant. Platform admins have no direct rules
   access to personal fitness data; use short-lived audited support Functions.

@@ -10,9 +10,14 @@ import 'exercise_media_image.dart';
 import 'member_training_panel.dart';
 
 class MemberHomePanel extends StatefulWidget {
-  const MemberHomePanel({required this.membership, super.key});
+  const MemberHomePanel({
+    required this.membership,
+    this.fitnessScope,
+    super.key,
+  });
 
   final GymMembership membership;
+  final FitnessScope? fitnessScope;
 
   @override
   State<MemberHomePanel> createState() => _MemberHomePanelState();
@@ -84,7 +89,7 @@ class _MemberHomePanelState extends State<MemberHomePanel>
               exercises: plan,
               onStart: () => openGuidedWorkout(
                 context,
-                scope: FitnessScope.gym(membership),
+                scope: widget.fitnessScope ?? FitnessScope.gym(membership),
                 goal: goal,
                 exercises: plan,
               ),

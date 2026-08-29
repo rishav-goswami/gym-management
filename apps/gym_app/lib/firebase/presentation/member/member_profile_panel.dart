@@ -19,6 +19,9 @@ class MemberProfilePanel extends StatefulWidget {
     required this.onExportData,
     required this.onDeleteAccount,
     required this.onSignOut,
+    this.mergedApp = false,
+    this.onClose,
+    this.onLeaveGym,
     super.key,
   });
 
@@ -27,6 +30,9 @@ class MemberProfilePanel extends StatefulWidget {
   final Future<void> Function() onExportData;
   final Future<void> Function() onDeleteAccount;
   final Future<void> Function() onSignOut;
+  final bool mergedApp;
+  final VoidCallback? onClose;
+  final Future<void> Function()? onLeaveGym;
 
   @override
   State<MemberProfilePanel> createState() => _MemberProfilePanelState();
@@ -44,7 +50,24 @@ class _MemberProfilePanelState extends State<MemberProfilePanel> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Profile', style: Theme.of(context).textTheme.headlineMedium),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.mergedApp
+                        ? '${widget.membership.gymName} membership'
+                        : 'Profile',
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                ),
+                if (widget.onClose != null)
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: widget.onClose,
+                    icon: const Icon(Icons.close),
+                  ),
+              ],
+            ),
             const SizedBox(height: 12),
             SizedBox(
               width: 560,
@@ -97,6 +120,8 @@ class _MemberProfilePanelState extends State<MemberProfilePanel> {
             onExportData: widget.onExportData,
             onDeleteAccount: widget.onDeleteAccount,
             onSignOut: widget.onSignOut,
+            mergedApp: widget.mergedApp,
+            onLeaveGym: widget.onLeaveGym,
           ),
         },
       ),
@@ -190,6 +215,8 @@ class _MemberSettings extends StatelessWidget {
     required this.onExportData,
     required this.onDeleteAccount,
     required this.onSignOut,
+    required this.mergedApp,
+    this.onLeaveGym,
   });
 
   final GymMembership membership;
@@ -197,6 +224,8 @@ class _MemberSettings extends StatelessWidget {
   final Future<void> Function() onExportData;
   final Future<void> Function() onDeleteAccount;
   final Future<void> Function() onSignOut;
+  final bool mergedApp;
+  final Future<void> Function()? onLeaveGym;
 
   @override
   Widget build(BuildContext context) => ListView(
@@ -207,22 +236,24 @@ class _MemberSettings extends StatelessWidget {
       Card(
         child: Column(
           children: [
-            ListTile(
-              leading: const Icon(Icons.favorite_outline),
-              title: const Text('Back to My Fitness'),
-              subtitle: const Text('Your personal workouts and progress'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: context.read<SessionCubit>().choosePersonalSpace,
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.storefront_outlined),
-              title: const Text('Switch gym or role'),
-              subtitle: Text('Currently using ${membership.gymName}'),
-              trailing: const Icon(Icons.swap_horiz),
-              onTap: onSwitchContext,
-            ),
-            const Divider(height: 1),
+            if (!mergedApp) ...[
+              ListTile(
+                leading: const Icon(Icons.favorite_outline),
+                title: const Text('Back to My Fitness'),
+                subtitle: const Text('Your personal workouts and progress'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: context.read<SessionCubit>().choosePersonalSpace,
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.storefront_outlined),
+                title: const Text('Switch gym or role'),
+                subtitle: Text('Currently using ${membership.gymName}'),
+                trailing: const Icon(Icons.swap_horiz),
+                onTap: onSwitchContext,
+              ),
+              const Divider(height: 1),
+            ],
             ListTile(
               leading: const Icon(Icons.download_outlined),
               title: const Text('Export my data'),
@@ -248,9 +279,26 @@ class _MemberSettings extends StatelessWidget {
               leading: Icon(Icons.shield_outlined),
               title: Text('Private fitness data'),
               subtitle: Text(
-                'Progress photos and health-related profile details stay scoped to your gym account.',
+                'Personal workouts and progress remain user-owned. Gym access follows your sharing choices.',
               ),
             ),
+            if (onLeaveGym != null) ...[
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(
+                  Icons.link_off_outlined,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                title: Text(
+                  'Leave ${membership.gymName}',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                subtitle: const Text(
+                  'Remove gym branding and services while keeping your personal fitness data.',
+                ),
+                onTap: onLeaveGym,
+              ),
+            ],
             const Divider(height: 1),
             ListTile(
               leading: Icon(

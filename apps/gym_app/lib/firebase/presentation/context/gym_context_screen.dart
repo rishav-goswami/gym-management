@@ -24,6 +24,10 @@ class _GymContextScreenState extends State<GymContextScreen> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<SessionCubit>().state;
+    final invitation = widget.invitation;
+    if (invitation != null) {
+      return _buildInvitationConfirmation(context, state, invitation);
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Your fitness spaces'),
@@ -82,43 +86,6 @@ class _GymContextScreenState extends State<GymContextScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          if (widget.invitation != null) ...[
-            Card(
-              color: Theme.of(context).colorScheme.primaryContainer,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Icon(Icons.mark_email_read_outlined, size: 42),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Join ${widget.invitation!.gymName}',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'You were invited as a ${widget.invitation!.roleLabel}.',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 18),
-                    FilledButton.icon(
-                      onPressed: _accepting ? null : _accept,
-                      icon: const Icon(Icons.group_add_outlined),
-                      label: Text(_accepting ? 'Joining…' : 'Join gym'),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'The signed-in email must match the invitation.',
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
           Card(
             color: Theme.of(context).colorScheme.primaryContainer,
             child: ListTile(
@@ -139,26 +106,106 @@ class _GymContextScreenState extends State<GymContextScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          if (widget.invitation == null)
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.qr_code_scanner),
-                title: const Text('Join a gym'),
-                subtitle: const Text(
-                  'Scan the QR code or use the secure invitation shared by your gym.',
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: _openInvitation,
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.qr_code_scanner),
+              title: const Text('Join a gym'),
+              subtitle: const Text(
+                'Scan the QR code or use the secure invitation shared by your gym.',
               ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _openInvitation,
             ),
+          ),
         ],
       ),
     );
   }
 
+  Widget _buildInvitationConfirmation(
+    BuildContext context,
+    SessionState state,
+    GymInvitationLink invitation,
+  ) => Scaffold(
+    appBar: AppBar(
+      leading: IconButton(
+        tooltip: 'Back to My Fitness',
+        onPressed: () => context.go('/personal'),
+        icon: const Icon(Icons.arrow_back),
+      ),
+      title: const Text('Join gym'),
+    ),
+    body: Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Card(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Icon(Icons.mark_email_read_outlined, size: 52),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Join ${invitation.gymName}',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'You were invited as a ${invitation.roleLabel}.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  _InvitationBenefit(
+                    icon: Icons.badge_outlined,
+                    text:
+                        'Get your gym membership profile and available services.',
+                  ),
+                  const SizedBox(height: 12),
+                  const _InvitationBenefit(
+                    icon: Icons.lock_outline,
+                    text:
+                        'Your personal workouts and progress stay private unless you choose to share them later.',
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: _accepting ? null : _accept,
+                    icon: _accepting
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.group_add_outlined),
+                    label: Text(_accepting ? 'Joining…' : 'Join gym'),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    state.user?.email == null
+                        ? 'Your signed-in identity must match this invitation.'
+                        : 'Joining as ${state.user!.email}',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
   Future<void> _openGym(GymMembership membership) async {
     await context.read<SessionCubit>().selectMembership(membership);
-    if (mounted) context.go('/workspace');
+    if (mounted) {
+      context.go(
+        membership.role == GymRole.member ? '/personal' : '/workspace',
+      );
+    }
   }
 
   Future<void> _openInvitation() async {
@@ -193,8 +240,7 @@ class _GymContextScreenState extends State<GymContextScreen> {
       await session.refreshContexts();
       for (final membership in session.state.memberships) {
         if (membership.gymId == invitation.gymId) {
-          if (mounted) await _sharingChoice(membership.gymId);
-          if (mounted) context.go('/personal');
+          if (mounted) await _showJoinResult(membership);
           return;
         }
       }
@@ -210,7 +256,79 @@ class _GymContextScreenState extends State<GymContextScreen> {
     }
   }
 
-  Future<void> _sharingChoice(String gymId) async {
+  Future<void> _showJoinResult(
+    GymMembership membership, {
+    List<String> sharedCategories = const [],
+  }) async {
+    final action = await showDialog<_JoinAction>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.check_circle_outline, size: 44),
+        title: Text('You joined ${membership.gymName}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              membership.role == GymRole.member
+                  ? 'Your member profile and gym services are ready.'
+                  : 'Your ${membership.role.name} workspace is ready.',
+            ),
+            const SizedBox(height: 12),
+            Text(
+              sharedCategories.isEmpty
+                  ? 'Nothing from My Fitness is shared. Sharing is optional and does not change the services you receive.'
+                  : 'Shared with this gym: ${sharedCategories.join(', ')}. This only changes what authorized gym staff can view.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, _JoinAction.personalFitness),
+            child: const Text('Continue My Fitness'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, _JoinAction.chooseSharing),
+            child: const Text('Choose sharing'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, _JoinAction.openGym),
+            child: Text(
+              membership.role == GymRole.member
+                  ? 'Open my app'
+                  : 'Open workspace',
+            ),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    switch (action) {
+      case _JoinAction.chooseSharing:
+        final categories = await _sharingChoice(membership.gymId);
+        if (mounted) {
+          await _showJoinResult(membership, sharedCategories: categories);
+        }
+        return;
+      case _JoinAction.openGym:
+        await context.read<SessionCubit>().selectMembership(membership);
+        if (mounted) {
+          context.go(
+            membership.role == GymRole.member ? '/personal' : '/workspace',
+          );
+        }
+        return;
+      case _JoinAction.personalFitness || null:
+        await context.read<SessionCubit>().choosePersonalSpace();
+        if (mounted) context.go('/personal');
+        return;
+    }
+  }
+
+  Future<List<String>> _sharingChoice(String gymId) async {
     final values = <String, bool>{
       'profile': false,
       'goals': false,
@@ -262,7 +380,12 @@ class _GymContextScreenState extends State<GymContextScreen> {
           .functions
           .httpsCallable('updateGymSharing')
           .call<void>({'gymId': gymId, 'categories': values});
+      return values.entries
+          .where((entry) => entry.value)
+          .map((entry) => _sharingLabel(entry.key))
+          .toList();
     }
+    return const [];
   }
 
   String _sharingLabel(String value) => switch (value) {
@@ -277,6 +400,25 @@ class _GymContextScreenState extends State<GymContextScreen> {
       membership.role == GymRole.member
       ? 'Gym services · membership, trainer, classes and attendance'
       : '${membership.role.name} operations for this gym';
+}
+
+enum _JoinAction { personalFitness, chooseSharing, openGym }
+
+class _InvitationBenefit extends StatelessWidget {
+  const _InvitationBenefit({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(icon, size: 22),
+      const SizedBox(width: 12),
+      Expanded(child: Text(text)),
+    ],
+  );
 }
 
 class _InvitationScannerDialog extends StatefulWidget {

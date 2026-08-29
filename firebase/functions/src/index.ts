@@ -162,6 +162,7 @@ const featureIdSchema = z.enum([
   "firstWorkout",
   "firstProgress",
   "invitationAcceptance",
+  "membershipLeave",
   "gymCreation"
 ]);
 
@@ -470,8 +471,8 @@ export const acceptInvitation = onCall(
     let acceptedRole = "member";
     try {
       await db.runTransaction(async (tx) => {
-      const [invite, entitlement, usage] = await Promise.all([
-        tx.get(inviteRef), tx.get(entitlementRef), tx.get(usageRef)
+      const [invite, entitlement, usage, existingMembership] = await Promise.all([
+        tx.get(inviteRef), tx.get(entitlementRef), tx.get(usageRef), tx.get(memberRef)
       ]);
       if (!invite.exists || invite.get("status") !== "pending") {
         throw new HttpsError("not-found", "Invitation is invalid or already used.");
@@ -487,6 +488,15 @@ export const acceptInvitation = onCall(
       }
       const role = String(invite.get("role"));
       acceptedRole = role;
+      if (existingMembership.exists && existingMembership.get("status") === "active") {
+        throw new HttpsError("already-exists", "This account is already active in the gym.");
+      }
+      if (existingMembership.exists && existingMembership.get("role") !== role) {
+        throw new HttpsError(
+          "failed-precondition",
+          "A retained membership cannot be reactivated with a different role."
+        );
+      }
       const usageField = usageFieldForRole(role);
       if (usageField) {
         if (!entitlement.exists || !usage.exists) {
@@ -500,15 +510,18 @@ export const acceptInvitation = onCall(
         );
         tx.update(usageRef, { [usageField]: next, updatedAt: FieldValue.serverTimestamp() });
       }
-      tx.create(memberRef, {
+      tx.set(memberRef, {
         gymId,
         uid: request.auth!.uid,
         role,
         status: "active",
         permissions: ROLE_PERMISSIONS[role] ?? {},
-        createdAt: FieldValue.serverTimestamp(),
+        ...(existingMembership.exists
+          ? { reactivatedAt: FieldValue.serverTimestamp() }
+          : { createdAt: FieldValue.serverTimestamp() }),
+        leftAt: null,
         updatedAt: FieldValue.serverTimestamp()
-      });
+      }, { merge: true });
       const profileCollection = role === "member" ? "members" : "staff";
       tx.set(db.doc(`gyms/${gymId}/${profileCollection}/${request.auth!.uid}`), {
         gymId,
@@ -518,7 +531,10 @@ export const acceptInvitation = onCall(
         displayName: identity.displayName,
         email: tokenEmail,
         phone: tokenPhone,
-        createdAt: FieldValue.serverTimestamp(),
+        ...(existingMembership.exists
+          ? { reactivatedAt: FieldValue.serverTimestamp() }
+          : { createdAt: FieldValue.serverTimestamp() }),
+        leftAt: null,
         updatedAt: FieldValue.serverTimestamp()
       }, { merge: true });
       if (role === "member") {
@@ -2063,6 +2079,80 @@ export const updateGymSharing = onCall(
       { categories: input.categories }
     );
     return { gymId: input.gymId, categories: input.categories };
+  }
+);
+
+export const leaveGymMembership = onCall(
+  { region: REGION, enforceAppCheck: ENFORCE_APP_CHECK },
+  async (request) => {
+    requireAuth(request);
+    const input = z.object({ gymId: z.string().min(1) }).parse(request.data);
+    const uid = request.auth.uid;
+    const membershipRef = db.doc(
+      `gym_memberships/${membershipDocumentId(input.gymId, uid)}`
+    );
+    const memberRef = db.doc(`gyms/${input.gymId}/members/${uid}`);
+    const usageRef = db.doc(`gyms/${input.gymId}/usage/current`);
+    const metricsRef = db.doc(`gyms/${input.gymId}/dashboard_metrics/current`);
+
+    await db.runTransaction(async (tx) => {
+      const [membership, usage, metrics] = await Promise.all([
+        tx.get(membershipRef), tx.get(usageRef), tx.get(metricsRef)
+      ]);
+      if (!membership.exists || membership.get("status") !== "active") {
+        throw new HttpsError("failed-precondition", "This gym membership is not active.");
+      }
+      if (membership.get("role") !== "member") {
+        throw new HttpsError(
+          "permission-denied",
+          "Operational gym roles must be transferred or removed by an authorized administrator."
+        );
+      }
+      const now = FieldValue.serverTimestamp();
+      tx.update(membershipRef, { status: "left", leftAt: now, updatedAt: now });
+      tx.set(memberRef, { status: "left", leftAt: now, updatedAt: now }, { merge: true });
+      if (usage.exists) {
+        tx.update(usageRef, {
+          activeMembers: Math.max(0, Number(usage.get("activeMembers") ?? 0) - 1),
+          updatedAt: now
+        });
+      }
+      if (metrics.exists) {
+        tx.update(metricsRef, {
+          activeMembers: Math.max(0, Number(metrics.get("activeMembers") ?? 0) - 1),
+          updatedAt: now
+        });
+      }
+    });
+
+    await db.doc(`users/${uid}/gym_shares/${input.gymId}`).delete();
+    const projectionRoot = db.doc(`gyms/${input.gymId}/shared_fitness/${uid}`);
+    for (const collection of [
+      "goals", "workout_logs", "personal_records", "measurements",
+      "progress_photos", "profile"
+    ]) {
+      await deleteProjectedCollection(`${projectionRoot.path}/${collection}`);
+    }
+    await projectionRoot.delete();
+
+    const remaining = await db.collection("gym_memberships")
+      .where("uid", "==", uid)
+      .where("status", "==", "active")
+      .get();
+    await db.doc(`users/${uid}`).set({
+      gymConnectionCount: remaining.size,
+      hasGymConnection: !remaining.empty,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+    await writeAudit(
+      db,
+      input.gymId,
+      uid,
+      "membership.left",
+      { type: "member", id: uid }
+    );
+    await recordPlatformMilestone("membershipLeave", "member", "gym", input.gymId);
+    return { gymId: input.gymId, status: "left" };
   }
 );
 
