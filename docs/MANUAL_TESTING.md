@@ -162,7 +162,9 @@ Sign in as `owner@pilotgym.example.com` and select Pilot Gym.
 At phone widths, owner, trainer, reception and accounting workspaces use the
 app-bar menu and side drawer for all operational destinations; they must not
 fall back to a truncated bottom bar. The consumer/member shell keeps its
-fitness-first bottom navigation.
+fitness-first bottom navigation. Open the operational drawer over a populated
+screen and confirm its surface is fully opaque, the page behind it is dimmed,
+and no toolbar or card text bleeds through the menu.
 
 Do not use production personal data during local testing.
 
@@ -238,7 +240,9 @@ merged into the same Home/Training/Progress/Profile shell. Open
 - **Profile:** edit the member photo and recommendation profile, then open its
   **Membership** area to inspect the current plan, payment receipt, and unread
   reminder from the header bell. Confirm the unread badge, single-message read,
-  mark-all-read, and responsive notification drawer. Confirm **Settings**
+  mark-all-read, and responsive notification drawer. After all personal and gym
+  notifications are read, confirm the red badge disappears and the toolbar
+  returns to the outlined bell. Confirm **Settings**
   contains gym switching, export, logout, and deletion controls and that
   Membership is no longer a separate bottom tab.
 - **Home scrolling:** on a narrow mobile viewport, scroll repeatedly from top
@@ -285,8 +289,12 @@ merged into the same Home/Training/Progress/Profile shell. Open
   the safe reference appears. Create a coaching request with and without a
   primary trainer; verify direct routing or the claimable queue. Exchange text
   and a JPEG/PNG/WebP image under 5 MB, test unread badges and a notification
-  deep link, then resolve and reopen the case. The screen must state that it is
-  not an emergency service.
+  deep link, then resolve and reopen the case. After resolving, open the same
+  thread once from Support and once from its older notification: both views must
+  show **Resolved** and require **Reopen** before sending. Opening through either
+  route must clear the thread's unread notification badge; the notification may
+  remain in history but must show its read marker. The screen must state that it
+  is not an emergency service.
 - **Gym support permissions:** as trainer read/claim coaching only; as
   receptionist handle membership/attendance/classes/facilities but not payment;
   as accountant handle payment only; as owner/manager read and reassign every

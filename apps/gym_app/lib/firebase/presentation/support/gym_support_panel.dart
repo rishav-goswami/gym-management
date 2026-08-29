@@ -148,7 +148,6 @@ class GymSupportPanel extends StatelessWidget {
                             threadId: document.id,
                             subject:
                                 data['subject'] as String? ?? 'Support request',
-                            initialStatus: data['status'] as String? ?? 'open',
                             staffMode: true,
                           ),
                         ),

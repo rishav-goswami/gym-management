@@ -126,6 +126,7 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
       drawer: !wide && membership.role != GymRole.member
           ? _workspaceDrawer(membership, destinations)
           : null,
+      drawerScrimColor: Colors.black.withValues(alpha: .62),
       endDrawer: membership.role == GymRole.member
           ? _MemberNotificationDrawer(membership: membership)
           : null,
@@ -176,74 +177,81 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
   Widget _workspaceDrawer(
     GymMembership membership,
     List<_Destination> destinations,
-  ) => SafeArea(
-    child: Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              GymBrandMark(membership: membership),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      membership.gymName,
-                      style: Theme.of(context).textTheme.titleMedium,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(_workspaceRoleLabel(membership.role)),
-                  ],
+  ) => Drawer(
+    width: MediaQuery.sizeOf(context).width < 420
+        ? MediaQuery.sizeOf(context).width * .92
+        : 380,
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    surfaceTintColor: Colors.transparent,
+    child: SafeArea(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                GymBrandMark(membership: membership),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        membership.gymName,
+                        style: Theme.of(context).textTheme.titleMedium,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(_workspaceRoleLabel(membership.role)),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: destinations.length,
-            itemBuilder: (drawerContext, index) => ListTile(
-              leading: Icon(destinations[index].icon),
-              title: Text(destinations[index].label),
-              selected: _index == index,
-              onTap: () {
-                Navigator.pop(drawerContext);
-                _selectDestination(index, destinations, membership);
-              },
+              ],
             ),
           ),
-        ),
-        const Divider(height: 1),
-        ListTile(
-          leading: const Icon(Icons.swap_horiz),
-          title: const Text('Switch gym or role'),
-          onTap: () {
-            Navigator.pop(context);
-            context.read<SessionCubit>().chooseAnotherContext();
-          },
-        ),
-        ListTile(
-          leading: const Icon(Icons.ios_share_outlined),
-          title: const Text('Export my data'),
-          onTap: () {
-            Navigator.pop(context);
-            _accountAction('export');
-          },
-        ),
-        ListTile(
-          leading: const Icon(Icons.logout),
-          title: const Text('Log out'),
-          onTap: () {
-            Navigator.pop(context);
-            context.read<SessionCubit>().signOut();
-          },
-        ),
-        const SizedBox(height: 8),
-      ],
+          const Divider(height: 1),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: destinations.length,
+              itemBuilder: (drawerContext, index) => ListTile(
+                leading: Icon(destinations[index].icon),
+                title: Text(destinations[index].label),
+                selected: _index == index,
+                onTap: () {
+                  Navigator.pop(drawerContext);
+                  _selectDestination(index, destinations, membership);
+                },
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.swap_horiz),
+            title: const Text('Switch gym or role'),
+            onTap: () {
+              Navigator.pop(context);
+              context.read<SessionCubit>().chooseAnotherContext();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.ios_share_outlined),
+            title: const Text('Export my data'),
+            onTap: () {
+              Navigator.pop(context);
+              _accountAction('export');
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.logout),
+            title: const Text('Log out'),
+            onTap: () {
+              Navigator.pop(context);
+              context.read<SessionCubit>().signOut();
+            },
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
     ),
   );
 

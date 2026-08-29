@@ -184,6 +184,14 @@ content and attachments receive a 12-month deletion timestamp while
 content-free audit events remain. Support is asynchronous and is explicitly not
 an emergency or medical service.
 
+The root support case/thread document is the live source of truth for the
+conversation title and status; inbox projections and notification copy never
+override it. Status changes update the root and member inbox atomically. Opening
+a conversation from either Support or a notification marks its inbox entry and
+all unread notification events for that thread as read. Read notifications stay
+in history with a visible read marker, while only unread events activate the
+toolbar badge.
+
 Leaving a gym removes that gym's support inbox projections together with
 fitness-sharing projections, while the tenant keeps its operational support
 history. A later approved rejoin restores bounded inbox entries from the same

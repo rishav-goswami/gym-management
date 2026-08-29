@@ -63,9 +63,7 @@ GoRouter createFirebaseRouter(SessionCubit session) => GoRouter(
           ownerUid: session.state.user!.uid,
           gymId: state.uri.queryParameters['gymId'],
           threadId: threadId,
-          subject:
-              state.uri.queryParameters['title'] ?? 'Support conversation',
-          initialStatus: 'open',
+          subject: state.uri.queryParameters['title'] ?? 'Support conversation',
         );
       },
     ),

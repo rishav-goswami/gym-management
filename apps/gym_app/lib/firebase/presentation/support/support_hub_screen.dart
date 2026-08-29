@@ -158,7 +158,6 @@ class SupportHubScreen extends StatelessWidget {
           threadId: threadId,
           gymId: gymId,
           subject: data['subject'] as String? ?? 'Support conversation',
-          initialStatus: data['status'] as String? ?? 'open',
           featureId: data['scopeType'] == 'platform'
               ? 'supportPlatform'
               : data['category'] == 'coaching'
@@ -277,7 +276,6 @@ Future<void> _createGymCase(
           gymId: membership.gymId,
           threadId: id,
           subject: result.subject,
-          initialStatus: 'waitingOnSupport',
           featureId: coaching ? 'supportTrainer' : 'supportGym',
         ),
       ),
@@ -326,7 +324,6 @@ Future<void> _createPlatformCase(
           ownerUid: uid,
           threadId: id,
           subject: result.subject,
-          initialStatus: 'waitingOnSupport',
           featureId: 'supportPlatform',
         ),
       ),
@@ -452,7 +449,6 @@ class SupportConversationScreen extends StatefulWidget {
     required this.ownerUid,
     required this.threadId,
     required this.subject,
-    required this.initialStatus,
     this.gymId,
     this.targetUid,
     this.featureId,
@@ -463,7 +459,6 @@ class SupportConversationScreen extends StatefulWidget {
   final String ownerUid;
   final String threadId;
   final String subject;
-  final String initialStatus;
   final String? gymId;
   final String? targetUid;
   final String? featureId;
@@ -478,7 +473,6 @@ class _SupportConversationScreenState extends State<SupportConversationScreen> {
   final message = TextEditingController();
   bool sending = false;
   double? uploadProgress;
-  late String status = widget.initialStatus;
 
   @override
   void initState() {
@@ -502,175 +496,214 @@ class _SupportConversationScreenState extends State<SupportConversationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final repository = context.read<SupportRepository>();
     final stream = widget.scopeType == 'gym'
-        ? context.read<SupportRepository>().gymMessages(
-            widget.gymId!,
-            widget.threadId,
-          )
-        : context.read<SupportRepository>().platformMessages(
+        ? repository.gymMessages(widget.gymId!, widget.threadId)
+        : repository.platformMessages(
             widget.targetUid ?? widget.ownerUid,
             widget.threadId,
           );
+    final threadStream = repository.thread(
+      scopeType: widget.scopeType,
+      ownerUid: widget.ownerUid,
+      targetUid: widget.targetUid,
+      gymId: widget.gymId,
+      threadId: widget.threadId,
+    );
     final currentUid = context.read<SessionCubit>().state.user!.uid;
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          tooltip: 'Back',
-          onPressed: () async {
-            if (await Navigator.of(context).maybePop()) return;
-            if (!context.mounted) return;
-            context.go(widget.staffMode ? '/workspace' : '/support');
-          },
-          icon: const Icon(Icons.arrow_back),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.subject, overflow: TextOverflow.ellipsis),
-            Text(
-              _statusLabel(status),
-              style: Theme.of(context).textTheme.labelSmall,
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: threadStream,
+      builder: (context, threadSnapshot) {
+        final thread = threadSnapshot.data?.data();
+        final status = thread == null
+            ? threadSnapshot.hasError ||
+                      (threadSnapshot.hasData &&
+                          threadSnapshot.data?.exists == false)
+                  ? 'unavailable'
+                  : 'loading'
+            : thread['status'] as String? ?? 'open';
+        final subject = thread?['subject'] as String? ?? widget.subject;
+        return Scaffold(
+          appBar: AppBar(
+            leading: IconButton(
+              tooltip: 'Back',
+              onPressed: () async {
+                if (await Navigator.of(context).maybePop()) return;
+                if (!context.mounted) return;
+                context.go(widget.staffMode ? '/workspace' : '/support');
+              },
+              icon: const Icon(Icons.arrow_back),
             ),
-          ],
-        ),
-        actions: [
-          if (widget.staffMode &&
-              !const ['resolved', 'closed'].contains(status))
-            TextButton(
-              onPressed: () => _setStatus('resolved'),
-              child: const Text('Resolve'),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(subject, overflow: TextOverflow.ellipsis),
+                Text(
+                  _statusLabel(status),
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ],
             ),
-          if (widget.staffMode && const ['resolved', 'closed'].contains(status))
-            TextButton(
-              onPressed: () => _setStatus('open'),
-              child: const Text('Reopen'),
-            ),
-          if (!widget.staffMode &&
-              const ['resolved', 'closed'].contains(status))
-            IconButton(
-              tooltip: 'Rate this resolution',
-              onPressed: _rateResolution,
-              icon: const Icon(Icons.star_outline),
-            ),
-          if (!widget.staffMode &&
-              const ['resolved', 'closed'].contains(status))
-            TextButton(
-              onPressed: () => _setStatus('open'),
-              child: const Text('Reopen'),
-            ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: stream,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Unable to load messages: ${snapshot.error}'),
-                  );
-                }
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                return ListView.builder(
-                  reverse: true,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: snapshot.data!.docs.length,
-                  itemBuilder: (context, index) {
-                    final data = snapshot.data!.docs[index].data();
-                    final mine = data['senderUid'] == currentUid;
-                    return Align(
-                      alignment: mine
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: Container(
-                        constraints: const BoxConstraints(maxWidth: 520),
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: mine
-                              ? Theme.of(context).colorScheme.primaryContainer
-                              : Theme.of(
-                                  context,
-                                ).colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(14),
+            actions: [
+              if (widget.staffMode &&
+                  !const ['resolved', 'closed'].contains(status))
+                TextButton(
+                  onPressed: () => _setStatus('resolved'),
+                  child: const Text('Resolve'),
+                ),
+              if (widget.staffMode &&
+                  const ['resolved', 'closed'].contains(status))
+                TextButton(
+                  onPressed: () => _setStatus('open'),
+                  child: const Text('Reopen'),
+                ),
+              if (!widget.staffMode &&
+                  const ['resolved', 'closed'].contains(status))
+                IconButton(
+                  tooltip: 'Rate this resolution',
+                  onPressed: _rateResolution,
+                  icon: const Icon(Icons.star_outline),
+                ),
+              if (!widget.staffMode &&
+                  const ['resolved', 'closed'].contains(status))
+                TextButton(
+                  onPressed: () => _setStatus('open'),
+                  child: const Text('Reopen'),
+                ),
+            ],
+          ),
+          body: Column(
+            children: [
+              Expanded(
+                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: stream,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text(
+                          'Unable to load messages: ${snapshot.error}',
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (data['attachmentPath'] is String)
-                              _SupportImage(
-                                path: data['attachmentPath'] as String,
-                              ),
-                            if ((data['text'] as String? ?? '').isNotEmpty)
-                              Text(data['text'] as String),
-                          ],
-                        ),
-                      ),
+                      );
+                    }
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    return ListView.builder(
+                      reverse: true,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: snapshot.data!.docs.length,
+                      itemBuilder: (context, index) {
+                        final data = snapshot.data!.docs[index].data();
+                        final mine = data['senderUid'] == currentUid;
+                        return Align(
+                          alignment: mine
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          child: Container(
+                            constraints: const BoxConstraints(maxWidth: 520),
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: mine
+                                  ? Theme.of(
+                                      context,
+                                    ).colorScheme.primaryContainer
+                                  : Theme.of(
+                                      context,
+                                    ).colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (data['attachmentPath'] is String)
+                                  _SupportImage(
+                                    path: data['attachmentPath'] as String,
+                                  ),
+                                if ((data['text'] as String? ?? '').isNotEmpty)
+                                  Text(data['text'] as String),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     );
                   },
-                );
-              },
-            ),
-          ),
-          if (uploadProgress != null)
-            LinearProgressIndicator(value: uploadProgress),
-          if (!const ['resolved', 'closed'].contains(status))
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                child: Row(
-                  children: [
-                    if (AppFeatureFlags.supportImages)
-                      IconButton(
-                        tooltip: 'Attach image',
-                        onPressed: sending ? null : _attach,
-                        icon: const Icon(Icons.image_outlined),
-                      ),
-                    Expanded(
-                      child: TextField(
-                        controller: message,
-                        minLines: 1,
-                        maxLines: 4,
-                        maxLength: 2000,
-                        decoration: const InputDecoration(
-                          hintText: 'Write a message',
-                          counterText: '',
-                          border: OutlineInputBorder(),
+                ),
+              ),
+              if (uploadProgress != null)
+                LinearProgressIndicator(value: uploadProgress),
+              if (status == 'loading')
+                const SafeArea(top: false, child: LinearProgressIndicator())
+              else if (status == 'unavailable')
+                const SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      'Unable to load the current conversation status. Check your connection and try again.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                )
+              else if (!const ['resolved', 'closed'].contains(status))
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                    child: Row(
+                      children: [
+                        if (AppFeatureFlags.supportImages)
+                          IconButton(
+                            tooltip: 'Attach image',
+                            onPressed: sending ? null : _attach,
+                            icon: const Icon(Icons.image_outlined),
+                          ),
+                        Expanded(
+                          child: TextField(
+                            controller: message,
+                            minLines: 1,
+                            maxLines: 4,
+                            maxLength: 2000,
+                            decoration: const InputDecoration(
+                              hintText: 'Write a message',
+                              counterText: '',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        IconButton.filled(
+                          tooltip: 'Send',
+                          onPressed: sending ? null : () => _send(),
+                          icon: sending
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.send),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    IconButton.filled(
-                      tooltip: 'Send',
-                      onPressed: sending ? null : () => _send(),
-                      icon: sending
-                          ? const SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.send),
+                  ),
+                )
+              else
+                const SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      'This conversation is resolved. Reopen it to send another message.',
+                      textAlign: TextAlign.center,
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            )
-          else
-            const SafeArea(
-              top: false,
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  'This conversation is resolved. Reopen it to send another message.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-        ],
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -687,9 +720,6 @@ class _SupportConversationScreenState extends State<SupportConversationScreen> {
         attachmentPath: attachmentPath,
       );
       message.clear();
-      setState(
-        () => status = widget.staffMode ? 'waitingOnUser' : 'waitingOnSupport',
-      );
     } catch (error) {
       if (mounted) _showError(context, error);
     } finally {
@@ -770,7 +800,6 @@ class _SupportConversationScreenState extends State<SupportConversationScreen> {
         threadId: widget.threadId,
         status: value,
       );
-      if (mounted) setState(() => status = value);
     } catch (error) {
       if (mounted) _showError(context, error);
     }

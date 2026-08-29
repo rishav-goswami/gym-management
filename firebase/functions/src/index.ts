@@ -2438,7 +2438,11 @@ export const updateSupportThreadStatus = onCall(
       throw new HttpsError("failed-precondition", "This conversation is already resolved.");
     }
     const nowMillis = Date.now();
-    await threadRef.update({
+    const inboxId = input.scopeType === "gym"
+      ? `gym_${input.gymId}_${input.threadId}`
+      : `platform_${input.threadId}`;
+    const statusBatch = db.batch();
+    statusBatch.update(threadRef, {
       status: input.status,
       resolvedAt: resolved ? Timestamp.fromMillis(nowMillis) : null,
       retentionDeleteAt: resolved
@@ -2446,13 +2450,11 @@ export const updateSupportThreadStatus = onCall(
         : null,
       updatedAt: FieldValue.serverTimestamp()
     });
-    const inboxId = input.scopeType === "gym"
-      ? `gym_${input.gymId}_${input.threadId}`
-      : `platform_${input.threadId}`;
-    await db.doc(`users/${memberUid}/support_inbox/${inboxId}`).set({
+    statusBatch.set(db.doc(`users/${memberUid}/support_inbox/${inboxId}`), {
       status: input.status,
       updatedAt: FieldValue.serverTimestamp()
     }, { merge: true });
+    await statusBatch.commit();
     const featureId = input.scopeType === "platform"
       ? "supportPlatform"
       : supportCategory === "coaching"
@@ -2512,6 +2514,18 @@ export const markSupportThreadRead = onCall(
         inboxRef = db.doc(`users/${uid}/support_inbox/platform_staff_${input.threadId}`);
       }
     }
+    const notificationCollection = input.scopeType === "gym"
+      ? db.collection(`gyms/${input.gymId}/notifications`)
+      : db.collection(`users/${uid}/notifications`);
+    const notificationCandidates = await notificationCollection
+      .where("data.threadId", "==", input.threadId)
+      .limit(50)
+      .get();
+    const notifications = notificationCandidates.docs.filter((notification) =>
+      notification.get("type") === "support" &&
+      (input.scopeType !== "gym" || notification.get("recipientUid") === uid) &&
+      notification.get("read") !== true
+    );
     const batch = db.batch();
     batch.set(threadRef, {
       [`lastReadBy.${uid}`]: FieldValue.serverTimestamp(),
@@ -2522,6 +2536,10 @@ export const markSupportThreadRead = onCall(
       readAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp()
     }, { merge: true });
+    notifications.forEach((notification) => batch.set(notification.ref, {
+      read: true,
+      readAt: FieldValue.serverTimestamp()
+    }, { merge: true }));
     await batch.commit();
     return { read: true };
   }

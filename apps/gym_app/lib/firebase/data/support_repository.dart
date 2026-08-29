@@ -88,6 +88,24 @@ class SupportRepository {
       .limit(50)
       .snapshots();
 
+  Stream<DocumentSnapshot<Map<String, dynamic>>> thread({
+    required String scopeType,
+    required String ownerUid,
+    required String threadId,
+    String? gymId,
+    String? targetUid,
+  }) {
+    if (scopeType == 'gym') {
+      if (gymId == null || gymId.isEmpty) {
+        throw ArgumentError.value(gymId, 'gymId', 'Required for gym support');
+      }
+      return firestore.doc('gyms/$gymId/support_threads/$threadId').snapshots();
+    }
+    return firestore
+        .doc('users/${targetUid ?? ownerUid}/support_cases/$threadId')
+        .snapshots();
+  }
+
   Stream<DocumentSnapshot<Map<String, dynamic>>> trainerAssignment(
     String gymId,
     String memberUid,

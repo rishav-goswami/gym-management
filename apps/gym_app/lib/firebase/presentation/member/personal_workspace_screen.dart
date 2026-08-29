@@ -86,10 +86,10 @@ class _PersonalWorkspaceScreenState extends State<PersonalWorkspaceScreen> {
               onPressed: () => _openWorkspace(operationalMembership),
               icon: const Icon(Icons.business_center_outlined),
             ),
-          IconButton(
-            tooltip: 'Notifications',
+          _PersonalNotificationButton(
+            scope: scope,
+            membership: memberMembership,
             onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
-            icon: const Badge(child: Icon(Icons.notifications_outlined)),
           ),
           const SizedBox(width: 8),
         ],
@@ -176,8 +176,8 @@ class _PersonalWorkspaceScreenState extends State<PersonalWorkspaceScreen> {
         ),
       );
 
-  Future<void> _openSupport(GymMembership? membership) => Navigator.of(context)
-      .push(
+  Future<void> _openSupport(GymMembership? membership) =>
+      Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => SupportHubScreen(membership: membership),
         ),
@@ -977,76 +977,98 @@ class _PersonalNotifications extends StatelessWidget {
           'notifications',
           limit: 30,
         ),
-        builder: (context, personalSnapshot) => StreamBuilder<
-          QuerySnapshot<Map<String, dynamic>>
-        >(
-          stream: membership == null
-              ? null
-              : context.read<GymRepository>().notifications(
-                  membership!.gymId,
-                  membership!.uid,
-                ),
-          builder: (context, gymSnapshot) {
-            final notifications = <QueryDocumentSnapshot<Map<String, dynamic>>>[
-              ...?personalSnapshot.data?.docs,
-              ...?gymSnapshot.data?.docs,
-            ]..sort((left, right) {
-                final leftAt = left.data()['createdAt'] as Timestamp?;
-                final rightAt = right.data()['createdAt'] as Timestamp?;
-                return (rightAt?.millisecondsSinceEpoch ?? 0).compareTo(
-                  leftAt?.millisecondsSinceEpoch ?? 0,
+        builder: (context, personalSnapshot) =>
+            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: membership == null
+                  ? null
+                  : context.read<GymRepository>().notifications(
+                      membership!.gymId,
+                      membership!.uid,
+                    ),
+              builder: (context, gymSnapshot) {
+                final notifications =
+                    <QueryDocumentSnapshot<Map<String, dynamic>>>[
+                      ...?personalSnapshot.data?.docs,
+                      ...?gymSnapshot.data?.docs,
+                    ]..sort((left, right) {
+                      final leftAt = left.data()['createdAt'] as Timestamp?;
+                      final rightAt = right.data()['createdAt'] as Timestamp?;
+                      return (rightAt?.millisecondsSinceEpoch ?? 0).compareTo(
+                        leftAt?.millisecondsSinceEpoch ?? 0,
+                      );
+                    });
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(
+                        'Notifications',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: notifications.isEmpty
+                          ? const Center(child: Text('You’re all caught up'))
+                          : ListView.builder(
+                              itemCount: notifications.length,
+                              itemBuilder: (context, index) {
+                                final data = notifications[index].data();
+                                final isSupport = data['type'] == 'support';
+                                final unread = data['read'] != true;
+                                return ListTile(
+                                  leading: Icon(
+                                    isSupport
+                                        ? Icons.support_agent_outlined
+                                        : Icons.notifications_outlined,
+                                  ),
+                                  title: Text(
+                                    data['title'] as String? ?? 'Update',
+                                    style: unread
+                                        ? const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          )
+                                        : null,
+                                  ),
+                                  subtitle: Text(data['body'] as String? ?? ''),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Tooltip(
+                                        message: unread ? 'Unread' : 'Read',
+                                        child: Icon(
+                                          unread
+                                              ? Icons.circle
+                                              : Icons.done_all_outlined,
+                                          size: unread ? 9 : 17,
+                                          color: unread
+                                              ? Theme.of(
+                                                  context,
+                                                ).colorScheme.error
+                                              : Theme.of(
+                                                  context,
+                                                ).colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                      if (isSupport) ...[
+                                        const SizedBox(width: 8),
+                                        const Icon(Icons.chevron_right),
+                                      ],
+                                    ],
+                                  ),
+                                  onTap: () => _handleNotification(
+                                    context,
+                                    notifications[index],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
                 );
-              });
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Text(
-                    'Notifications',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: notifications.isEmpty
-                      ? const Center(child: Text('You’re all caught up'))
-                      : ListView.builder(
-                          itemCount: notifications.length,
-                          itemBuilder: (context, index) {
-                            final data = notifications[index].data();
-                            final isSupport = data['type'] == 'support';
-                            final unread = data['read'] != true;
-                            return ListTile(
-                              leading: Icon(
-                                isSupport
-                                    ? Icons.support_agent_outlined
-                                    : Icons.notifications_outlined,
-                              ),
-                              title: Text(
-                                data['title'] as String? ?? 'Update',
-                                style: unread
-                                    ? const TextStyle(fontWeight: FontWeight.bold)
-                                    : null,
-                              ),
-                              subtitle: Text(data['body'] as String? ?? ''),
-                              trailing: isSupport
-                                  ? const Icon(Icons.chevron_right)
-                                  : unread
-                                  ? const Icon(Icons.circle, size: 9)
-                                  : null,
-                              onTap: () => _handleNotification(
-                                context,
-                                notifications[index],
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            );
-          },
-        ),
+              },
+            ),
       ),
     ),
   );
@@ -1072,7 +1094,6 @@ class _PersonalNotifications extends StatelessWidget {
           gymId: gymId,
           threadId: threadId,
           subject: notification['title'] as String? ?? 'Support conversation',
-          initialStatus: 'open',
         ),
       ),
     );
@@ -1084,14 +1105,64 @@ class _PersonalNotifications extends StatelessWidget {
   ) async {
     final data = notification.data();
     if (data['read'] != true) {
-      await notification.reference.update({
-        'read': true,
-        'readAt': FieldValue.serverTimestamp(),
-      }).catchError((_) {});
+      await notification.reference
+          .update({'read': true, 'readAt': FieldValue.serverTimestamp()})
+          .catchError((_) {});
     }
     if (!context.mounted) return;
     if (data['type'] == 'support') {
       _openSupportNotification(context, data);
     }
   }
+}
+
+class _PersonalNotificationButton extends StatelessWidget {
+  const _PersonalNotificationButton({
+    required this.scope,
+    required this.membership,
+    required this.onPressed,
+  });
+
+  final FitnessScope scope;
+  final GymMembership? membership;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) =>
+      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: context.read<GymRepository>().fitnessRecords(
+          scope,
+          'notifications',
+          limit: 30,
+        ),
+        builder: (context, personalSnapshot) =>
+            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: membership == null
+                  ? null
+                  : context.read<GymRepository>().notifications(
+                      membership!.gymId,
+                      membership!.uid,
+                    ),
+              builder: (context, gymSnapshot) {
+                final unread = [
+                  ...?personalSnapshot.data?.docs,
+                  ...?gymSnapshot.data?.docs,
+                ].where((document) => document.data()['read'] != true).length;
+                return Badge(
+                  isLabelVisible: unread > 0,
+                  child: IconButton(
+                    tooltip: unread == 0
+                        ? 'Notifications'
+                        : '$unread unread notifications',
+                    onPressed: onPressed,
+                    icon: Icon(
+                      unread == 0
+                          ? Icons.notifications_outlined
+                          : Icons.notifications,
+                    ),
+                  ),
+                );
+              },
+            ),
+      );
 }
