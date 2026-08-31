@@ -460,32 +460,72 @@ and [Firebase deployment targets](https://firebase.google.com/docs/cli/targets).
 The production application ID is `com.rishva.gymmanagement`. Treat it as
 permanent after the first Play Store release.
 
-Create an upload key once and keep it outside Git and in a backed-up password
-manager/secret store:
+Use the repository-pinned Flutter SDK for every command. This project currently
+uses Flutter `3.44.0` through FVM. Running a different global Flutter version can
+rewrite the lockfile, add an unwanted CocoaPods integration, or migrate Gradle
+files differently:
 
 ```sh
-keytool -genkeypair -v \
-  -keystore "$HOME/gym-management-upload-keystore.jks" \
-  -keyalg RSA -keysize 2048 -validity 10000 -alias upload
-cp apps/gym_app/android/key.properties.example \
-  apps/gym_app/android/key.properties
+fvm flutter --version
+fvm flutter doctor -v
 ```
 
-Edit the ignored `apps/gym_app/android/key.properties` with the real passwords
-and absolute keystore path. The repository's release build intentionally does
-not fall back to the debug key.
-
-Build the Play-preferred Android App Bundle:
+The Android build uses Java 21. Gradle 8.14 cannot run on the Java 25 runtime
+bundled with newer Android Studio versions. On macOS, install and select the
+compatible JDK once:
 
 ```sh
-cd apps/gym_app
-fvm flutter build appbundle --release \
-  --dart-define=APP_FLAVOR=production \
+brew install openjdk@21
+fvm flutter config \
+  --jdk-dir=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+fvm flutter doctor -v
+```
+
+If `flutter doctor --android-licenses` says that `--licenses` is no longer
+needed, the newer Android CLI has replaced that command. Accept requested SDK
+licenses through Android Studio's SDK Manager and validate with an actual FVM
+Android build; do not install an obsolete command-line tools package only to
+silence the stale doctor warning.
+
+Create an upload key once. The generator uses a random password, writes the
+keystore outside the repository under `~/.gym-management/android-signing/`,
+creates the ignored local `key.properties`, exports the public certificate, and
+refuses to overwrite an existing key:
+
+```sh
+npm run android:signing:generate
+```
+
+The generator does not print the password. Open the ignored
+`apps/gym_app/android/key.properties` locally and copy the password into a
+password manager. Back up both the keystore and password separately before the
+first Play upload. Do not regenerate or replace the key for later releases. The
+repository's release build intentionally does not fall back to the debug key.
+
+Build the Play-preferred Android App Bundle with R8 code/resource optimization
+and Dart symbol obfuscation:
+
+```sh
+npm run app:build:android-release -- \
   --build-name=1.0.1 \
   --build-number=2
 ```
 
 The output is `apps/gym_app/build/app/outputs/bundle/release/app-release.aab`.
+The matching Dart symbols and obfuscation map are written to the ignored
+`.release-symbols/android/1.0.1+2/` directory. Back up that directory privately,
+label it with the exact store build, and never commit it. It is required to
+symbolicate Dart stack traces from that release. Android R8 mapping remains in
+the generated Android release output and is handled by the configured Google
+Play/Crashlytics release tooling.
+
+R8/ProGuard-style optimization only affects Android Java/Kotlin and resources;
+Flutter's `--obfuscate` affects compiled Dart. Neither encrypts assets, makes a
+client API key secret, or prevents determined reverse engineering. Never embed
+service-account keys or privileged secrets. Firebase Rules, Functions claim and
+permission checks, App Check/Play Integrity, release signing, and server-side
+validation are the security boundary.
+
 Create the Play Console app with the same application ID, enable Play App
 Signing, and upload the AAB to **Internal testing** first. Add testers, complete
 the store listing, content rating, Data safety, health-app disclosures, privacy
@@ -506,25 +546,29 @@ The current bundle ID is `com.rishva.gymmanagement`. Membership in the Apple
 Developer Program, an explicit App ID, an App Store Connect app record, signing
 certificates and a provisioning profile/team are required.
 
-Open `apps/gym_app/ios/Runner.xcworkspace` in Xcode once and select the owned
+Open `apps/gym_app/ios/Runner.xcodeproj` in Xcode once and select the owned
 Apple Team under **Runner → Signing & Capabilities**. Verify the bundle ID and
 enable/configure the capabilities used by the app, including Push
 Notifications, Sign in with Apple, Associated Domains for invitation links,
 and the selected App Check provider. Upload the APNs authentication key to
 Firebase Cloud Messaging and configure the Apple sign-in provider in Firebase.
+This app uses Swift Package Manager; do not run a global Flutter version that
+generates a `Podfile` or switch it back to CocoaPods.
 
-Create the archive and IPA:
+Create the archive and IPA with Dart obfuscation:
 
 ```sh
-cd apps/gym_app
-fvm flutter build ipa --release \
-  --dart-define=APP_FLAVOR=production \
+npm run app:build:ios-release -- \
   --build-name=1.0.1 \
   --build-number=2
 ```
 
 The archive is written under `build/ios/archive/` and exported IPAs under
-`build/ios/ipa/`. Validate and upload it using Xcode Organizer or Apple's
+`build/ios/ipa/`. Matching private Dart symbols are written under
+`.release-symbols/ios/1.0.1+2/`; preserve them together with the Xcode archive
+and its dSYMs. iOS has no ProGuard/R8 equivalent—the Xcode release/archive
+pipeline strips native symbols and retains dSYMs, while Flutter obfuscates Dart.
+Validate and upload the IPA using Xcode Organizer or Apple's
 Transporter. Release to internal TestFlight testers first, complete App Store
 privacy/nutrition-label, health-data, export-compliance, support and account
 deletion information, then submit that tested build for App Review. The build
@@ -538,6 +582,8 @@ Official reference: [Flutter iOS release guide](https://docs.flutter.dev/deploym
 - Apple certificates, private keys, provisioning profiles and App Store API keys
 - Firebase service-account JSON files or migration exports
 - `.env` secrets, emulator exports, generated build output or debug logs
+- `.release-symbols/`, Android mapping files, Xcode archives and dSYMs (store
+  these in a private encrypted release-artifact location instead)
 
 Firebase client configuration and web API keys identify the client and are not
 Admin SDK credentials; still restrict those keys appropriately and rely on Auth,
@@ -546,6 +592,11 @@ App Check, Security Rules and Functions authorization for actual protection.
 Creating a separate frontend does not make privileged operations safe by
 itself. Never place Admin SDK credentials in either web build, and keep every
 platform mutation protected by claim checks in Functions and rules.
+
+For a connected physical iPhone/iPad, unlock the device, trust this Mac, enable
+Developer Mode, and use the cable for the first run. A `code -27` LAN browsing
+message refers to another locked or undiscoverable Apple device and does not
+block Android builds or a separately listed connected iOS device.
 
 The rules suite covers own-tenant access, cross-tenant attacks, suspended tenants, fitness-record privacy, and client privilege escalation. Add role/override cases whenever a new collection or permission is introduced.
 
