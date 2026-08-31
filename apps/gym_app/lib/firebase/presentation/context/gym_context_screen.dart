@@ -8,6 +8,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../core/invitations/gym_invitation_link.dart';
 import '../../data/firebase_session_repository.dart';
 import '../../logic/session_cubit.dart';
+import '../shared/gym_sharing_dialog.dart';
 
 class GymContextScreen extends StatefulWidget {
   const GymContextScreen({super.key, this.invitation});
@@ -308,7 +309,10 @@ class _GymContextScreenState extends State<GymContextScreen> {
     if (!mounted) return;
     switch (action) {
       case _JoinAction.chooseSharing:
-        final categories = await _sharingChoice(membership.gymId);
+        final categories = await _sharingChoice(
+          membership.gymId,
+          membership.gymName,
+        );
         if (mounted) {
           await _showJoinResult(membership, sharedCategories: categories);
         }
@@ -328,16 +332,10 @@ class _GymContextScreenState extends State<GymContextScreen> {
     }
   }
 
-  Future<List<String>> _sharingChoice(String gymId) async {
-    final values = <String, bool>{
-      'profile': false,
-      'goals': false,
-      'workoutSummaries': false,
-      'measurements': false,
-      'progress': false,
-    };
+  Future<List<String>> _sharingChoice(String gymId, String gymName) async {
     final repository = context.read<FirebaseSessionRepository>();
     final uid = repository.auth.currentUser?.uid;
+    var current = const <String, bool>{};
     if (uid != null) {
       final snapshot = await repository.firestore
           .doc('users/$uid/gym_shares/$gymId')
@@ -345,69 +343,34 @@ class _GymContextScreenState extends State<GymContextScreen> {
       final saved = Map<String, dynamic>.from(
         snapshot.data()?['categories'] as Map? ?? const {},
       );
-      for (final key in values.keys) {
-        values[key] = saved[key] == true;
-      }
+      current = {
+        for (final key in kGymSharingCategories) key: saved[key] == true,
+      };
     }
     if (!mounted) return const [];
-    final save = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Share fitness data?'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Nothing is shared by default. Gym services still work without sharing.',
-                ),
-                const SizedBox(height: 12),
-                ...values.entries.map(
-                  (entry) => SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: entry.value,
-                    title: Text(_sharingLabel(entry.key)),
-                    onChanged: (value) =>
-                        setDialogState(() => values[entry.key] = value),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Keep private'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Save choices'),
-            ),
-          ],
-        ),
-      ),
+    final values = await showGymSharingDialog(
+      context,
+      gymName: gymName,
+      current: current,
+      introText:
+          'Nothing is shared by default. Gym services still work without '
+          'sharing.',
+      showDescriptions: false,
+      saveLabel: 'Save choices',
+      cancelLabel: 'Keep private',
     );
-    if (save == true && mounted) {
+    if (values != null && mounted) {
       await repository.functions.httpsCallable('updateGymSharing').call<void>({
         'gymId': gymId,
         'categories': values,
       });
       return values.entries
           .where((entry) => entry.value)
-          .map((entry) => _sharingLabel(entry.key))
+          .map((entry) => sharingCategoryLabel(entry.key))
           .toList();
     }
     return const [];
   }
-
-  String _sharingLabel(String value) => switch (value) {
-    'workoutSummaries' => 'Workout summaries',
-    'measurements' => 'Body measurements',
-    'progress' => 'Progress records and photos',
-    'goals' => 'Fitness goals',
-    _ => 'Profile basics',
-  };
 
   String _gymSpaceDescription(GymMembership membership) =>
       membership.role == GymRole.member

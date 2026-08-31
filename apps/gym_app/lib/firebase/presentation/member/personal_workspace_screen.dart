@@ -9,6 +9,7 @@ import '../../data/gym_repository.dart';
 import '../../data/firebase_session_repository.dart';
 import '../../logic/session_cubit.dart';
 import '../shared/gym_brand_mark.dart';
+import '../shared/gym_sharing_dialog.dart';
 import '../support/support_hub_screen.dart';
 import '../workspace/gym_workspace_screen.dart' show MemberGymServicesScreen;
 import 'member_home_panel.dart';
@@ -823,7 +824,7 @@ class _GymSharingSection extends StatelessWidget {
               final count = categories.values.where((value) => value).length;
               final shared = categories.entries
                   .where((entry) => entry.value)
-                  .map((entry) => _sharingCategoryLabel(entry.key))
+                  .map((entry) => sharingCategoryLabel(entry.key))
                   .toList();
               return ListTile(
                 leading: CircleAvatar(
@@ -849,54 +850,12 @@ class _GymSharingSection extends StatelessWidget {
     GymMembership membership,
     Map<String, bool> current,
   ) async {
-    final values = <String, bool>{
-      'profile': current['profile'] ?? false,
-      'goals': current['goals'] ?? false,
-      'workoutSummaries': current['workoutSummaries'] ?? false,
-      'measurements': current['measurements'] ?? false,
-      'progress': current['progress'] ?? false,
-    };
-    final save = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, update) => AlertDialog(
-          title: Text('Share with ${membership.gymName}'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Sharing helps authorized staff or trainers support you. Your membership features work even when every option is off.',
-                ),
-                const SizedBox(height: 12),
-                ...values.entries.map(
-                  (entry) => SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: entry.value,
-                    title: Text(_sharingCategoryLabel(entry.key)),
-                    subtitle: Text(_sharingCategoryDescription(entry.key)),
-                    onChanged: (value) =>
-                        update(() => values[entry.key] = value),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      ),
+    final values = await showGymSharingDialog(
+      context,
+      gymName: membership.gymName,
+      current: current,
     );
-    if (save == true && context.mounted) {
+    if (values != null && context.mounted) {
       await context.read<GymRepository>().updateGymSharing(
         gymId: membership.gymId,
         categories: values,
@@ -916,25 +875,6 @@ class _GymSharingSection extends StatelessWidget {
     }
   }
 }
-
-String _sharingCategoryLabel(String key) => switch (key) {
-  'profile' => 'Profile basics',
-  'goals' => 'Fitness goals',
-  'workoutSummaries' => 'Workout summaries',
-  'measurements' => 'Body measurements',
-  'progress' => 'Progress records',
-  _ => key,
-};
-
-String _sharingCategoryDescription(String key) => switch (key) {
-  'profile' => 'Basic identity and fitness preferences for member support.',
-  'goals' => 'Your selected goals for relevant plans and guidance.',
-  'workoutSummaries' =>
-    'Completion and adherence summaries, not private notes.',
-  'measurements' => 'Selected body measurements and their changes over time.',
-  'progress' => 'Personal records and progress entries covered by this grant.',
-  _ => '',
-};
 
 String _roleTitle(GymRole role) => switch (role) {
   GymRole.owner => 'Owner',

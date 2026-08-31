@@ -24,9 +24,11 @@ app's visual design or proprietary media:
    optional working weight, completes sets, uses the automatic rest timer, and
    moves between exercises. An in-progress draft is stored per member and gym so
    it can be resumed after an interruption or mobile process termination.
-6. Finishing writes a member-owned `workout_logs` document containing timing,
-   goal, exercises, target/completed sets, completed reps per set, and working
-   weight. That log is the source for the member's training progress.
+6. Finishing writes a member-owned, version-two `workout_logs` document
+   containing timing, goal, and per-exercise detail: target/completed sets, a
+   per-set `sets` array (matching the routine logger's schema), plus
+   compatibility summary fields (completed reps per set, working weight) for
+   older clients. That log is the source for the member's training progress.
 7. Trainer-authored `workout_assignments` remain visible above self-guided
    workouts. The next trainer iteration should replace free-text routines with
    structured exercises and revisions.
@@ -67,7 +69,10 @@ patterns without copying another product's visual design:
 
 - **Overview** summarizes the latest 28 days, eight-week workout consistency,
   training time, completed sets, estimated lifted volume, recent sessions, and
-  the latest body snapshot.
+  the latest body snapshot. Members can set a target-weight goal from their
+  latest logged weight; progress toward it is tracked in a member-owned
+  `goals` document and shown as a progress bar until the member updates it,
+  marks it achieved, or removes it.
 - **Exercises** groups workout-log entries by stable exercise ID. Each exercise
   exposes its guidance image, history, best working weight, estimated one-rep
   maximum, best session volume, bodyweight rep records, or cardio time/speed/

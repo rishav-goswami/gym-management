@@ -26,6 +26,11 @@ final darkTheme = ThemeData(
       fontWeight: FontWeight.bold,
       fontSize: 22,
     ),
+    titleMedium: TextStyle(
+      color: AppColors.textPrimaryDark,
+      fontWeight: FontWeight.w600,
+      fontSize: 16,
+    ),
     bodyLarge: TextStyle(color: AppColors.textPrimaryDark, fontSize: 16),
     bodyMedium: TextStyle(color: AppColors.textSecondaryDark, fontSize: 14),
     bodySmall: TextStyle(color: AppColors.textSecondaryDark, fontSize: 12),

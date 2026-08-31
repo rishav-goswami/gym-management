@@ -73,23 +73,10 @@ class MemberRoutinesSection extends StatelessWidget {
                   ],
                 ),
               ),
-              PopupMenuButton<String>(
-                tooltip: 'Add workout',
+              IconButton(
+                tooltip: 'Create routine',
                 icon: const Icon(Icons.add_circle_outline),
-                onSelected: (value) {
-                  if (value == 'routine') {
-                    _openRoutineBuilder(context, scope);
-                  } else {
-                    _openWorkoutLogger(context, scope);
-                  }
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'log', child: Text('Quick log workout')),
-                  PopupMenuItem(
-                    value: 'routine',
-                    child: Text('Create routine'),
-                  ),
-                ],
+                onPressed: () => _openRoutineBuilder(context, scope),
               ),
             ],
           ),
@@ -291,11 +278,13 @@ class _RoutineBuilderScreenState extends State<RoutineBuilderScreen> {
   late final Set<int> _weekdays;
   late final List<RoutineMovement> _movements;
   bool _saving = false;
+  bool _dirty = false;
 
   @override
   void initState() {
     super.initState();
     _name = TextEditingController(text: widget.routine?.name ?? '');
+    _name.addListener(() => _dirty = true);
     _weekdays = {...?widget.routine?.scheduledWeekdays};
     _movements = [...?widget.routine?.movements];
   }
@@ -306,18 +295,51 @@ class _RoutineBuilderScreenState extends State<RoutineBuilderScreen> {
     super.dispose();
   }
 
+  Future<bool> _confirmDiscard() async {
+    if (!_dirty) return true;
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Discard changes?'),
+        content: const Text('Your routine edits will be lost.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Keep editing'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    return discard ?? false;
+  }
+
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(widget.routine == null ? 'Create routine' : 'Edit routine'),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : _save,
-          child: const Text('Save'),
+  Widget build(BuildContext context) => PopScope(
+    canPop: !_dirty,
+    onPopInvokedWithResult: (didPop, result) async {
+      if (didPop) return;
+      final shouldPop = await _confirmDiscard();
+      if (shouldPop && context.mounted) {
+        Navigator.of(context).pop();
+      }
+    },
+    child: Scaffold(
+      appBar: AppBar(
+        title: Text(
+          widget.routine == null ? 'Create routine' : 'Edit routine',
         ),
-      ],
-    ),
-    body: ListView(
+        actions: [
+          TextButton(
+            onPressed: _saving ? null : _save,
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+      body: ListView(
       padding: const EdgeInsets.all(20),
       children: [
         TextField(
@@ -342,6 +364,7 @@ class _RoutineBuilderScreenState extends State<RoutineBuilderScreen> {
               selected: _weekdays.contains(day),
               onSelected: (selected) => setState(() {
                 selected ? _weekdays.add(day) : _weekdays.remove(day);
+                _dirty = true;
               }),
             );
           }),
@@ -414,8 +437,10 @@ class _RoutineBuilderScreenState extends State<RoutineBuilderScreen> {
                     ),
                     IconButton(
                       tooltip: 'Remove movement',
-                      onPressed: () =>
-                          setState(() => _movements.removeAt(item.$1)),
+                      onPressed: () => setState(() {
+                        _movements.removeAt(item.$1);
+                        _dirty = true;
+                      }),
                       icon: const Icon(Icons.delete_outline),
                     ),
                   ],
@@ -438,11 +463,16 @@ class _RoutineBuilderScreenState extends State<RoutineBuilderScreen> {
         ),
       ],
     ),
-  );
+  ));
 
   Future<void> _addMovement() async {
     final movement = await showMovementPicker(context);
-    if (movement != null) setState(() => _movements.add(movement));
+    if (movement != null) {
+      setState(() {
+        _movements.add(movement);
+        _dirty = true;
+      });
+    }
   }
 
   void _changeSets(int index, int delta) {
@@ -451,6 +481,7 @@ class _RoutineBuilderScreenState extends State<RoutineBuilderScreen> {
       _movements[index] = current.copyWith(
         targetSets: (current.targetSets + delta).clamp(1, 20),
       );
+      _dirty = true;
     });
   }
 
@@ -458,11 +489,23 @@ class _RoutineBuilderScreenState extends State<RoutineBuilderScreen> {
     final current = _movements[index];
     final previous = _movements[index - 1];
     setState(() {
+      _dirty = true;
       if (current.supersetGroup != null) {
         final group = current.supersetGroup;
         _movements[index] = current.copyWith(clearSuperset: true);
-        if (previous.supersetGroup == group) {
-          _movements[index - 1] = previous.copyWith(clearSuperset: true);
+        // A 3+ movement chain shares one group id. Only clear a remaining
+        // member's group if it would otherwise be the sole one left holding
+        // it (an orphaned "superset" of one) — don't break a still-valid
+        // pair/chain just because one of its members got unlinked.
+        final remainingIndexes = [
+          for (var i = 0; i < _movements.length; i++)
+            if (_movements[i].supersetGroup == group) i,
+        ];
+        if (remainingIndexes.length == 1) {
+          final orphan = remainingIndexes.single;
+          _movements[orphan] = _movements[orphan].copyWith(
+            clearSuperset: true,
+          );
         }
       } else {
         final group = previous.supersetGroup ?? 'superset-${previous.id}';
@@ -492,6 +535,7 @@ class _RoutineBuilderScreenState extends State<RoutineBuilderScreen> {
             .map((item) => item.toMap())
             .toList(growable: false),
       );
+      _dirty = false;
       if (mounted) Navigator.pop(context);
     } catch (error) {
       _message('Unable to save routine: $error');
@@ -529,9 +573,11 @@ class _MemberWorkoutLoggerScreenState extends State<MemberWorkoutLoggerScreen> {
   late final TextEditingController _title;
   late final TextEditingController _notes;
   late final List<_MovementInput> _movements;
+  late Future<Map<String, Map<String, dynamic>?>> _previousSets;
   Timer? _restTimer;
   int _restSeconds = 0;
   bool _saving = false;
+  bool _dirty = false;
 
   @override
   void initState() {
@@ -547,6 +593,7 @@ class _MemberWorkoutLoggerScreenState extends State<MemberWorkoutLoggerScreen> {
     _movements =
         widget.routine?.movements.map(_MovementInput.fromRoutine).toList() ??
         [];
+    _previousSets = _loadPreviousSets();
   }
 
   @override
@@ -560,117 +607,189 @@ class _MemberWorkoutLoggerScreenState extends State<MemberWorkoutLoggerScreen> {
     super.dispose();
   }
 
+  // Resolves the "previous" chip for every movement in one query instead of
+  // one query per card (avoids N+1 reads when a routine has several
+  // movements).
+  Future<Map<String, Map<String, dynamic>?>> _loadPreviousSets() =>
+      context.read<GymRepository>().previousExerciseSets(
+        widget.scope,
+        _movements.map((movement) => movement.exerciseId ?? movement.id),
+      );
+
+  Future<bool> _confirmDiscard() async {
+    if (!_dirty) return true;
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Discard this workout?'),
+        content: const Text('Sets you logged so far will be lost.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Keep logging'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    return discard ?? false;
+  }
+
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Log workout'),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : _finish,
-          child: const Text('Finish'),
-        ),
-      ],
-    ),
-    body: ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        TextField(
-          controller: _title,
-          decoration: const InputDecoration(
-            labelText: 'Workout title',
-            border: OutlineInputBorder(),
+  Widget build(BuildContext context) => PopScope(
+    canPop: !_dirty,
+    onPopInvokedWithResult: (didPop, result) async {
+      if (didPop) return;
+      final shouldPop = await _confirmDiscard();
+      if (shouldPop && context.mounted) {
+        Navigator.of(context).pop();
+      }
+    },
+    child: Scaffold(
+      appBar: AppBar(
+        title: const Text('Log workout'),
+        actions: [
+          TextButton(
+            onPressed: _saving ? null : _finish,
+            child: const Text('Finish'),
           ),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _notes,
-          maxLines: 2,
-          decoration: const InputDecoration(
-            labelText: 'Workout notes (optional)',
-            hintText: 'Energy, focus, session context…',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        const SizedBox(height: 12),
-        const Card(
-          child: ListTile(
-            leading: Icon(Icons.auto_graph),
-            title: Text('Every completed set updates Progress'),
-            subtitle: Text(
-              'Log the values you actually completed. Different weights and reps can be entered for every set.',
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          TextField(
+            controller: _title,
+            onChanged: (_) => _dirty = true,
+            decoration: const InputDecoration(
+              labelText: 'Workout title',
+              border: OutlineInputBorder(),
             ),
           ),
-        ),
-        const SizedBox(height: 10),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 10,
-              runSpacing: 8,
-              children: [
-                Icon(_restSeconds > 0 ? Icons.timer : Icons.timer_outlined),
-                Text(
-                  _restSeconds > 0
-                      ? 'Rest ${_restSeconds ~/ 60}:${(_restSeconds % 60).toString().padLeft(2, '0')}'
-                      : 'Rest timer',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                OutlinedButton(
-                  onPressed: () => _startRest(60),
-                  child: const Text('1:00'),
-                ),
-                OutlinedButton(
-                  onPressed: () => _startRest(90),
-                  child: const Text('1:30'),
-                ),
-                if (_restSeconds > 0)
-                  TextButton(onPressed: _stopRest, child: const Text('Stop')),
-              ],
+          const SizedBox(height: 12),
+          TextField(
+            controller: _notes,
+            maxLines: 2,
+            onChanged: (_) => _dirty = true,
+            decoration: const InputDecoration(
+              labelText: 'Workout notes (optional)',
+              hintText: 'Energy, focus, session context…',
+              border: OutlineInputBorder(),
             ),
           ),
-        ),
-        const SizedBox(height: 10),
-        ..._movements.indexed.map(
-          (item) => _MovementLogCard(
-            key: ValueKey(item.$2.id),
-            movement: item.$2,
-            scope: widget.scope,
-            number: item.$1 + 1,
-            onRemove: () {
-              setState(() {
-                final removed = _movements.removeAt(item.$1);
-                removed.dispose();
-              });
-            },
-            onChanged: () => setState(() {}),
+          const SizedBox(height: 12),
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.auto_graph),
+              title: Text('Every completed set updates Progress'),
+              subtitle: Text(
+                'Log the values you actually completed. Different weights and reps can be entered for every set.',
+              ),
+            ),
           ),
-        ),
-        OutlinedButton.icon(
-          onPressed: _addMovement,
-          icon: const Icon(Icons.add),
-          label: const Text('Add movement'),
-        ),
-        const SizedBox(height: 20),
-        FilledButton.icon(
-          onPressed: _saving ? null : _finish,
-          icon: _saving
-              ? const SizedBox.square(
-                  dimension: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.check),
-          label: const Text('Finish and save workout'),
-        ),
-      ],
+          const SizedBox(height: 10),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  Icon(_restSeconds > 0 ? Icons.timer : Icons.timer_outlined),
+                  Text(
+                    _restSeconds > 0
+                        ? 'Rest ${_restSeconds ~/ 60}:${(_restSeconds % 60).toString().padLeft(2, '0')}'
+                        : 'Rest timer',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  OutlinedButton(
+                    onPressed: () => _startRest(60),
+                    child: const Text('1:00'),
+                  ),
+                  OutlinedButton(
+                    onPressed: () => _startRest(90),
+                    child: const Text('1:30'),
+                  ),
+                  if (_restSeconds > 0)
+                    TextButton(
+                      onPressed: _stopRest,
+                      child: const Text('Stop'),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (_movements.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Add a movement to start logging sets.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
+          else
+            FutureBuilder<Map<String, Map<String, dynamic>?>>(
+              future: _previousSets,
+              builder: (context, snapshot) {
+                final previousSets = snapshot.data ?? const {};
+                return Column(
+                  children: [
+                    for (final item in _movements.indexed)
+                      _MovementLogCard(
+                        key: ValueKey(item.$2.id),
+                        movement: item.$2,
+                        number: item.$1 + 1,
+                        previous:
+                            previousSets[item.$2.exerciseId ?? item.$2.id],
+                        onRemove: () {
+                          setState(() {
+                            final removed = _movements.removeAt(item.$1);
+                            removed.dispose();
+                            _dirty = true;
+                          });
+                        },
+                        onChanged: () => setState(() => _dirty = true),
+                      ),
+                  ],
+                );
+              },
+            ),
+          OutlinedButton.icon(
+            onPressed: _addMovement,
+            icon: const Icon(Icons.add),
+            label: const Text('Add movement'),
+          ),
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            onPressed: _saving ? null : _finish,
+            icon: _saving
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.check),
+            label: const Text('Finish and save workout'),
+          ),
+        ],
+      ),
     ),
   );
 
   Future<void> _addMovement() async {
     final movement = await showMovementPicker(context);
     if (movement != null) {
-      setState(() => _movements.add(_MovementInput.fromRoutine(movement)));
+      setState(() {
+        _movements.add(_MovementInput.fromRoutine(movement));
+        _previousSets = _loadPreviousSets();
+        _dirty = true;
+      });
     }
   }
 
@@ -723,9 +842,11 @@ class _MemberWorkoutLoggerScreenState extends State<MemberWorkoutLoggerScreen> {
           'exercises': logged,
         },
       );
+      _dirty = false;
       if (!mounted) return;
       await showDialog<void>(
         context: context,
+        barrierDismissible: false,
         builder: (dialogContext) => AlertDialog(
           icon: const Icon(Icons.celebration_outlined),
           title: const Text('Workout logged'),
@@ -753,53 +874,21 @@ class _MemberWorkoutLoggerScreenState extends State<MemberWorkoutLoggerScreen> {
   ).showSnackBar(SnackBar(content: Text(value)));
 }
 
-class _MovementLogCard extends StatefulWidget {
+class _MovementLogCard extends StatelessWidget {
   const _MovementLogCard({
     required this.movement,
-    required this.scope,
     required this.number,
+    required this.previous,
     required this.onRemove,
     required this.onChanged,
     super.key,
   });
 
   final _MovementInput movement;
-  final FitnessScope scope;
   final int number;
+  final Map<String, dynamic>? previous;
   final VoidCallback onRemove;
   final VoidCallback onChanged;
-
-  @override
-  State<_MovementLogCard> createState() => _MovementLogCardState();
-}
-
-class _MovementLogCardState extends State<_MovementLogCard> {
-  late Future<Map<String, dynamic>?> previous;
-
-  _MovementInput get movement => widget.movement;
-  FitnessScope get scope => widget.scope;
-  int get number => widget.number;
-  VoidCallback get onRemove => widget.onRemove;
-  VoidCallback get onChanged => widget.onChanged;
-
-  @override
-  void initState() {
-    super.initState();
-    previous = _loadPrevious();
-  }
-
-  @override
-  void didUpdateWidget(covariant _MovementLogCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.movement.id != widget.movement.id ||
-        oldWidget.scope != widget.scope) {
-      previous = _loadPrevious();
-    }
-  }
-
-  Future<Map<String, dynamic>?> _loadPrevious() => context
-      .read<GymRepository>()
-      .previousExerciseSet(scope, movement.exerciseId ?? movement.id);
 
   @override
   Widget build(BuildContext context) => Card(
@@ -835,30 +924,18 @@ class _MovementLogCardState extends State<_MovementLogCard> {
             ],
           ),
           const SizedBox(height: 12),
-          FutureBuilder<Map<String, dynamic>?>(
-            future: previous,
-            builder: (context, snapshot) {
-              final previous = snapshot.data;
-              if (previous == null) return const SizedBox.shrink();
-              final parts = <String>[
-                if (previous['weightKg'] != null) '${previous['weightKg']} kg',
-                if (previous['reps'] != null) '${previous['reps']} reps',
-                if (previous['durationSeconds'] != null)
-                  '${previous['durationSeconds']} sec',
-              ];
-              if (parts.isEmpty) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Chip(
-                    avatar: const Icon(Icons.history, size: 18),
-                    label: Text('Previous: ${parts.join(' · ')}'),
-                  ),
+          if (_previousChipParts(previous) case final parts?
+              when parts.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Chip(
+                  avatar: const Icon(Icons.history, size: 18),
+                  label: Text('Previous: ${parts.join(' · ')}'),
                 ),
-              );
-            },
-          ),
+              ),
+            ),
           if (movement.trackingType == MovementTrackingType.cardio)
             for (final item in movement.sets.indexed)
               _CardioSetRow(
@@ -918,6 +995,16 @@ class _MovementLogCardState extends State<_MovementLogCard> {
       ),
     ),
   );
+}
+
+List<String>? _previousChipParts(Map<String, dynamic>? previous) {
+  if (previous == null) return null;
+  return [
+    if (previous['weightKg'] != null) '${previous['weightKg']} kg',
+    if (previous['reps'] != null) '${previous['reps']} reps',
+    if (previous['durationSeconds'] != null)
+      '${previous['durationSeconds']} sec',
+  ];
 }
 
 class _RepSetRow extends StatelessWidget {

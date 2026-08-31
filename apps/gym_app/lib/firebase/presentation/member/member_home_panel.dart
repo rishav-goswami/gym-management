@@ -7,6 +7,7 @@ import '../../../core/config/app_feature_flags.dart';
 import '../../data/gym_repository.dart';
 import '../../domain/exercise_guide.dart';
 import '../../domain/member_gym_service.dart';
+import '../shared/responsive_padding.dart';
 import '../workspace/member_billing_panel.dart';
 import 'exercise_media_image.dart';
 import 'member_training_panel.dart';
@@ -75,7 +76,7 @@ class _MemberHomePanelState extends State<MemberHomePanel>
           key: PageStorageKey(
             'member-home-${membership.gymId}-${membership.uid}',
           ),
-          padding: const EdgeInsets.all(20),
+          padding: memberPanelPadding(context),
           children: [
             Text(
               'Ready to move?',

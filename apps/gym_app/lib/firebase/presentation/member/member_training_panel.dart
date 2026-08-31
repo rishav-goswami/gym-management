@@ -7,10 +7,12 @@ import 'package:gym_core/gym_core.dart';
 
 import '../../data/gym_repository.dart';
 import '../../logic/session_cubit.dart';
+import '../../domain/custom_workout.dart';
 import '../../domain/exercise_guide.dart';
 import '../../domain/workout_draft.dart';
 import 'member_custom_workouts.dart';
 import 'exercise_media_image.dart';
+import '../shared/responsive_padding.dart';
 import '../support/support_hub_screen.dart';
 
 Future<void> openGuidedWorkout(
@@ -133,7 +135,7 @@ class _MemberTrainingPanelState extends State<MemberTrainingPanel> {
         .toList(growable: false);
 
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: memberPanelPadding(context),
       children: [
         Text(
           'Your training',
@@ -357,9 +359,21 @@ class _TrainerAssignments extends StatelessWidget {
     ),
     builder: (context, snapshot) {
       if (snapshot.hasError) {
-        return const SizedBox.shrink();
+        return Card(
+          child: ListTile(
+            leading: const Icon(Icons.error_outline),
+            title: const Text('Unable to load trainer plan'),
+            subtitle: Text('${snapshot.error}'),
+          ),
+        );
       }
-      final assignments = snapshot.data?.docs ?? const [];
+      if (!snapshot.hasData) {
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Center(child: CircularProgressIndicator()),
+        );
+      }
+      final assignments = snapshot.data!.docs;
       if (assignments.isEmpty) {
         return Card(
           child: ListTile(
@@ -466,7 +480,23 @@ class _ConnectedGymAssignments extends StatelessWidget {
               limit: 3,
             ),
             builder: (context, snapshot) {
-              final assignments = snapshot.data?.docs ?? const [];
+              if (snapshot.hasError) {
+                return Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.error_outline),
+                    title: Text(
+                      'Unable to load ${membership.gymName} assignments',
+                    ),
+                  ),
+                );
+              }
+              if (!snapshot.hasData) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: LinearProgressIndicator(),
+                );
+              }
+              final assignments = snapshot.data!.docs;
               return Column(
                 children: assignments
                     .map(
@@ -660,7 +690,7 @@ class _ExerciseCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   '${exercise.defaultSets} sets · ${exercise.defaultReps}',
-                  style: TextStyle(
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
@@ -901,6 +931,10 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
             _suggestedReps(widget.exercises[index].defaultReps),
       ),
     );
+    _exerciseIndex = (widget.initialDraft?.exerciseIndex ?? 0).clamp(
+      0,
+      widget.exercises.length - 1,
+    );
   }
 
   @override
@@ -1102,7 +1136,10 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
               OutlinedButton.icon(
                 onPressed: _exerciseIndex == 0
                     ? null
-                    : () => setState(() => _exerciseIndex--),
+                    : () => setState(() {
+                        _exerciseIndex--;
+                        _scheduleDraftSave();
+                      }),
                 icon: const Icon(Icons.arrow_back),
                 label: const Text('Previous'),
               ),
@@ -1110,7 +1147,10 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
               OutlinedButton.icon(
                 onPressed: _exerciseIndex == widget.exercises.length - 1
                     ? null
-                    : () => setState(() => _exerciseIndex++),
+                    : () => setState(() {
+                        _exerciseIndex++;
+                        _scheduleDraftSave();
+                      }),
                 icon: const Icon(Icons.arrow_forward),
                 label: const Text('Next'),
               ),
@@ -1154,6 +1194,7 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
         scope: widget.scope,
         collection: 'workout_logs',
         data: {
+          'schemaVersion': 2,
           'title': '${widget.goal.label} session',
           'goal': widget.goal.name,
           'status': 'completed',
@@ -1162,19 +1203,7 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
           'durationSeconds': endedAt.difference(_startedAt).inSeconds,
           'exercises': [
             for (var index = 0; index < widget.exercises.length; index++)
-              {
-                'exerciseId': widget.exercises[index].id,
-                'name': widget.exercises[index].name,
-                'completedSets': _completedSets[index],
-                'targetSets': widget.exercises[index].defaultSets,
-                'targetReps': widget.exercises[index].defaultReps,
-                if (double.tryParse(_weights[index].text.trim())
-                    case final weight?)
-                  'weightKg': weight,
-                if (int.tryParse(_repsPerSet[index].text.trim())
-                    case final reps?)
-                  'repsPerSet': reps,
-              },
+              if (_exerciseLogEntry(index) case final entry?) entry,
           ],
         },
       );
@@ -1210,6 +1239,27 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
     }
   }
 
+  Map<String, dynamic>? _exerciseLogEntry(int index) {
+    final completedSets = _completedSets[index];
+    if (completedSets <= 0) return null;
+    final weight = double.tryParse(_weights[index].text.trim());
+    final reps = int.tryParse(_repsPerSet[index].text.trim());
+    final set = LoggedMovementSet(weightKg: weight, reps: reps);
+    return {
+      'exerciseId': widget.exercises[index].id,
+      'name': widget.exercises[index].name,
+      'completedSets': completedSets,
+      'targetSets': widget.exercises[index].defaultSets,
+      'targetReps': widget.exercises[index].defaultReps,
+      if (weight != null) 'weightKg': weight,
+      if (reps != null) 'repsPerSet': reps,
+      'sets': [
+        for (var setNumber = 1; setNumber <= completedSets; setNumber++)
+          set.toMap(setNumber),
+      ],
+    };
+  }
+
   void _scheduleDraftSave() {
     _draftTimer?.cancel();
     _draftTimer = Timer(const Duration(milliseconds: 250), () {
@@ -1229,6 +1279,7 @@ class _GuidedWorkoutScreenState extends State<GuidedWorkoutScreen> {
               .map((controller) => controller.text)
               .toList(growable: false),
           startedAt: _startedAt,
+          exerciseIndex: _exerciseIndex,
         ),
       );
     });

@@ -109,7 +109,7 @@ class _ExerciseMediaImageState extends State<ExerciseMediaImage> {
       }
       if (url.isEmpty) {
         return ColoredBox(
-          color: const Color(0x11000000),
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
           child: Center(
             child: Icon(Icons.fitness_center, size: widget.errorIconSize),
           ),

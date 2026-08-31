@@ -437,6 +437,50 @@ describe("Firestore tenant isolation", () => {
   });
 });
 
+describe("Fitness record field validation", () => {
+  it("range-checks personal measurement fields", async () => {
+    const owner = environment.authenticatedContext("member-a").firestore();
+    await assertSucceeds(setDoc(doc(owner, "users/member-a/measurements/valid"), {
+      ownerUid: "member-a", weightKg: 80, bodyFatPercent: 18
+    }));
+    await assertSucceeds(setDoc(doc(owner, "users/member-a/measurements/no-optional"), {
+      ownerUid: "member-a", weightKg: 80
+    }));
+    await assertFails(setDoc(doc(owner, "users/member-a/measurements/too-heavy"), {
+      ownerUid: "member-a", weightKg: 5000
+    }));
+    await assertFails(setDoc(doc(owner, "users/member-a/measurements/bad-fat"), {
+      ownerUid: "member-a", weightKg: 80, bodyFatPercent: 99
+    }));
+  });
+
+  it("range-checks personal goal fields", async () => {
+    const owner = environment.authenticatedContext("member-a").firestore();
+    await assertSucceeds(setDoc(doc(owner, "users/member-a/goals/valid"), {
+      ownerUid: "member-a", name: "Reach 75kg", target: 75, unit: "kg",
+      startValue: 80, currentValue: 80, status: "active"
+    }));
+    await assertFails(setDoc(doc(owner, "users/member-a/goals/bad-target"), {
+      ownerUid: "member-a", name: "Impossible", target: -5, unit: "kg",
+      startValue: 80, currentValue: 80, status: "active"
+    }));
+    await assertFails(setDoc(doc(owner, "users/member-a/goals/empty-name"), {
+      ownerUid: "member-a", name: "", target: 75, unit: "kg",
+      startValue: 80, currentValue: 80, status: "active"
+    }));
+  });
+
+  it("range-checks gym-tenant measurement fields the same way", async () => {
+    const member = environment.authenticatedContext("member-a").firestore();
+    await assertSucceeds(setDoc(doc(member, "gyms/gym-a/measurements/valid"), {
+      gymId: "gym-a", memberUid: "member-a", weightKg: 80
+    }));
+    await assertFails(setDoc(doc(member, "gyms/gym-a/measurements/too-light"), {
+      gymId: "gym-a", memberUid: "member-a", weightKg: 1
+    }));
+  });
+});
+
 describe("Storage tenant isolation", () => {
   it("keeps personal media private and blocks suspended accounts", async () => {
     const image = new Uint8Array([137, 80, 78, 71]);

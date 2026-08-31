@@ -86,6 +86,24 @@ service cloud.firestore {
     function personalOwnerValid(uid) {
       return !('ownerUid' in request.resource.data) || request.resource.data.ownerUid == uid;
     }
+    // Mirrors validMemberProfile()'s field-presence-and-range pattern for the
+    // generic fitness-record collections, since those otherwise only enforce
+    // collection allow-listing and ownership.
+    function validFitnessRecord(collection) {
+      return (collection != 'measurements' ||
+          ((!('weightKg' in request.resource.data) || request.resource.data.weightKg == null ||
+            (request.resource.data.weightKg is number && request.resource.data.weightKg >= 20 &&
+             request.resource.data.weightKg <= 500)) &&
+           (!('bodyFatPercent' in request.resource.data) || request.resource.data.bodyFatPercent == null ||
+            (request.resource.data.bodyFatPercent is number && request.resource.data.bodyFatPercent >= 2 &&
+             request.resource.data.bodyFatPercent <= 70)))) &&
+        (collection != 'goals' ||
+          ((!('target' in request.resource.data) ||
+            (request.resource.data.target is number && request.resource.data.target > 0)) &&
+           (!('name' in request.resource.data) ||
+            (request.resource.data.name is string && request.resource.data.name.size() >= 1 &&
+             request.resource.data.name.size() <= 100))));
+    }
     function validMemberProfile(gymId, uid) {
       return (!('displayName' in request.resource.data) ||
           (request.resource.data.displayName is string &&
@@ -191,7 +209,8 @@ service cloud.firestore {
         allow create, update: if collection in [
           'routines', 'workout_logs', 'measurements', 'goals',
           'personal_records', 'progress_photos'
-        ] && consentedConsumerAfter(uid) && personalOwnerValid(uid);
+        ] && consentedConsumerAfter(uid) && personalOwnerValid(uid) &&
+          validFitnessRecord(collection);
         allow delete: if collection in [
           'routines', 'workout_logs', 'measurements', 'goals',
           'personal_records', 'progress_photos'
@@ -382,10 +401,12 @@ service cloud.firestore {
           (resource.data.memberUid == request.auth.uid ||
            role(gymId, ['trainer']) || permission(gymId, 'fitness.manage'));
         allow create: if collection in ['goals', 'measurements', 'personal_records', 'workout_logs', 'progress_photos', 'member_routines'] &&
-          activeGym(gymId) && request.resource.data.memberUid == request.auth.uid && tenantValid(gymId);
+          activeGym(gymId) && request.resource.data.memberUid == request.auth.uid && tenantValid(gymId) &&
+          validFitnessRecord(collection);
         allow update: if collection in ['goals', 'measurements', 'personal_records', 'workout_logs', 'progress_photos', 'member_routines'] &&
           activeGym(gymId) && resource.data.memberUid == request.auth.uid &&
-          request.resource.data.memberUid == request.auth.uid && tenantValid(gymId);
+          request.resource.data.memberUid == request.auth.uid && tenantValid(gymId) &&
+          validFitnessRecord(collection);
         allow delete: if collection == 'member_routines' && activeGym(gymId) &&
           resource.data.memberUid == request.auth.uid;
         allow create, update: if collection in [

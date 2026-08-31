@@ -871,26 +871,6 @@ class _CollectionView extends StatelessWidget {
               label: const Text('Assign workout'),
             ),
           ),
-        if (destination.collection == 'measurements' &&
-            membership.role == GymRole.member)
-          Wrap(
-            alignment: WrapAlignment.end,
-            spacing: 8,
-            children: [
-              if (AppFeatureFlags.progressPhotos &&
-                  membership.feature('progressPhotos'))
-                OutlinedButton.icon(
-                  onPressed: () => _uploadProgressPhoto(context),
-                  icon: const Icon(Icons.add_a_photo_outlined),
-                  label: const Text('Progress photo'),
-                ),
-              FilledButton.icon(
-                onPressed: () => _showMeasurement(context),
-                icon: const Icon(Icons.add_chart),
-                label: const Text('Log measurement'),
-              ),
-            ],
-          ),
         if (destination.collection == 'announcements' &&
             membership.can('announcements.manage'))
           Align(
@@ -1341,64 +1321,6 @@ class _CollectionView extends StatelessWidget {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Workout assigned.')));
-      }
-    } catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
-      }
-    }
-  }
-
-  Future<void> _showMeasurement(BuildContext context) async {
-    final weight = TextEditingController();
-    final bodyFat = TextEditingController();
-    final accepted = await _textRecordDialog(
-      context,
-      title: 'Log body measurement',
-      fields: [(weight, 'Weight (kg)'), (bodyFat, 'Body fat % (optional)')],
-      numeric: true,
-    );
-    if (!accepted || !context.mounted) return;
-    try {
-      await context.read<GymRepository>().saveMemberOwnedRecord(
-        gymId: membership.gymId,
-        collection: 'measurements',
-        uid: membership.uid,
-        data: {
-          'weightKg': double.parse(weight.text),
-          if (bodyFat.text.trim().isNotEmpty)
-            'bodyFatPercent': double.parse(bodyFat.text),
-          'measuredAt': Timestamp.now(),
-        },
-      );
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Measurement saved.')));
-      }
-    } catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
-      }
-    }
-  }
-
-  Future<void> _uploadProgressPhoto(BuildContext context) async {
-    try {
-      final path = await context
-          .read<GymMediaRepository>()
-          .pickAndUploadProgressPhoto(
-            gymId: membership.gymId,
-            uid: membership.uid,
-          );
-      if (context.mounted && path != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Private progress photo uploaded.')),
-        );
       }
     } catch (error) {
       if (context.mounted) {

@@ -12,6 +12,7 @@ class WorkoutDraft {
     required this.weights,
     required this.repsPerSet,
     required this.startedAt,
+    this.exerciseIndex = 0,
   });
 
   final String gymId;
@@ -22,6 +23,7 @@ class WorkoutDraft {
   final List<String> weights;
   final List<String> repsPerSet;
   final DateTime startedAt;
+  final int exerciseIndex;
 
   bool matches({
     required String expectedGymId,
@@ -38,7 +40,7 @@ class WorkoutDraft {
       repsPerSet.length == exerciseIds.length;
 
   Map<String, dynamic> toJson() => {
-    'schemaVersion': 2,
+    'schemaVersion': 3,
     'gymId': gymId,
     'uid': uid,
     'goal': goal,
@@ -47,12 +49,15 @@ class WorkoutDraft {
     'weights': weights,
     'repsPerSet': repsPerSet,
     'startedAt': startedAt.toIso8601String(),
+    'exerciseIndex': exerciseIndex,
   };
 
   static WorkoutDraft? fromJson(Map<String, dynamic> json) {
     try {
       final schemaVersion = json['schemaVersion'];
-      if (schemaVersion != 1 && schemaVersion != 2) return null;
+      if (schemaVersion != 1 && schemaVersion != 2 && schemaVersion != 3) {
+        return null;
+      }
       final exerciseIds = List<String>.from(json['exerciseIds'] as List);
       return WorkoutDraft(
         gymId: json['gymId'] as String,
@@ -61,10 +66,13 @@ class WorkoutDraft {
         exerciseIds: exerciseIds,
         completedSets: List<int>.from(json['completedSets'] as List),
         weights: List<String>.from(json['weights'] as List),
-        repsPerSet: schemaVersion == 2
+        repsPerSet: schemaVersion == 2 || schemaVersion == 3
             ? List<String>.from(json['repsPerSet'] as List)
             : List.filled(exerciseIds.length, ''),
         startedAt: DateTime.parse(json['startedAt'] as String),
+        exerciseIndex: schemaVersion == 3
+            ? (json['exerciseIndex'] as num?)?.toInt() ?? 0
+            : 0,
       );
     } catch (_) {
       return null;

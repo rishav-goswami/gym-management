@@ -18,6 +18,11 @@ class GymMediaRepository {
   final FirebaseFirestore firestore;
   final ImagePicker picker;
 
+  // Progress photos are immutable once uploaded, so caching by storage path
+  // for the life of the app session is safe and avoids re-downloading the
+  // same photo bytes every time its widget rebuilds (e.g. revisiting a tab).
+  static final Map<String, Future<Uint8List?>> _privatePhotoCache = {};
+
   Future<String?> pickAndUploadGymLogo({required String gymId}) async {
     final image = await picker.pickImage(
       source: ImageSource.gallery,
@@ -62,6 +67,9 @@ class GymMediaRepository {
     );
     if (image == null) return null;
     final bytes = await image.readAsBytes();
+    if (bytes.length > 10 * 1024 * 1024) {
+      throw StateError('Progress image must be smaller than 10 MB.');
+    }
     final path =
         'gyms/$gymId/progress/$uid/${DateTime.now().microsecondsSinceEpoch}.jpg';
     await storage
@@ -183,9 +191,13 @@ class GymMediaRepository {
     return path;
   }
 
-  /// Reads through the authenticated SDK; no permanent public download URL is created.
+  /// Reads through the authenticated SDK; no permanent public download URL is
+  /// created. Cached in-memory per storage path for the app session.
   Future<Uint8List?> readPrivatePhoto(
     String storagePath, {
     int maxBytes = 10 * 1024 * 1024,
-  }) => storage.ref(storagePath).getData(maxBytes);
+  }) => _privatePhotoCache.putIfAbsent(
+    storagePath,
+    () => storage.ref(storagePath).getData(maxBytes),
+  );
 }

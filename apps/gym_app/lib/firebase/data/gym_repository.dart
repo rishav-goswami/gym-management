@@ -31,7 +31,10 @@ class GymRepository {
     if (!scope.isPersonal) {
       query = query.where('memberUid', isEqualTo: scope.uid);
     }
-    return query.limit(limit).snapshots();
+    return query
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots();
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> fitnessProgressPhotos(
@@ -52,6 +55,14 @@ class GymRepository {
   Future<Map<String, dynamic>?> previousExerciseSet(
     FitnessScope scope,
     String exerciseId,
+  ) async => (await previousExerciseSets(scope, [exerciseId]))[exerciseId];
+
+  /// Resolves the most recently completed set for each of [exerciseIds] in
+  /// one query, instead of one query per exercise (avoids N+1 reads when a
+  /// routine has several movements).
+  Future<Map<String, Map<String, dynamic>?>> previousExerciseSets(
+    FitnessScope scope,
+    Iterable<String> exerciseIds,
   ) async {
     Query<Map<String, dynamic>> query = firestore.collection(
       scope.collectionPath('workout_logs'),
@@ -59,35 +70,33 @@ class GymRepository {
     if (!scope.isPersonal) {
       query = query.where('memberUid', isEqualTo: scope.uid);
     }
-    final snapshot = await query.limit(50).get();
-    final documents = [...snapshot.docs]
-      ..sort((left, right) {
-        final leftTime =
-            (left.data()['completedAt'] as Timestamp?)
-                ?.millisecondsSinceEpoch ??
-            0;
-        final rightTime =
-            (right.data()['completedAt'] as Timestamp?)
-                ?.millisecondsSinceEpoch ??
-            0;
-        return rightTime.compareTo(leftTime);
-      });
-    for (final document in documents) {
+    final snapshot = await query
+        .orderBy('createdAt', descending: true)
+        .limit(50)
+        .get();
+    final remaining = exerciseIds.toSet();
+    final results = <String, Map<String, dynamic>?>{
+      for (final id in remaining) id: null,
+    };
+    for (final document in snapshot.docs) {
+      if (remaining.isEmpty) break;
       final exercises = document.data()['exercises'] as List? ?? const [];
       for (final raw in exercises.whereType<Map>()) {
         final exercise = Map<String, dynamic>.from(raw);
-        if (exercise['exerciseId'] != exerciseId &&
-            exercise['movementId'] != exerciseId) {
-          continue;
-        }
+        final matchedId = remaining.firstWhere(
+          (id) => exercise['exerciseId'] == id || exercise['movementId'] == id,
+          orElse: () => '',
+        );
+        if (matchedId.isEmpty) continue;
         final sets = exercise['sets'] as List? ?? const [];
         final completed = sets.whereType<Map>().toList();
         if (completed.isNotEmpty) {
-          return Map<String, dynamic>.from(completed.last);
+          results[matchedId] = Map<String, dynamic>.from(completed.last);
+          remaining.remove(matchedId);
         }
       }
     }
-    return null;
+    return results;
   }
 
   Future<void> saveFitnessRecord({
@@ -118,6 +127,19 @@ class GymRepository {
         unawaited(trackPersonalFeatureUsage(milestone).catchError((_) {}));
       }
     }
+  }
+
+  Future<void> updateFitnessRecord({
+    required FitnessScope scope,
+    required String collection,
+    required String id,
+    required Map<String, dynamic> data,
+  }) async {
+    await _requireOnline();
+    await firestore.doc('${scope.collectionPath(collection)}/$id').update({
+      ...data,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<void> saveFitnessRoutine({

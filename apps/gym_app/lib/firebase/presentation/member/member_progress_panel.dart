@@ -7,10 +7,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gym_core/gym_core.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/config/app_feature_flags.dart';
 import '../../data/gym_media_repository.dart';
 import '../../data/gym_repository.dart';
 import '../../domain/exercise_guide.dart';
 import '../../domain/member_progress.dart';
+import '../shared/responsive_padding.dart';
 import 'exercise_media_image.dart';
 
 enum _ProgressSection { overview, exercises, body }
@@ -38,8 +40,12 @@ class _MemberProgressPanelState extends State<MemberProgressPanel> {
   late Stream<QuerySnapshot<Map<String, dynamic>>> _workouts;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _measurements;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _photos;
+  late Stream<QuerySnapshot<Map<String, dynamic>>> _goals;
   _ProgressSection _section = _ProgressSection.overview;
   String? _selectedExerciseId;
+  bool _measurementSaving = false;
+  bool _photoUploading = false;
+  bool _goalSaving = false;
 
   @override
   void initState() {
@@ -69,6 +75,7 @@ class _MemberProgressPanelState extends State<MemberProgressPanel> {
       limit: 100,
     );
     _photos = repository.fitnessProgressPhotos(widget.scope, limit: 24);
+    _goals = repository.fitnessRecords(widget.scope, 'goals', limit: 20);
   }
 
   @override
@@ -81,99 +88,134 @@ class _MemberProgressPanelState extends State<MemberProgressPanel> {
               builder: (context, measurementSnapshot) =>
                   StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                     stream: _photos,
-                    builder: (context, photoSnapshot) {
-                      final error =
-                          workoutSnapshot.error ??
-                          measurementSnapshot.error ??
-                          photoSnapshot.error;
-                      if (error != null) {
-                        return Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Text('Unable to load progress: $error'),
-                          ),
-                        );
-                      }
-                      if (!workoutSnapshot.hasData ||
-                          !measurementSnapshot.hasData ||
-                          !photoSnapshot.hasData) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      final progress = MemberWorkoutProgress.fromLogs(
-                        workoutSnapshot.data!.docs.map(
-                          (document) => (
-                            id: document.id,
-                            data: _withDate(document.data(), 'completedAt'),
-                          ),
-                        ),
-                      );
-                      final measurements =
-                          measurementSnapshot.data!.docs
-                              .map(_bodyMeasurement)
-                              .whereType<_BodyMeasurement>()
-                              .toList()
-                            ..sort(
-                              (left, right) =>
-                                  left.measuredAt.compareTo(right.measuredAt),
+                    builder: (context, photoSnapshot) =>
+                        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                          stream: _goals,
+                          builder: (context, goalSnapshot) {
+                            final error =
+                                workoutSnapshot.error ??
+                                measurementSnapshot.error ??
+                                photoSnapshot.error ??
+                                goalSnapshot.error;
+                            if (error != null) {
+                              return Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Text(
+                                    'Unable to load progress: $error',
+                                  ),
+                                ),
+                              );
+                            }
+                            if (!workoutSnapshot.hasData ||
+                                !measurementSnapshot.hasData ||
+                                !photoSnapshot.hasData ||
+                                !goalSnapshot.hasData) {
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            }
+                            final progress = MemberWorkoutProgress.fromLogs(
+                              workoutSnapshot.data!.docs.map(
+                                (document) => (
+                                  id: document.id,
+                                  data: _withDate(
+                                    document.data(),
+                                    'completedAt',
+                                  ),
+                                ),
+                              ),
                             );
-                      final photoDocuments = [...photoSnapshot.data!.docs]
-                        ..sort((left, right) {
-                          final leftTime =
-                              (left.data()['createdAt'] as Timestamp?)
-                                  ?.millisecondsSinceEpoch ??
-                              0;
-                          final rightTime =
-                              (right.data()['createdAt'] as Timestamp?)
-                                  ?.millisecondsSinceEpoch ??
-                              0;
-                          return rightTime.compareTo(leftTime);
-                        });
-                      final photoPaths = photoDocuments
-                          .map(
-                            (document) =>
-                                document.data()['storagePath'] as String?,
-                          )
-                          .whereType<String>()
-                          .toList(growable: false);
+                            final measurements =
+                                measurementSnapshot.data!.docs
+                                    .map(_bodyMeasurement)
+                                    .whereType<_BodyMeasurement>()
+                                    .toList()
+                                  ..sort(
+                                    (left, right) => left.measuredAt
+                                        .compareTo(right.measuredAt),
+                                  );
+                            final photoDocuments = [
+                              ...photoSnapshot.data!.docs,
+                            ]..sort((left, right) {
+                              final leftTime =
+                                  (left.data()['createdAt'] as Timestamp?)
+                                      ?.millisecondsSinceEpoch ??
+                                  0;
+                              final rightTime =
+                                  (right.data()['createdAt'] as Timestamp?)
+                                      ?.millisecondsSinceEpoch ??
+                                  0;
+                              return rightTime.compareTo(leftTime);
+                            });
+                            final photoPaths = photoDocuments
+                                .map(
+                                  (document) =>
+                                      document.data()['storagePath']
+                                          as String?,
+                                )
+                                .whereType<String>()
+                                .toList(growable: false);
+                            final goals = goalSnapshot.data!.docs
+                                .map(_goal)
+                                .whereType<_Goal>()
+                                .where((goal) => goal.status == 'active')
+                                .toList(growable: false);
 
-                      return ListView(
-                        padding: EdgeInsets.fromLTRB(
-                          MediaQuery.sizeOf(context).width < 600 ? 16 : 28,
-                          20,
-                          MediaQuery.sizeOf(context).width < 600 ? 16 : 28,
-                          40,
-                        ),
-                        children: [
-                          _ProgressHeader(
-                            section: _section,
-                            onSectionChanged: (value) =>
-                                setState(() => _section = value),
-                            onMeasurement: _showMeasurement,
-                            onPhoto: _uploadProgressPhoto,
-                            photosEnabled: widget.scope.feature(
-                              'progressPhotos',
-                            ),
-                          ),
-                          const SizedBox(height: 22),
-                          switch (_section) {
-                            _ProgressSection.overview => _OverviewSection(
-                              progress: progress,
-                              measurements: measurements,
-                            ),
-                            _ProgressSection.exercises => _ExercisesSection(
-                              progress: progress,
-                              selectedExerciseId: _selectedExerciseId,
-                              onExerciseChanged: (value) =>
-                                  setState(() => _selectedExerciseId = value),
-                            ),
-                            _ProgressSection.body => _BodySection(
-                              measurements: measurements,
-                              photoPaths: photoPaths,
-                            ),
+                            return ListView(
+                              padding: memberPanelPadding(context),
+                              children: [
+                                _ProgressHeader(
+                                  section: _section,
+                                  onSectionChanged: (value) =>
+                                      setState(() => _section = value),
+                                  onMeasurement: _measurementSaving
+                                      ? null
+                                      : _showMeasurement,
+                                  onPhoto: _photoUploading
+                                      ? null
+                                      : _uploadProgressPhoto,
+                                  onSetGoal: _goalSaving
+                                      ? null
+                                      : () => _setGoal(
+                                          measurements.isEmpty
+                                              ? null
+                                              : measurements.last.weightKg,
+                                        ),
+                                  measurementBusy: _measurementSaving,
+                                  photoBusy: _photoUploading,
+                                  goalBusy: _goalSaving,
+                                  photosEnabled:
+                                      AppFeatureFlags.progressPhotos &&
+                                      widget.scope.feature('progressPhotos'),
+                                ),
+                                const SizedBox(height: 22),
+                                switch (_section) {
+                                  _ProgressSection.overview =>
+                                    _OverviewSection(
+                                      progress: progress,
+                                      measurements: measurements,
+                                      goals: goals,
+                                      onUpdateGoal: _updateGoalProgress,
+                                      onArchiveGoal: _archiveGoal,
+                                    ),
+                                  _ProgressSection.exercises =>
+                                    _ExercisesSection(
+                                      progress: progress,
+                                      selectedExerciseId: _selectedExerciseId,
+                                      onExerciseChanged: (value) => setState(
+                                        () => _selectedExerciseId = value,
+                                      ),
+                                    ),
+                                  _ProgressSection.body => _BodySection(
+                                    measurements: measurements,
+                                    photoPaths: photoPaths,
+                                  ),
+                                },
+                              ],
+                            );
                           },
-                        ],
-                      );
-                    },
+                        ),
                   ),
             ),
       );
@@ -197,6 +239,252 @@ class _MemberProgressPanelState extends State<MemberProgressPanel> {
       weightKg: weight,
       bodyFatPercent: (data['bodyFatPercent'] as num?)?.toDouble(),
     );
+  }
+
+  _Goal? _goal(QueryDocumentSnapshot<Map<String, dynamic>> document) {
+    final data = document.data();
+    final target = (data['target'] as num?)?.toDouble();
+    final startValue = (data['startValue'] as num?)?.toDouble();
+    final currentValue = (data['currentValue'] as num?)?.toDouble();
+    if (target == null || startValue == null || currentValue == null) {
+      return null;
+    }
+    final targetAt = data['targetAt'];
+    return _Goal(
+      id: document.id,
+      name: '${data['name'] ?? 'Goal'}',
+      unit: '${data['unit'] ?? 'kg'}',
+      target: target,
+      startValue: startValue,
+      currentValue: currentValue,
+      status: '${data['status'] ?? 'active'}',
+      targetAt: targetAt is Timestamp ? targetAt.toDate() : null,
+    );
+  }
+
+  Future<void> _setGoal(double? latestWeightKg) async {
+    final name = TextEditingController(text: 'Reach my target weight');
+    final target = TextEditingController();
+    final current = TextEditingController(
+      text: latestWeightKg == null ? '' : _number(latestWeightKg),
+    );
+    final formKey = GlobalKey<FormState>();
+    try {
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Set a weight goal'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: name,
+                  decoration: const InputDecoration(labelText: 'Goal name'),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Give this goal a name'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: current,
+                  autofocus: true,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Current weight',
+                    suffixText: 'kg',
+                  ),
+                  validator: (value) {
+                    final parsed = double.tryParse(value?.trim() ?? '');
+                    return parsed == null || parsed <= 20 || parsed > 500
+                        ? 'Enter a weight between 20 and 500 kg'
+                        : null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: target,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Target weight',
+                    suffixText: 'kg',
+                  ),
+                  validator: (value) {
+                    final parsed = double.tryParse(value?.trim() ?? '');
+                    return parsed == null || parsed <= 20 || parsed > 500
+                        ? 'Enter a weight between 20 and 500 kg'
+                        : null;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.pop(dialogContext, true);
+                }
+              },
+              child: const Text('Set goal'),
+            ),
+          ],
+        ),
+      );
+      if (accepted != true || !mounted) return;
+      setState(() => _goalSaving = true);
+      final currentValue = double.parse(current.text.trim());
+      await context.read<GymRepository>().saveFitnessRecord(
+        scope: widget.scope,
+        collection: 'goals',
+        data: {
+          'name': name.text.trim(),
+          'unit': 'kg',
+          'target': double.parse(target.text.trim()),
+          'startValue': currentValue,
+          'currentValue': currentValue,
+          'status': 'active',
+        },
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Goal set.')));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Unable to save goal: $error')));
+      }
+    } finally {
+      name.dispose();
+      target.dispose();
+      current.dispose();
+      if (mounted) setState(() => _goalSaving = false);
+    }
+  }
+
+  Future<void> _updateGoalProgress(_Goal goal) async {
+    final current = TextEditingController(text: _number(goal.currentValue));
+    final formKey = GlobalKey<FormState>();
+    try {
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(goal.name),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: current,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText: 'Current weight',
+                suffixText: goal.unit,
+              ),
+              validator: (value) {
+                final parsed = double.tryParse(value?.trim() ?? '');
+                return parsed == null || parsed <= 20 || parsed > 500
+                    ? 'Enter a weight between 20 and 500 kg'
+                    : null;
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.pop(dialogContext, true);
+                }
+              },
+              child: const Text('Update'),
+            ),
+          ],
+        ),
+      );
+      if (accepted != true || !mounted) return;
+      setState(() => _goalSaving = true);
+      final currentValue = double.parse(current.text.trim());
+      final reached =
+          (goal.target >= goal.startValue && currentValue >= goal.target) ||
+          (goal.target < goal.startValue && currentValue <= goal.target);
+      await context.read<GymRepository>().updateFitnessRecord(
+        scope: widget.scope,
+        collection: 'goals',
+        id: goal.id,
+        data: {
+          'currentValue': currentValue,
+          if (reached) 'status': 'achieved',
+        },
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(reached ? 'Goal reached! 🎉' : 'Progress updated.'),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to update goal: $error')),
+        );
+      }
+    } finally {
+      current.dispose();
+      if (mounted) setState(() => _goalSaving = false);
+    }
+  }
+
+  Future<void> _archiveGoal(_Goal goal) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remove this goal?'),
+        content: Text('${goal.name} will no longer be tracked.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Keep goal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await context.read<GymRepository>().updateFitnessRecord(
+        scope: widget.scope,
+        collection: 'goals',
+        id: goal.id,
+        data: {'status': 'archived'},
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to remove goal: $error')),
+        );
+      }
+    }
   }
 
   Future<void> _showMeasurement() async {
@@ -266,7 +554,12 @@ class _MemberProgressPanelState extends State<MemberProgressPanel> {
         ],
       ),
     );
-    if (accepted != true || !mounted) return;
+    if (accepted != true || !mounted) {
+      weight.dispose();
+      bodyFat.dispose();
+      return;
+    }
+    setState(() => _measurementSaving = true);
     try {
       await context.read<GymRepository>().saveFitnessRecord(
         scope: widget.scope,
@@ -292,10 +585,12 @@ class _MemberProgressPanelState extends State<MemberProgressPanel> {
     } finally {
       weight.dispose();
       bodyFat.dispose();
+      if (mounted) setState(() => _measurementSaving = false);
     }
   }
 
   Future<void> _uploadProgressPhoto() async {
+    setState(() => _photoUploading = true);
     try {
       final path = await context
           .read<GymMediaRepository>()
@@ -311,6 +606,8 @@ class _MemberProgressPanelState extends State<MemberProgressPanel> {
           SnackBar(content: Text('Unable to upload photo: $error')),
         );
       }
+    } finally {
+      if (mounted) setState(() => _photoUploading = false);
     }
   }
 }
@@ -321,13 +618,21 @@ class _ProgressHeader extends StatelessWidget {
     required this.onSectionChanged,
     required this.onMeasurement,
     required this.onPhoto,
+    required this.onSetGoal,
+    required this.measurementBusy,
+    required this.photoBusy,
+    required this.goalBusy,
     required this.photosEnabled,
   });
 
   final _ProgressSection section;
   final ValueChanged<_ProgressSection> onSectionChanged;
-  final VoidCallback onMeasurement;
-  final VoidCallback onPhoto;
+  final VoidCallback? onMeasurement;
+  final VoidCallback? onPhoto;
+  final VoidCallback? onSetGoal;
+  final bool measurementBusy;
+  final bool photoBusy;
+  final bool goalBusy;
   final bool photosEnabled;
 
   @override
@@ -346,23 +651,47 @@ class _ProgressHeader extends StatelessWidget {
                 'Progress',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
-              const Text(
+              Text(
                 'Workouts, exercise performance, and body changes together.',
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
             ],
           ),
           Wrap(
             spacing: 8,
             children: [
+              OutlinedButton.icon(
+                onPressed: onSetGoal,
+                icon: goalBusy
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.flag_outlined),
+                label: const Text('Set a goal'),
+              ),
               if (photosEnabled)
                 OutlinedButton.icon(
                   onPressed: onPhoto,
-                  icon: const Icon(Icons.add_a_photo_outlined),
+                  icon: photoBusy
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add_a_photo_outlined),
                   label: const Text('Add photo'),
                 ),
               FilledButton.icon(
                 onPressed: onMeasurement,
-                icon: const Icon(Icons.monitor_weight_outlined),
+                icon: measurementBusy
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.monitor_weight_outlined),
                 label: const Text('Log body'),
               ),
             ],
@@ -399,10 +728,19 @@ class _ProgressHeader extends StatelessWidget {
 }
 
 class _OverviewSection extends StatelessWidget {
-  const _OverviewSection({required this.progress, required this.measurements});
+  const _OverviewSection({
+    required this.progress,
+    required this.measurements,
+    required this.goals,
+    required this.onUpdateGoal,
+    required this.onArchiveGoal,
+  });
 
   final MemberWorkoutProgress progress;
   final List<_BodyMeasurement> measurements;
+  final List<_Goal> goals;
+  final ValueChanged<_Goal> onUpdateGoal;
+  final ValueChanged<_Goal> onArchiveGoal;
 
   @override
   Widget build(BuildContext context) {
@@ -432,6 +770,23 @@ class _OverviewSection extends StatelessWidget {
             _Metric('Volume', _compactWeight(volume), Icons.trending_up),
           ],
         ),
+        const SizedBox(height: 20),
+        const _SectionTitle(title: 'Goals'),
+        const SizedBox(height: 8),
+        if (goals.isEmpty)
+          const _EmptyProgress(
+            icon: Icons.flag_outlined,
+            title: 'No goals yet',
+            message: 'Set a goal to track progress toward a target weight.',
+          )
+        else
+          ...goals.map(
+            (goal) => _GoalCard(
+              goal: goal,
+              onUpdate: () => onUpdateGoal(goal),
+              onRemove: () => onArchiveGoal(goal),
+            ),
+          ),
         const SizedBox(height: 20),
         _SectionCard(
           title: '8-week consistency',
@@ -754,6 +1109,7 @@ class _BodySection extends StatelessWidget {
             child: _MeasurementChart(
               measurements: measurements,
               value: (item) => item.weightKg,
+              unitLabel: 'kg',
             ),
           ),
         ),
@@ -770,6 +1126,7 @@ class _BodySection extends StatelessWidget {
                     .where((item) => item.bodyFatPercent != null)
                     .toList(),
                 value: (item) => item.bodyFatPercent!,
+                unitLabel: '%',
               ),
             ),
           ),
@@ -801,7 +1158,11 @@ class _BodySection extends StatelessWidget {
       ),
       const SizedBox(height: 10),
       if (photoPaths.isEmpty)
-        const Text('No progress photos yet.')
+        const _EmptyProgress(
+          icon: Icons.photo_camera_outlined,
+          title: 'No progress photos yet',
+          message: 'Add a private photo to track visual changes over time.',
+        )
       else
         GridView.builder(
           shrinkWrap: true,
@@ -905,7 +1266,11 @@ class _ExerciseTrendChart extends StatelessWidget {
     final spots = entries.indexed
         .map((item) => FlSpot(item.$1.toDouble(), _value(item.$2)))
         .toList(growable: false);
-    return _ProgressLineChart(spots: spots);
+    return _ProgressLineChart(
+      spots: spots,
+      dates: entries.map((entry) => entry.completedAt).toList(growable: false),
+      unitLabel: _unitLabel(metric),
+    );
   }
 
   double _value(WorkoutProgressEntry entry) => switch (metric) {
@@ -917,33 +1282,69 @@ class _ExerciseTrendChart extends StatelessWidget {
     _ExerciseMetric.speed => entry.bestSpeedKph,
     _ExerciseMetric.distance => entry.distanceKm,
   };
+
+  String _unitLabel(_ExerciseMetric metric) => switch (metric) {
+    _ExerciseMetric.weight => 'kg',
+    _ExerciseMetric.estimatedMax => 'kg',
+    _ExerciseMetric.volume => 'kg',
+    _ExerciseMetric.reps => '',
+    _ExerciseMetric.duration => 'min',
+    _ExerciseMetric.speed => 'km/h',
+    _ExerciseMetric.distance => 'km',
+  };
 }
 
 class _MeasurementChart extends StatelessWidget {
-  const _MeasurementChart({required this.measurements, required this.value});
+  const _MeasurementChart({
+    required this.measurements,
+    required this.value,
+    required this.unitLabel,
+  });
 
   final List<_BodyMeasurement> measurements;
   final double Function(_BodyMeasurement) value;
+  final String unitLabel;
 
   @override
   Widget build(BuildContext context) => _ProgressLineChart(
     spots: measurements.indexed
         .map((item) => FlSpot(item.$1.toDouble(), value(item.$2)))
         .toList(growable: false),
+    dates: measurements.map((item) => item.measuredAt).toList(growable: false),
+    unitLabel: unitLabel,
   );
 }
 
 class _ProgressLineChart extends StatelessWidget {
-  const _ProgressLineChart({required this.spots});
+  const _ProgressLineChart({
+    required this.spots,
+    required this.dates,
+    required this.unitLabel,
+  });
 
   final List<FlSpot> spots;
+  final List<DateTime> dates;
+  final String unitLabel;
 
   @override
   Widget build(BuildContext context) {
     if (spots.isEmpty) return const Center(child: Text('No trend data yet'));
     final color = Theme.of(context).colorScheme.primary;
+    final labelStyle = Theme.of(context).textTheme.bodySmall;
+    final values = spots.map((spot) => spot.y).toList(growable: false);
+    var minY = values.reduce((a, b) => a < b ? a : b);
+    var maxY = values.reduce((a, b) => a > b ? a : b);
+    if (minY == maxY) {
+      // A single point or all-identical values would otherwise collapse
+      // fl_chart's y-axis range to zero height.
+      final pad = minY == 0 ? 1.0 : minY.abs() * 0.1;
+      minY -= pad;
+      maxY += pad;
+    }
     return LineChart(
       LineChartData(
+        minY: minY,
+        maxY: maxY,
         borderData: FlBorderData(show: false),
         gridData: FlGridData(
           drawVerticalLine: false,
@@ -954,12 +1355,46 @@ class _ProgressLineChart extends StatelessWidget {
             strokeWidth: 1,
           ),
         ),
-        titlesData: const FlTitlesData(
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        titlesData: FlTitlesData(
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 26,
+              getTitlesWidget: (value, meta) {
+                final index = value.round();
+                if (index != 0 && index != dates.length - 1) {
+                  return const SizedBox.shrink();
+                }
+                if (index < 0 || index >= dates.length) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    DateFormat('d MMM').format(dates[index]),
+                    style: labelStyle,
+                  ),
+                );
+              },
+            ),
+          ),
           leftTitles: AxisTitles(
-            sideTitles: SideTitles(showTitles: true, reservedSize: 42),
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 48,
+              getTitlesWidget: (value, meta) => Text(
+                unitLabel.isEmpty
+                    ? meta.formattedValue
+                    : '${meta.formattedValue}$unitLabel',
+                style: labelStyle,
+              ),
+            ),
           ),
         ),
         lineBarsData: [
@@ -1044,15 +1479,17 @@ class _PrivateProgressPhotoState extends State<_PrivateProgressPhoto> {
       future: _bytes,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const ColoredBox(
-            color: Color(0x11000000),
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          return ColoredBox(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: const Center(
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
           );
         }
         if (snapshot.data == null) {
-          return const ColoredBox(
-            color: Color(0x11000000),
-            child: Center(child: Icon(Icons.broken_image_outlined)),
+          return ColoredBox(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: const Center(child: Icon(Icons.broken_image_outlined)),
           );
         }
         return Image.memory(snapshot.data!, fit: BoxFit.cover);
@@ -1211,6 +1648,97 @@ class _BodyMeasurement {
   final DateTime measuredAt;
   final double weightKg;
   final double? bodyFatPercent;
+}
+
+class _Goal {
+  const _Goal({
+    required this.id,
+    required this.name,
+    required this.unit,
+    required this.target,
+    required this.startValue,
+    required this.currentValue,
+    required this.status,
+    required this.targetAt,
+  });
+
+  final String id;
+  final String name;
+  final String unit;
+  final double target;
+  final double startValue;
+  final double currentValue;
+  final String status;
+  final DateTime? targetAt;
+
+  double get progress =>
+      goalProgress(start: startValue, current: currentValue, target: target);
+}
+
+class _GoalCard extends StatelessWidget {
+  const _GoalCard({
+    required this.goal,
+    required this.onUpdate,
+    required this.onRemove,
+  });
+
+  final _Goal goal;
+  final VoidCallback onUpdate;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: const EdgeInsets.only(bottom: 10),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  goal.name,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              if (goal.status == 'achieved')
+                const Chip(label: Text('Achieved')),
+              IconButton(
+                tooltip: 'Remove goal',
+                onPressed: onRemove,
+                icon: const Icon(Icons.close, size: 18),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: goal.progress,
+              minHeight: 8,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${_number(goal.currentValue)} ${goal.unit} of '
+                  '${_number(goal.target)} ${goal.unit}',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+              TextButton(
+                onPressed: onUpdate,
+                child: const Text('Update progress'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _Metric {
