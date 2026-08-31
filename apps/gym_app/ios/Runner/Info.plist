@@ -28,6 +28,17 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Gym Management uses the camera to scan your gym attendance QR code.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.996305810467-6qf5k0nrdnq09qiqq3rci23480e5r92r</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

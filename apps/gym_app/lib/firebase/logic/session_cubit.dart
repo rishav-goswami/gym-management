@@ -58,6 +58,10 @@ GymMembership? preferredInitialMembership(
   required bool personalSpacesEnabled,
 }) => personalSpacesEnabled ? preferredMemberMembership(memberships) : null;
 
+/// Bump this whenever the published terms/privacy policy changes so newly
+/// onboarding users record acceptance of the current version.
+const _consumerTermsVersion = '2026-08-28';
+
 class SessionState extends Equatable {
   const SessionState({
     this.status = SessionStatus.initializing,
@@ -130,6 +134,7 @@ class SessionCubit extends Cubit<SessionState> {
   late final StreamSubscription<Map<String, dynamic>> _brandingSubscription;
   StreamSubscription<String>? _pushTokenSubscription;
   StreamSubscription<Map<String, dynamic>>? _gymSubscription;
+  int _authGeneration = 0;
 
   void _onBrandingChanged(Map<String, dynamic> branding) {
     final personalSpacesEnabled = personalSpacesEnabledFor(branding);
@@ -164,11 +169,13 @@ class SessionCubit extends Cubit<SessionState> {
   }
 
   Future<void> _onAuthChanged(User? user) async {
+    final generation = ++_authGeneration;
     if (user == null) {
       await _gymSubscription?.cancel();
       _gymSubscription = null;
       await _pushTokenSubscription?.cancel();
       _pushTokenSubscription = null;
+      if (generation != _authGeneration) return;
       emit(
         SessionState(
           status: SessionStatus.signedOut,
@@ -190,6 +197,7 @@ class SessionCubit extends Cubit<SessionState> {
         _repository.membershipsFor(user.uid),
         _repository.userAccount(user.uid),
       ]);
+      if (generation != _authGeneration) return;
       final memberships = results[0] as List<GymMembership>;
       final account = results[1] as Map<String, dynamic>;
       unawaited(_repository.registerPushToken(user));
@@ -208,11 +216,13 @@ class SessionCubit extends Cubit<SessionState> {
         account: account,
         platformBranding: state.platformBranding,
       );
+      if (generation != _authGeneration) return;
       emit(nextState);
       if (nextState.activeMembership != null) {
         await _watchGym(nextState.activeMembership!);
       }
     } catch (error) {
+      if (generation != _authGeneration) return;
       emit(
         SessionState(
           status: SessionStatus.failure,
@@ -241,6 +251,14 @@ class SessionCubit extends Cubit<SessionState> {
           message: error.message ?? 'Unable to sign in.',
         ),
       );
+    } catch (error) {
+      emit(
+        SessionState(
+          status: SessionStatus.signedOut,
+          platformBranding: state.platformBranding,
+          message: 'Unable to sign in. Please try again.',
+        ),
+      );
     }
   }
 
@@ -259,8 +277,16 @@ class SessionCubit extends Cubit<SessionState> {
           status: SessionStatus.signedOut,
           platformBranding: state.platformBranding,
           message: error.code == 'account-exists-with-different-credential'
-              ? 'This email already uses another sign-in method. Sign in that way first, then link this provider in Settings.'
+              ? 'This email already uses another sign-in method. Sign in with that method and Google will link automatically.'
               : error.message ?? 'Unable to sign in with Google.',
+        ),
+      );
+    } catch (error) {
+      emit(
+        SessionState(
+          status: SessionStatus.signedOut,
+          platformBranding: state.platformBranding,
+          message: 'Unable to sign in with Google. Please try again.',
         ),
       );
     }
@@ -281,8 +307,16 @@ class SessionCubit extends Cubit<SessionState> {
           status: SessionStatus.signedOut,
           platformBranding: state.platformBranding,
           message: error.code == 'account-exists-with-different-credential'
-              ? 'This email already uses another sign-in method. Sign in that way first, then link this provider in Settings.'
+              ? 'This email already uses another sign-in method. Sign in with that method and Apple will link automatically.'
               : error.message ?? 'Unable to sign in with Apple.',
+        ),
+      );
+    } catch (error) {
+      emit(
+        SessionState(
+          status: SessionStatus.signedOut,
+          platformBranding: state.platformBranding,
+          message: 'Unable to sign in with Apple. Please try again.',
         ),
       );
     }
@@ -307,6 +341,14 @@ class SessionCubit extends Cubit<SessionState> {
           status: SessionStatus.signedOut,
           platformBranding: state.platformBranding,
           message: error.message ?? 'Unable to create account.',
+        ),
+      );
+    } catch (error) {
+      emit(
+        SessionState(
+          status: SessionStatus.signedOut,
+          platformBranding: state.platformBranding,
+          message: 'Unable to create account. Please try again.',
         ),
       );
     }
@@ -378,7 +420,7 @@ class SessionCubit extends Cubit<SessionState> {
       workoutDaysPerWeek: workoutDaysPerWeek,
       equipmentAccess: equipmentAccess,
       ageConfirmed: ageConfirmed,
-      termsVersion: '2026-08-28',
+      termsVersion: _consumerTermsVersion,
     );
     await refreshContexts();
   }

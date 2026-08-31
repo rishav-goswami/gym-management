@@ -77,6 +77,12 @@ class _ConsumerOnboardingScreenState extends State<ConsumerOnboardingScreen> {
               ),
         actions: [
           TextButton(
+            onPressed: _saving
+                ? null
+                : () => context.read<SessionCubit>().signOut(),
+            child: const Text('Sign out'),
+          ),
+          TextButton(
             onPressed: _saving ? null : _skipPreferences,
             child: const Text('Skip preferences'),
           ),
@@ -269,12 +275,11 @@ class _ConsumerOnboardingScreenState extends State<ConsumerOnboardingScreen> {
 
   Future<void> _continue() async {
     if (_page == 0) {
-      if (_name.text.trim().isEmpty || !_ageConfirmed || !_termsAccepted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Enter your name and accept both confirmations.'),
-          ),
-        );
+      final message = _step0ValidationMessage();
+      if (message != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
         return;
       }
     }
@@ -289,16 +294,23 @@ class _ConsumerOnboardingScreenState extends State<ConsumerOnboardingScreen> {
   }
 
   Future<void> _skipPreferences() async {
-    if (_page == 0 &&
-        (_name.text.trim().isEmpty || !_ageConfirmed || !_termsAccepted)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Age and policy acceptance are required to continue.'),
-        ),
-      );
-      return;
+    if (_page == 0) {
+      final message = _step0ValidationMessage();
+      if (message != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+        return;
+      }
     }
     await _save();
+  }
+
+  String? _step0ValidationMessage() {
+    if (_name.text.trim().isEmpty) return 'Enter your name to continue.';
+    if (!_ageConfirmed) return 'Confirm you are 18 or older to continue.';
+    if (!_termsAccepted) return 'Accept the terms and privacy policy to continue.';
+    return null;
   }
 
   Future<void> _save() async {

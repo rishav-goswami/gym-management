@@ -12,7 +12,28 @@
           "package_name": "com.rishva.gymmanagement"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "996305810467-8pu01nf6glk9bt8osmq1b6vv8jsj1p08.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rishva.gymmanagement",
+            "certificate_hash": "79c56853a76467e1ad80088faf90ce456e7b9ef1"
+          }
+        },
+        {
+          "client_id": "996305810467-rt5a71pq8irreaoi8etk6kjb42jgb0r0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rishva.gymmanagement",
+            "certificate_hash": "b7e68e86a0d6a842e5a6fb3c1d3400b3af2675de"
+          }
+        },
+        {
+          "client_id": "996305810467-sg7ripq8chdmft3h54l8omc1vqhseefa.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAQfdRGRV6G9bTcFW72GvH9IANZQfz1-Ys"
@@ -20,7 +41,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "996305810467-sg7ripq8chdmft3h54l8omc1vqhseefa.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "996305810467-6qf5k0nrdnq09qiqq3rci23480e5r92r.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.rishva.gymmanagement"
+              }
+            }
+          ]
         }
       }
     }

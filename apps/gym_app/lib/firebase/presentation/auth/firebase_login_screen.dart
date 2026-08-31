@@ -25,7 +25,10 @@ class _FirebaseLoginScreenState extends State<FirebaseLoginScreen> {
   bool _hidden = true;
   bool _phoneMode = false;
   bool _sendingCode = false;
+  bool _resettingPassword = false;
   String? _verificationId;
+
+  static final _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
   @override
   void dispose() {
@@ -106,9 +109,7 @@ class _FirebaseLoginScreenState extends State<FirebaseLoginScreen> {
                           ),
                           validator: (value) =>
                               value != null &&
-                                  RegExp(
-                                    r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-                                  ).hasMatch(value.trim())
+                                  _emailPattern.hasMatch(value.trim())
                               ? null
                               : 'Enter a valid email',
                         ),
@@ -135,6 +136,23 @@ class _FirebaseLoginScreenState extends State<FirebaseLoginScreen> {
                           validator: (value) => (value?.length ?? 0) >= 6
                               ? null
                               : 'Use at least 6 characters',
+                        ),
+                      if (!_phoneMode)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _resettingPassword
+                                ? null
+                                : _forgotPassword,
+                            child: _resettingPassword
+                                ? const SizedBox.square(
+                                    dimension: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text('Forgot password?'),
+                          ),
                         ),
                       if (_phoneMode)
                         TextFormField(
@@ -166,10 +184,14 @@ class _FirebaseLoginScreenState extends State<FirebaseLoginScreen> {
                       ],
                       const SizedBox(height: 24),
                       FilledButton(
-                        onPressed: state.status == SessionStatus.initializing
+                        onPressed:
+                            state.status == SessionStatus.initializing ||
+                                _sendingCode
                             ? null
                             : _submit,
-                        child: state.status == SessionStatus.initializing
+                        child:
+                            state.status == SessionStatus.initializing ||
+                                _sendingCode
                             ? const SizedBox.square(
                                 dimension: 20,
                                 child: CircularProgressIndicator(
@@ -203,7 +225,8 @@ class _FirebaseLoginScreenState extends State<FirebaseLoginScreen> {
                         ),
                         const SizedBox(height: 12),
                         if (kIsWeb ||
-                            defaultTargetPlatform == TargetPlatform.android)
+                            defaultTargetPlatform == TargetPlatform.android ||
+                            defaultTargetPlatform == TargetPlatform.iOS)
                           OutlinedButton.icon(
                             onPressed:
                                 state.status == SessionStatus.initializing
@@ -284,5 +307,36 @@ class _FirebaseLoginScreenState extends State<FirebaseLoginScreen> {
       return;
     }
     context.read<SessionCubit>().signIn(_email.text.trim(), _password.text);
+  }
+
+  Future<void> _forgotPassword() async {
+    final email = _email.text.trim();
+    if (!_emailPattern.hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter your email above first.')),
+      );
+      return;
+    }
+    setState(() => _resettingPassword = true);
+    try {
+      await context.read<FirebaseSessionRepository>().sendPasswordResetEmail(
+        email,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Password reset email sent to $email.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to send reset email. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _resettingPassword = false);
+    }
   }
 }

@@ -188,6 +188,9 @@ class FirebaseSessionRepository {
     _pendingCredential = null;
   }
 
+  Future<void> sendPasswordResetEmail(String email) =>
+      auth.sendPasswordResetEmail(email: email.trim());
+
   Future<void> signOut() async {
     final user = auth.currentUser;
     if (user != null) await removePushToken(user);

@@ -6,9 +6,6 @@ final ThemeData lightTheme = ThemeData(
   /// Base screen background color
   scaffoldBackgroundColor: AppColors.backgroundLight,
 
-  /// Global font for the app
-  fontFamily: 'Montserrat',
-
   /// App bar default color (transparent to blend with scaffold)
   appBarTheme: const AppBarTheme(
     backgroundColor: Colors.transparent,
@@ -20,8 +17,21 @@ final ThemeData lightTheme = ThemeData(
   /// Used for Card widgets, containers, and inner surfaces
   cardColor: AppColors.cardLight,
 
-  /// Text styles for headings and paragraphs
+  /// Text styles for headings and paragraphs. main.dart replaces this
+  /// theme's `colorScheme` per-build with a brand-derived scheme, so every
+  /// role here is pinned explicitly rather than left to fall back to a
+  /// colorScheme-driven Material default.
   textTheme: const TextTheme(
+    headlineMedium: TextStyle(
+      fontSize: 28,
+      fontWeight: FontWeight.bold,
+      color: AppColors.textPrimaryLight,
+    ),
+    headlineSmall: TextStyle(
+      fontSize: 24,
+      fontWeight: FontWeight.bold,
+      color: AppColors.textPrimaryLight,
+    ),
     titleLarge: TextStyle(
       fontSize: 22,
       fontWeight: FontWeight.bold,
@@ -29,28 +39,6 @@ final ThemeData lightTheme = ThemeData(
     ),
     bodyLarge: TextStyle(fontSize: 16, color: AppColors.textPrimaryLight),
     bodyMedium: TextStyle(fontSize: 14, color: AppColors.textSecondaryLight),
-  ),
-
-  /// Fix: Make button theme override safe
-  elevatedButtonTheme: ElevatedButtonThemeData(
-    style: ElevatedButton.styleFrom(
-      backgroundColor: AppColors.accent, // default background
-      foregroundColor: Colors.white, // default text/icon color
-      textStyle: const TextStyle(
-        fontWeight: FontWeight.bold,
-        fontFamily: 'Montserrat',
-        color: AppColors.textPrimaryLight,
-      ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-    ),
-  ),
-
-  /// Used by buttons, textfields, etc.
-  colorScheme: const ColorScheme.light(
-    primary: AppColors.primary,
-    secondary: AppColors.accent,
-    surface: AppColors.cardLight,
-    onPrimary: Colors.white, // text/icons on primary (e.g. buttons)
-    onSecondary: Colors.white, // text/icons on accent
+    bodySmall: TextStyle(fontSize: 12, color: AppColors.textSecondaryLight),
   ),
 );
