@@ -42,7 +42,14 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final membership = context.watch<SessionCubit>().state.activeMembership!;
+    final membership = context.watch<SessionCubit>().state.activeMembership;
+    if (membership == null) {
+      // The router redirects away as soon as activeMembership clears (e.g.
+      // switching context or leaving a gym), but state updates and router
+      // redirects aren't guaranteed to land in the same frame — render a
+      // blank frame instead of crashing on the old force-unwrap.
+      return const Scaffold(body: SizedBox.shrink());
+    }
     final destinations = _destinations(membership);
     if (_index >= destinations.length) _index = 0;
     final wide = MediaQuery.sizeOf(context).width >= 840;
@@ -770,7 +777,7 @@ class _Dashboard extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: MediaQuery.sizeOf(context).width > 900 ? 4 : 2,
-              childAspectRatio: 1.8,
+              childAspectRatio: 1.4,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
             ),
@@ -780,14 +787,22 @@ class _Dashboard extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Icon(cards[index].$3),
-                    const Spacer(),
-                    Text(
-                      '${cards[index].$2}',
-                      style: Theme.of(context).textTheme.headlineSmall,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${cards[index].$2}',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
                     ),
-                    Text(cards[index].$1),
+                    Text(
+                      cards[index].$1,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ],
                 ),
               ),
