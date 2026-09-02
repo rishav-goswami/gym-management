@@ -1,5 +1,9 @@
 # Consumer-first fitness spaces
 
+The consumer-facing application is named **FitGy**. **Gym Management** remains
+the legal/platform operator identity and the name of the separate administrative
+control plane.
+
 ## Product boundary
 
 Every authenticated identity has a permanent private fitness data layer. It is
@@ -66,6 +70,12 @@ operator and must not be guessed or copied from another Firebase account.
 Before new personal fitness records are created, onboarding records self-attested 18+
 confirmation, a versioned policy acceptance and the user’s name. Goals,
 experience, weekly frequency and equipment are skippable preferences.
+
+Production onboarding links to the public HTML policies hosted with the customer
+app at `/privacy/` and `/terms/`. Users without the app can initiate deletion at
+`/delete-account/`; the in-app path remains **Profile → Settings → Delete account**.
+Android cloud backup and device transfer are disabled so cached fitness, identity,
+membership and support data is restored only from Firebase after authentication.
 
 ## Gym sharing
 

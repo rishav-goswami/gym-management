@@ -60,7 +60,7 @@ GymMembership? preferredInitialMembership(
 
 /// Bump this whenever the published terms/privacy policy changes so newly
 /// onboarding users record acceptance of the current version.
-const _consumerTermsVersion = '2026-08-28';
+const _consumerTermsVersion = '2026-09-02';
 
 class SessionState extends Equatable {
   const SessionState({

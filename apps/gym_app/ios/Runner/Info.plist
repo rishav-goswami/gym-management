@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Gym Management</string>
+	<string>FitGy</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -27,7 +27,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Gym Management uses the camera to scan your gym attendance QR code.</string>
+	<string>FitGy uses the camera to scan your gym attendance QR code.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

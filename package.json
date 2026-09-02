@@ -10,6 +10,8 @@
     "app:build:android-release": "node scripts/build-mobile-release.mjs android",
     "app:build:ios-release": "node scripts/build-mobile-release.mjs ios",
     "android:signing:generate": "node scripts/generate-android-upload-key.mjs",
+    "play:check": "node scripts/verify-play-release.mjs",
+    "play:check:live": "node scripts/verify-play-release.mjs --live",
     "console:pubget": "cd apps/platform_console && fvm flutter pub get",
     "console:test": "cd apps/platform_console && fvm flutter test",
     "console:analyze": "cd apps/platform_console && fvm flutter analyze lib test",

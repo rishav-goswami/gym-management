@@ -1,11 +1,11 @@
 {
-    "name": "Gym Management",
-    "short_name": "Gym Management",
+    "name": "FitGy",
+    "short_name": "FitGy",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "Multi-tenant gym management for owners, trainers, staff, and members.",
+    "background_color": "#0B1728",
+    "theme_color": "#0B1728",
+    "description": "FitGy: private personal fitness with optional gym services.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

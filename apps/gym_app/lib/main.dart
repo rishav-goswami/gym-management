@@ -136,7 +136,7 @@ class _GymAppState extends State<GymApp> {
             title:
                 session.activeMembership?.gymName ??
                 platform['name'] as String? ??
-                'Gym Management',
+                'FitGy',
             debugShowCheckedModeBanner: false,
             theme: lightTheme.copyWith(colorScheme: lightScheme),
             darkTheme: darkTheme.copyWith(colorScheme: darkScheme),

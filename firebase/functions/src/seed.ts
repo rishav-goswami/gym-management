@@ -72,12 +72,12 @@ async function seed() {
     updatedAt: FieldValue.serverTimestamp()
   });
   batch.set(db.doc("platform_public/app_branding"), {
-    name: "Gym Management",
+    name: "FitGy",
     primaryColor: "#2563EB",
     secondaryColor: "#0F172A",
     accentColor: "#F97316",
-    termsUrl: "https://example.com/terms",
-    privacyUrl: "https://example.com/privacy",
+    termsUrl: "https://createmix-gym-app.web.app/terms/",
+    privacyUrl: "https://createmix-gym-app.web.app/privacy/",
     consumerFeatures: { personalSpacesV1: true },
     introduction: [
       { title: "Build workouts around your goals", body: "Create routines that fit your life.", imageUrl: null },

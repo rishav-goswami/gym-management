@@ -9,6 +9,7 @@ import '../../data/gym_media_repository.dart';
 import '../../data/gym_repository.dart';
 import '../../data/support_repository.dart';
 import '../../logic/session_cubit.dart';
+import '../shared/fitgy_legal_links.dart';
 import '../support/support_hub_screen.dart';
 import '../workspace/member_billing_panel.dart';
 
@@ -218,9 +219,9 @@ class _PrimaryTrainerCard extends StatelessWidget {
   final GymMembership membership;
 
   @override
-  Widget build(BuildContext context) => StreamBuilder<
-    DocumentSnapshot<Map<String, dynamic>>
-  >(
+  Widget build(
+    BuildContext context,
+  ) => StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
     stream: context.read<SupportRepository>().trainerAssignment(
       membership.gymId,
       membership.uid,
@@ -231,7 +232,8 @@ class _PrimaryTrainerCard extends StatelessWidget {
         assignment['primaryTrainerIdentity'] as Map? ?? const {},
       );
       final assigned = assignment['primaryTrainerUid'] != null;
-      final trainerName = identity['displayName'] as String? ??
+      final trainerName =
+          identity['displayName'] as String? ??
           identity['email'] as String? ??
           'Your trainer';
       return Card(
@@ -344,6 +346,8 @@ class _MemberSettings extends StatelessWidget {
                 'Personal workouts and progress remain user-owned. Gym access follows your sharing choices.',
               ),
             ),
+            const Divider(height: 1),
+            const FitGyLegalLinks(),
             if (onLeaveGym != null) ...[
               const Divider(height: 1),
               ListTile(

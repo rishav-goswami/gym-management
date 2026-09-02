@@ -1,8 +1,9 @@
 # Tenant branding
 
-Gym Management uses one customer application and applies each selected gym's
-brand at runtime. A gym does not require a separate APK, IPA, web build, or
-Firebase project.
+The customer application is published as **FitGy** and applies each selected
+gym's brand at runtime. Gym Management remains the service operator and control
+plane name. A gym does not require a separate APK, IPA, web build, or Firebase
+project.
 
 ## Managed fields
 

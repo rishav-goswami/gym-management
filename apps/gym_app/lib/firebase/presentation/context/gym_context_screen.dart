@@ -218,9 +218,7 @@ class _GymContextScreenState extends State<GymContextScreen> {
     final invitation = GymInvitationLink.fromText(value);
     if (invitation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('That is not a valid Gym Management invitation.'),
-        ),
+        const SnackBar(content: Text('That is not a valid FitGy invitation.')),
       );
       return;
     }

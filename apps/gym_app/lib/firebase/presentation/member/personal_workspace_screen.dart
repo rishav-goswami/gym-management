@@ -10,6 +10,7 @@ import '../../data/firebase_session_repository.dart';
 import '../../logic/session_cubit.dart';
 import '../shared/gym_brand_mark.dart';
 import '../shared/gym_sharing_dialog.dart';
+import '../shared/fitgy_legal_links.dart';
 import '../support/support_hub_screen.dart';
 import '../workspace/gym_workspace_screen.dart' show MemberGymServicesScreen;
 import 'member_home_panel.dart';
@@ -315,7 +316,7 @@ class _PersonalHome extends StatelessWidget {
               ),
               title: const Text('Need help?'),
               subtitle: const Text(
-                'Find exercise guidance or contact Gym Management Support.',
+                'Find exercise guidance or contact FitGy Support.',
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.of(context).push(
@@ -494,6 +495,8 @@ class _PersonalProfile extends StatelessWidget {
                 ),
                 onTap: () => _showSupportHistory(context),
               ),
+              const Divider(height: 1),
+              const FitGyLegalLinks(),
               const Divider(height: 1),
               ListTile(
                 leading: Icon(

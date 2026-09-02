@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../logic/session_cubit.dart';
+import '../shared/fitgy_legal_links.dart';
 
 class ConsumerOnboardingScreen extends StatefulWidget {
   const ConsumerOnboardingScreen({super.key, this.nextLocation});
@@ -309,7 +310,9 @@ class _ConsumerOnboardingScreenState extends State<ConsumerOnboardingScreen> {
   String? _step0ValidationMessage() {
     if (_name.text.trim().isEmpty) return 'Enter your name to continue.';
     if (!_ageConfirmed) return 'Confirm you are 18 or older to continue.';
-    if (!_termsAccepted) return 'Accept the terms and privacy policy to continue.';
+    if (!_termsAccepted) {
+      return 'Accept the terms and privacy policy to continue.';
+    }
     return null;
   }
 
@@ -341,9 +344,13 @@ class _ConsumerOnboardingScreenState extends State<ConsumerOnboardingScreen> {
   Future<void> _openPolicy(String field) async {
     final branding = context.read<SessionCubit>().state.platformBranding;
     final rawUrl = branding[field] as String?;
-    final uri = rawUrl == null ? null : Uri.tryParse(rawUrl);
-    if (uri == null ||
-        !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+    final configuredUri = rawUrl == null ? null : Uri.tryParse(rawUrl);
+    final fallbackUrl = field == 'termsUrl' ? fitGyTermsUrl : fitGyPrivacyUrl;
+    final uri =
+        configuredUri?.scheme == 'https' && configuredUri?.host != 'example.com'
+        ? configuredUri!
+        : Uri.parse(fallbackUrl);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

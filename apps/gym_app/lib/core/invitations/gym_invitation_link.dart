@@ -38,7 +38,7 @@ class GymInvitationLink {
       role == 'member' ? 'member' : role.replaceAll('_', ' ');
 
   String get shareMessage =>
-      "You're invited to join $gymName as a $roleLabel on Gym Management.\n\n"
+      "You're invited to join $gymName as a $roleLabel on FitGy.\n\n"
       'Open your secure invitation:\n$shareUri\n\n'
       'Sign in or create an account using the same email address that was invited. '
       'This invitation expires in $expiresInHours hours and can only be used once.';

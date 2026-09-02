@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.rishva.gymmanagement",
+      "sha256_cert_fingerprints": [
+        "F8:84:FD:4B:96:5D:90:0F:6A:14:F5:95:26:DA:91:A9:79:EB:75:C1:AF:4B:2C:FB:A1:F0:8E:DD:FE:70:BF:18"
+      ]
+    }
+  }
+]

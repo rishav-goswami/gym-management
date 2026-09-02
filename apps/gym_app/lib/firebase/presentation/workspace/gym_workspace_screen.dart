@@ -406,7 +406,7 @@ class _GymWorkspaceScreenState extends State<GymWorkspaceScreen> {
                 name: 'fitlife-account-export.json',
               ),
             ],
-            subject: 'My Gym Management account export',
+            subject: 'My FitGy account export',
           ),
         );
       } catch (error) {

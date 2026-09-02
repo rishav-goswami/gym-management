@@ -1,6 +1,8 @@
-# Gym Management consumer fitness and multi-tenant gym platform
+# FitGy consumer fitness and multi-tenant gym platform
 
-Two independently built Flutter clients use Firebase as their shared system of record:
+Two independently built Flutter clients use Firebase as their shared system of
+record. The customer product is named **FitGy**; **Gym Management** remains the
+legal and platform-operator identity:
 
 - `apps/gym_app`: the consumer fitness product with a dynamically merged gym-member overlay plus operational owner/staff/trainer consoles on iOS, Android, and web.
 - `apps/platform_console`: a web-only control plane for trusted Gym Management platform operators.
@@ -65,6 +67,8 @@ documented in
 [`docs/PRODUCT_ANALYTICS_AND_ONBOARDING.md`](docs/PRODUCT_ANALYTICS_AND_ONBOARDING.md).
 The personal-space model, consent bridge, consumer support controls and rollout
 are documented in [`docs/CONSUMER_FITNESS.md`](docs/CONSUMER_FITNESS.md).
+The Android beta submission and Play Console declarations are documented in
+[`docs/GOOGLE_PLAY_BETA_RELEASE.md`](docs/GOOGLE_PLAY_BETA_RELEASE.md).
 
 ## Prerequisites
 
@@ -149,13 +153,13 @@ macOS Firewall must allow the emulator processes, and the phone and Mac must sha
 ## Real Firebase projects
 
 The development build is currently connected to Firebase project
-`createmix-in`. The Firebase project ID is immutable, but the registered
-apps and the product shown to users are named **Gym Management**. The configured
+`createmix-in`. The Firebase project ID and registered application IDs are
+immutable, while the customer-facing display name is **FitGy**. The configured
 development identifiers are:
 
 - Flutter/Dart package: `gym_management`
 - Android, iOS, and macOS: `com.rishva.gymmanagement`
-- Product/display name: `Gym Management`
+- Product/display name: `FitGy`
 
 Run directly against the development Firebase project with:
 
