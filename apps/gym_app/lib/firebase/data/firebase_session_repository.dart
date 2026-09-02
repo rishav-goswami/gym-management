@@ -62,7 +62,6 @@ class FirebaseSessionRepository {
       ..addScope('email')
       ..setCustomParameters({'prompt': 'select_account'});
     final credential = await _signInWithProvider(provider);
-    await _ensureIdentityDocument(credential.user);
     if (!AppEnvironment.useEmulators) {
       await FirebaseAnalytics.instance.logLogin(loginMethod: 'google');
     }
@@ -74,7 +73,6 @@ class FirebaseSessionRepository {
       ..addScope('email')
       ..addScope('name');
     final credential = await _signInWithProvider(provider);
-    await _ensureIdentityDocument(credential.user);
     if (!AppEnvironment.useEmulators) {
       await FirebaseAnalytics.instance.logLogin(loginMethod: 'apple');
     }
@@ -155,16 +153,6 @@ class FirebaseSessionRepository {
           })
           .then<void>((_) {}, onError: (_) {}),
     );
-  }
-
-  Future<void> _ensureIdentityDocument(User? user) async {
-    if (user == null) return;
-    await firestore.doc('users/${user.uid}').set({
-      'displayName': user.displayName,
-      'email': user.email?.trim().toLowerCase(),
-      'phone': user.phoneNumber,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
   }
 
   Future<UserCredential> _signInWithProvider(AuthProvider provider) async {

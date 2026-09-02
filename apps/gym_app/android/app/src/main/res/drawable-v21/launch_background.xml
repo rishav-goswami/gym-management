@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="?android:colorBackground" />
-    <item>
+    <item android:drawable="@color/fitgy_splash_background" />
+    <item
+        android:width="192dp"
+        android:height="192dp"
+        android:gravity="center">
         <bitmap
-            android:gravity="center"
-            android:src="@mipmap/ic_launcher" />
+            android:gravity="fill"
+            android:src="@drawable/fitgy_splash_foreground" />
     </item>
 </layer-list>

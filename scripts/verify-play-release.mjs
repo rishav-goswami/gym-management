@@ -22,6 +22,7 @@ function pngSize(path) {
 const appId = "com.rishva.gymmanagement";
 const publicBaseUrl = "https://createmix-gym-app.web.app";
 const manifest = read("apps/gym_app/android/app/src/main/AndroidManifest.xml");
+const android12Splash = read("apps/gym_app/android/app/src/main/res/values-v31/styles.xml");
 const seed = read("firebase/functions/src/seed.ts");
 const privacy = read("apps/gym_app/web/privacy/index.html");
 const terms = read("apps/gym_app/web/terms/index.html");
@@ -31,6 +32,11 @@ const assetLinks = JSON.parse(read("apps/gym_app/web/.well-known/assetlinks.json
 
 check(manifest.includes('android:allowBackup="false"'), "Android cloud backup is disabled");
 check(manifest.includes('android:dataExtractionRules="@xml/data_extraction_rules"'), "Android transfer exclusions are configured");
+check(
+  android12Splash.includes('@drawable/fitgy_splash_foreground') &&
+    android12Splash.includes('@color/fitgy_splash_background'),
+  "Android 12+ uses the branded FitGy splash"
+);
 for (const permission of [
   "com.google.android.gms.permission.AD_ID",
   "android.permission.ACCESS_ADSERVICES_AD_ID",
@@ -73,11 +79,14 @@ check(deletion.includes("within 30 days"), "Deletion page states the deletion ti
 check(seed.includes(`${publicBaseUrl}/terms/`), "Firebase seed uses the production Terms URL");
 check(seed.includes(`${publicBaseUrl}/privacy/`), "Firebase seed uses the production Privacy URL");
 
-check(/^version:\s+\d+\.\d+\.\d+\+\d+$/m.test(pubspec), "Store version has versionName and versionCode");
+const version = pubspec.match(/^version:\s+(\d+)\.(\d+)\.(\d+)\+(\d+)$/m);
+check(Boolean(version), "Store version has versionName and versionCode");
+check(Number(version?.[4] ?? 0) >= 2, "Store build number is newer than the released version code 1");
 for (const [path, expected] of [
   ["apps/gym_app/web/icons/Icon-512.png", 512],
   ["apps/gym_app/web/icons/Icon-192.png", 192],
-  ["apps/gym_app/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png", 192]
+  ["apps/gym_app/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png", 192],
+  ["apps/gym_app/android/app/src/main/res/drawable-nodpi/fitgy_splash_foreground.png", 576]
 ]) {
   const [width, height] = pngSize(path);
   check(width === expected && height === expected, `${path} is ${expected}x${expected}`);

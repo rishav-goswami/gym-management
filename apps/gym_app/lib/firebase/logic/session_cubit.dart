@@ -62,6 +62,16 @@ GymMembership? preferredInitialMembership(
 /// onboarding users record acceptance of the current version.
 const _consumerTermsVersion = '2026-09-02';
 
+String _googleSignInErrorMessage(FirebaseAuthException error) {
+  if (error.code == 'account-exists-with-different-credential') {
+    return 'This email already uses another sign-in method. Sign in with that method and Google will link automatically.';
+  }
+  if (error.code == 'operation-not-allowed') {
+    return 'Google sign-in is not enabled for this FitGy environment.';
+  }
+  return '${error.message ?? 'Unable to sign in with Google.'} (${error.code})';
+}
+
 class SessionState extends Equatable {
   const SessionState({
     this.status = SessionStatus.initializing,
@@ -276,9 +286,7 @@ class SessionCubit extends Cubit<SessionState> {
         SessionState(
           status: SessionStatus.signedOut,
           platformBranding: state.platformBranding,
-          message: error.code == 'account-exists-with-different-credential'
-              ? 'This email already uses another sign-in method. Sign in with that method and Google will link automatically.'
-              : error.message ?? 'Unable to sign in with Google.',
+          message: _googleSignInErrorMessage(error),
         ),
       );
     } catch (error) {
@@ -286,7 +294,7 @@ class SessionCubit extends Cubit<SessionState> {
         SessionState(
           status: SessionStatus.signedOut,
           platformBranding: state.platformBranding,
-          message: 'Unable to sign in with Google. Please try again.',
+          message: 'Unable to sign in with Google: $error',
         ),
       );
     }

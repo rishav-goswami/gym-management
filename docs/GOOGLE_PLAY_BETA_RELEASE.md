@@ -123,3 +123,16 @@ the Play app-signing fingerprint.
 5. If the Play developer account is subject to a mandatory closed-test period,
    complete it before requesting production access.
 6. Promote the exact tested artifact; do not rebuild between test and promotion.
+
+## Release troubleshooting
+
+- Do not rename an older APK and treat the filename as its version. Verify the
+  embedded `versionName` and `versionCode`; Play requires a strictly increasing
+  version code. The first corrected FitGy build is `1.0.1+2`.
+- Install production builds through a Google Play testing track. Production uses
+  the Play Integrity App Check provider and App Check-enforced callable Functions,
+  so a sideloaded release APK can authenticate and then be rejected when it calls
+  the backend. Do not disable App Check to make public sideloads work.
+- If Google sign-in fails only in a Play-installed build, add the Play app-signing
+  SHA-1 and SHA-256 certificates to the Firebase Android app, enable the Google
+  provider, replace `google-services.json`, and rebuild with a new version code.
