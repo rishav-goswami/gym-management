@@ -202,7 +202,13 @@ class SessionCubit extends Cubit<SessionState> {
       ),
     );
     try {
-      await _repository.ensureConsumerAccount();
+      // Provisioning a consumer entitlement is server-owned, but it must not
+      // hold an existing gym member on the post-login loading screen. In
+      // particular, a temporarily unavailable callable Function should not
+      // prevent the member's already-authorized Firestore dashboard from
+      // loading. The call remains best-effort and is retried on later auth
+      // refreshes.
+      unawaited(_ensureConsumerAccountInBackground());
       final results = await Future.wait<dynamic>([
         _repository.membershipsFor(user.uid),
         _repository.userAccount(user.uid),
@@ -241,6 +247,17 @@ class SessionCubit extends Cubit<SessionState> {
           message: error.toString(),
         ),
       );
+    }
+  }
+
+  Future<void> _ensureConsumerAccountInBackground() async {
+    try {
+      await _repository.ensureConsumerAccount().timeout(
+        const Duration(seconds: 15),
+      );
+    } catch (_) {
+      // This is a retryable server-side provisioning task. Authentication and
+      // already-authorized dashboard access remain valid without it.
     }
   }
 
