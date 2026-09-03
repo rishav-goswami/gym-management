@@ -33,6 +33,17 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <script>
+    // Production reCAPTCHA Enterprise keys must not allow localhost. Firebase
+    // App Check instead requires a locally generated debug token for a
+    // localhost build. This branch cannot run from either deployed Hosting
+    // origin; the token itself must also be allowlisted in Firebase before it
+    // grants access.
+    if (window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1') {
+      self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    }
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

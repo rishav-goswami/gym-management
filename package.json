@@ -6,6 +6,7 @@
     "app:pubget": "cd apps/gym_app && fvm flutter pub get",
     "app:test": "cd apps/gym_app && fvm flutter test",
     "app:analyze": "cd apps/gym_app && fvm flutter analyze lib test",
+    "app:run:web": "cd apps/gym_app && fvm flutter run -d chrome --dart-define=APP_FLAVOR=development --dart-define=FIREBASE_APPCHECK_SITE_KEY=6LddO5otAAAAANe-6ZBAhGUrt87kjNLqiXbbfx8o",
     "app:build:web": "cd apps/gym_app && fvm flutter build web --release --dart-define=APP_FLAVOR=production --dart-define=FIREBASE_APPCHECK_SITE_KEY=6LddO5otAAAAANe-6ZBAhGUrt87kjNLqiXbbfx8o",
     "app:build:android-release": "node scripts/build-mobile-release.mjs android",
     "app:build:ios-release": "node scripts/build-mobile-release.mjs ios",

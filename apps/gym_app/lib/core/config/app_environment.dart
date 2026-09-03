@@ -68,7 +68,14 @@ class AppEnvironment {
     defaultValue: 'demo-gym-dev.appspot.com',
   );
   static String get webAppCheckSiteKey =>
-      const String.fromEnvironment('FIREBASE_APPCHECK_SITE_KEY');
+      // The development Firebase project is the checked-in default. This is a
+      // public reCAPTCHA Enterprise site key, not a credential; without it a
+      // direct `flutter run -d chrome` sends no App Check token and every
+      // App-Check-enforced callable is rejected after sign-in.
+      const String.fromEnvironment(
+        'FIREBASE_APPCHECK_SITE_KEY',
+        defaultValue: '6LddO5otAAAAANe-6ZBAhGUrt87kjNLqiXbbfx8o',
+      );
 
   /// Used by the Emulator Suite and by explicit staging/production
   /// `--dart-define` overrides. Normal development uses the platform-specific

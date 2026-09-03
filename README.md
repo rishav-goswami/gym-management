@@ -164,11 +164,22 @@ development identifiers are:
 Run directly against the development Firebase project with:
 
 ```sh
-cd apps/gym_app
-fvm flutter run -d chrome
+npm run app:run:web
 # or
+cd apps/gym_app
 fvm flutter run -d YOUR_IOS_DEVICE_ID
 ```
+
+`app:run:web` includes the public Firebase App Check site key required by the
+development project's enforced callable Functions. Staging and production builds
+must continue to provide their own `FIREBASE_APPCHECK_SITE_KEY` override.
+
+For the first cloud-backed run on `localhost`, open the browser developer
+console, copy the Firebase App Check debug token it prints, and add it under
+**Firebase console → App Check → Manage debug tokens**. The token is local to
+that browser and must never be committed. This is intentionally different from
+adding `localhost` to the production reCAPTCHA key, which would weaken App
+Check protection.
 
 The development cloud project is on Blaze. It has its Firestore database in
 `asia-south1` with deletion protection enabled, tenant rules and indexes
